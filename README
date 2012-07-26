@@ -1,0 +1,11 @@
+BSD License
+
+Colin Lea
+2012
+
+
+Numpy
+Scipy (inc. ndimage)
+scikits-learn
+mahota?
+from vision import features # pyvision library
