@@ -2,19 +2,17 @@ from copy import deepcopy
 import sys, os, time
 import cv2, numpy as np
 sys.path.append('/Users/colin/libs/visionTools/slic-python/')
-sys.path.append('/Users/colin/code/Kinect-Projects/activityRecognition/neighborSuperpixels')
 import slic
 import Image 
-from skeletonBeliefPropagation import *
-from graphAlgs import *
-from graphAlgs import *
-from geodesicSkeleton import *
-import neighborSuperpixels as nsp
+from pyKinectTools.algs.skeletonBeliefPropagation import *
+from pyKinectTools.algs.graphAlgs import *
+from pyKinectTools.algs.geodesicSkeleton import *
+import pyKinectTools.algs.neighborSuperpixels.neighborSuperpixels as nsp
 
 # saved = np.load('tmpPerson_close.npz')['arr_0'].tolist()
-saved = np.load('tmpPerson1.npz')['arr_0'].tolist()
+# saved = np.load('tmpPerson1.npz')['arr_0'].tolist()
 # objects1 = saved['objects']; labelInds1=saved['labels']; out1=saved['out']; d1=saved['d']; com1=saved['com'];featureExt1=saved['features']; posMat=saved['posMat']; xyz=saved['xyz']
-posMat=saved['posMat']; xyz=saved['xyz']
+# posMat=saved['posMat']; xyz=saved['xyz']
 
 time1 = time.time()
 mask_erode = posMat[:,:,2]>0
@@ -29,7 +27,7 @@ im4d = np.dstack([mask_erode, im8bit])
 # im4d = np.dstack([mask_erode, im8bit, im8bit, im8bit])
 
 # regions = slic.slic_n(np.array(im4d, dtype=uint8), 50,10)#2
-regions = slic.slic_n(np.array(im4d, dtype=uint8), 100,10)#2
+regions = slic.slic_n(np.array(im4d, dtype=uint8), 50,10)#2
 regions *= mask_erode
 
 avgColor = np.zeros([regions.shape[0],regions.shape[1],3])

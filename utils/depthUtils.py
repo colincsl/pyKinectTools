@@ -57,12 +57,13 @@ def world2depth(x_, y=0, z=0):
     return np.array([xo, yo, do])
 
 def posImage2XYZ(im_in, min_=500, max_=4000):
-    # Used to convert 8bit depth image to a 
+    # Used to convert 8bit depth image to a
     # 3 dimensional floating point image w/ x,y,z
     imOut = np.zeros([im_in.shape[0],im_in.shape[1],3], dtype=float)
     imOut[:,:,2] = im_in
-    imOut[:,:,2] *= float((max_-min_)/256)
-    imOut[imOut[:,:,2]>min_,2] += min_
+    imOut[:,:,2] *= float((max_-min_)/256.0)
+    # imOut[imOut[:,:,2]>min_,2] += min_
+    imOut[:,:,2] += min_
     imOut[:,:,2] *= imOut[:,:,2]>min_
 
     inds = np.nonzero(imOut[:,:,2]>min_)

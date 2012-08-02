@@ -4,9 +4,8 @@
 import Image 
 import sys, os
 import cv2
-from graphAlgs import *
-sys.path.append('/Users/colin/code/Kinect-Projects/activityRecognition/neighborSuperpixels')
-import neighborSuperpixels as nsp
+from pyKinectTools.algs.graphAlgs import *
+import pyKinectTools.algs.neighborSuperpixels as nsp
 
 def reorder(regions):
 	labs = unique(regions)
@@ -14,15 +13,16 @@ def reorder(regions):
 		regions[regions==lab_i] = i
 	return regions
 
-def edgeList2Dict(edges):
-	edgeDict = {}
-	for e1,e2 in edges:
-		if e1 not in edgeDict.keys():
-			edgeDict[e1] = [e2]
-		else:
-			edgeDict[e1].append(e2)
+#  Now in pKT.algs.graphAlgs
+# def edgeList2Dict(edges):
+# 	edgeDict = {}
+# 	for e1,e2 in edges:
+# 		if e1 not in edgeDict.keys():
+# 			edgeDict[e1] = [e2]
+# 		else:
+# 			edgeDict[e1].append(e2)
 
-	return edgeDict
+# 	return edgeDict
 
 def getRelativeDists(edgeDict):
 	relativeDists = []
@@ -176,7 +176,9 @@ imshow(imLines)
 
 ## -----  Overlay shapes -----
 im = posMat[:,:,2]
-template = np.ones([5,20])*2-1
+template = np.ones([10,50])*2-1
+template -= nd.binary_erosion(template, iterations=2)
+o = nd.convolve(im, template)
 
 func = lambda x: np.max(np.diff(x))
 grad = nd.generic_filter(im, func, size=(2,2)) # x-axis

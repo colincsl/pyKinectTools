@@ -1,24 +1,14 @@
 ''' Build with: python setup.py build_ext --inplace '''
 
-# import cython
-# cimport cython
 import numpy as np
 cimport numpy as np
-from libc.math cimport abs, floor, sqrt
+from libc.math cimport abs
 
 np.import_array()
 
-# ctypedef np.uint16_t UINT16
-# ctypedef np.int16_t INT16
 ctypedef np.uint8_t UINT8
 
-# cdef inline int int_max(int a, int b): return a if a >= b else b
-# cdef inline int int_min(int a, int b): return a if a <= b else b
-# cdef inline list ind2dim(int ind, int rezX, int rezY): 
-# 	return [floor(ind/rezX), ind-rezX*floor(ind/rezX)]
-# cdef inline int dim2ind(int i, int j, int rezX, int rezY): return (j*rezX+i)
-
-'''Compute the weighted distance to a point on the graph'''
+'''Compute all edges between segments'''
 # @cython.boundscheck(False)
 # @cython.wraparound(False)
 # @cython.infer_types(True)
@@ -31,14 +21,16 @@ cpdef inline list getNeighborEdges(np.ndarray[UINT8, ndim=2] regions):
 
 	cdef UINT8* regions_c = <UINT8*>regions.data
 
+	# Look left and above current node. If it is a different label, add to edges.
 	for y in range(1, height):
 		for x in range(1, width):
 			ind = y*width + x
-			ind2 = (y-1)*width + x
-			ind3 = y*width + x -1
+			ind2 = (y-1)*width + x # Above
+			ind3 = y*width + x -1  # Left
+			# If not the same label and both labels are not the background (=0)
 			if regions_c[ind] - regions_c[ind2] != 0 and regions_c[ind] > 0 and regions_c[ind2] > 0:
 				edges.append([regions_c[ind], regions_c[ind2]])
-			if regions_c[ind] - regions_c[ind3] != 0 and regions_c[ind] > 0 and regions_c[ind2] > 0:
+			if regions_c[ind] - regions_c[ind3] != 0 and regions_c[ind] > 0 and regions_c[ind3] > 0:
 				edges.append([regions_c[ind], regions_c[ind3]])
 
 	return edges

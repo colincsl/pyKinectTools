@@ -1,18 +1,23 @@
 import sys
 from scikits.learn import svm
+from sklearn import svm
 import scipy.ndimage as nd
+import scipy.io
 from scipy.io.matlab import loadmat
-from pyKinectTools.HOGUtils import *
+from pyKinectTools.utils.HOGUtils import *
 
 sys.path.append("/Users/colin/libs/pyvision/build/lib.macosx-10.7-intel-2.7/")
 from vision import features # pyvision library
 
+import pyKinectTools.data as ktData
+dataFolder = ktData.__file__
+dataFolder = dataFolder[:dataFolder.find("__init__")]
+
 #-------
 
-
 # Get training data
-trainingFeatures = io.loadmat('bodyPart_HOGFeatures.mat')
-trainingDepths = io.loadmat('bodyPart_DepthImgs.mat')
+trainingFeatures = scipy.io.loadmat(dataFolder+'bodyPart_HOGFeatures.mat')
+trainingDepths = scipy.io.loadmat(dataFolder+'bodyPart_DepthImgs.mat')
 
 bodyLabels = [x for x in trainingFeatures if x[0]!='_' and x!='other']
 featureCount = np.sum([len(trainingFeatures[x]) for x in bodyLabels if x!='other'])
@@ -33,6 +38,111 @@ for lab,i in zip(bodyLabels, range(len(bodyLabels))):
 		allFeaturesLabNum[tmp_i] = i+1
 		tmp_i += 1
 
+# display all heads
+
+faces = trainingDepths['face'][0][0]
+for i in range(1, len(trainingDepths['face'])):
+	imTmp = trainingDepths['face'][i][0]
+	if imTmp.shape[0] != 0:
+		faces = np.dstack([faces, imTmp])
+
+
+''' Gabor experiment '''
+if 0:
+	angles = range(0, 108*2, 90/5)
+	gabors = generateGabors(angles, [10,10], .5)
+
+	convs = []
+	for i in range(len(angles)):
+		convs.append(nd.convolve(imTmp, gabors[:,:,i]))
+	convs = np.array(convs)
+
+''' Display all faces '''
+import cv, cv2
+cv2.namedWindow("Face", cv2.CV_WINDOW_AUTOSIZE)
+for i in range(len(trainingDepths['face'])-1):
+	# imshow(trainingDepths['face'][i][0])
+	tmpImg = np.asarray(trainingDepths['face'][i][0], dtype=float)
+	## Normalize the image. Min min/max within standard deviations to help eliminate the background
+	if not np.all(tmpImg == 0):
+		imMean = tmpImg.mean()
+		imSTD = tmpImg.std()
+		min_ = tmpImg[tmpImg > imMean-1*imSTD].min()
+		tmpImg -= min_
+		max_ = tmpImg[tmpImg < imMean-min_+1*imSTD].max()
+		tmpImg[tmpImg>max_]=max_
+		tmpImg[tmpImg<0]=max_
+		tmpImg /= np.float(max_/255.0)
+	# tmpImg = np.minimum(tmpImg, 255)
+
+	tmpImg = np.asarray(tmpImg, dtype=np.uint8)
+	cv2.imshow("Face", tmpImg)
+	ret = cv2.waitKey(50)
+	if ret >= 0:
+		break
+cv2.destroyWindow("Face")
+
+allbodyparts = ['face', 'l_hand', 'r_hand']
+hogs = {}
+hogRes = 8
+for part in allbodyparts:
+	hogs[part] = []
+
+	bodypart = part
+	''' Get HOG features '''
+	for i in range(len(trainingDepths[bodypart])-1):
+		tmpImg = np.asarray(trainingDepths[bodypart][i][0], dtype=float)
+		## Normalize the image. Min min/max within standard deviations to help eliminate the background
+		if not np.all(tmpImg == 0):
+			imMean = tmpImg.mean()
+			imSTD = tmpImg.std()
+			min_ = tmpImg[tmpImg > imMean-1*imSTD].min()
+			tmpImg -= min_
+			max_ = tmpImg[tmpImg < imMean-min_+1*imSTD].max()
+			tmpImg[tmpImg>max_]=max_
+			tmpImg[tmpImg<0]=max_
+			tmpImg /= np.float(max_/255.0)	
+			tmpImg = np.asarray(tmpImg, dtype=np.uint8)
+
+			tmp = np.dstack([tmpImg, tmpImg, tmpImg])
+			hogs[part].append(features.hog(tmp, hogRes))
+
+
+from pyKinectTools.utils.HOGUtils import *
+hogList = list(hogs['face'])
+for p in hogs['l_hand']:
+	hogList.append(p)
+# hogList.append(hogs['l_hand'])
+# hogList = np.array(hogList)
+hogVals = np.empty([len(hogList), len(hogList[0].flatten())])
+for i in range(len(hogList)):
+	# hogList[i] = hogList[i].flatten()
+	hogVals[i,:] = hogList[i][0].flatten()[0]
+hogLabels = np.zeros(len(hogs['face'])+len(hogs['l_hand']))
+# hogLabels[0:len(hogs['face'])]+=1
+hogLabels[len(hogs['face']):]+=1
+
+# im = HOGpicture(hogList[1], hogRes)
+# imshow(im, interpolation='nearest')
+
+svm_ = svm.SVC(kernel='poly', probability=True, C=1, degree=2, gamma=1)
+# svm_ = svm.SVC(kernel='rbf', probability=True, nu=.7)#, C=1)#, )
+svm_.fit(hogVals, hogLabels)
+
+score = svm_.score(hogVals, hogLabels)
+probs = svm_.predict_proba(hogVals)
+print score
+
+from sklearn.ensemble import RandomForestClassifier	
+from sklearn.ensemble import ExtraTreesClassifier
+
+forest = ExtraTreesClassifier(n_estimators=50, compute_importances=True, n_jobs=7, bootstrap=True, random_state=0, max_features=1)
+forest.fit(hogVals, hogLabels)
+score = forest.score(hogVals, hogLabels)
+print score
+
+
+'''--------------------------------------------'''
 
 '''Catagorical SVMs'''
 #'''Train'''

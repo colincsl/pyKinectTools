@@ -14,8 +14,8 @@ import pyKinectTools.algs.dijkstras
 
 # path = '/Users/colin/data/ICU_7March2012_Head/'
 # path = '/Users/colin/data/ICU_7May2012_Wide/'
-# path = '/Users/colin/data/ICU_7May2012_Close/'
-path = '/Users/colin/data/ICU_7May2012_Wide/'
+path = '/Users/colin/data/ICU_7May2012_Close/'
+# path = '/Users/colin/data/ICU_7May2012_Wide/'
 
 # Tracking output directory:
 dir_ = '/Users/colin/code/pyKinectTools/data/ActionData/'
@@ -24,7 +24,8 @@ dir_ = '/Users/colin/code/pyKinectTools/data/ActionData/'
 '''------------------Init-----------------------'''
 #----Get mean images for bg subtraction-------#
 
-startTime = 8000; #wide, 1600#close
+# startTime = 8000 #wide
+startTime = 1600 #close
 framerate = 30;
 reader1 = ICUReader(path, framerate, startTime, cameraNumber=0, viz=0, vizSkel=0, skelsEnabled=0)
 
@@ -36,7 +37,7 @@ for i in xrange(10):
 
 depthImgs1 = np.dstack(depthImgs1)
 mean1 = getMeanImage(depthImgs1)
-m1 = constrain(mean1, 500, 4000)
+m1 = constrain(mean1, 500, 2000)
 
 
 '''--------------MAIN-----------------------'''
@@ -80,9 +81,10 @@ if 1:
 			tStart = time.time()
 			reader1.run()	
 			d1 = reader1.depthDataRaw
-			d1c = constrain(d1, 500, 4000)
+			d1c = constrain(d1, 500, 2000)
 			diff = np.array(m1, dtype=int16) - np.array(d1c, dtype=int16)
-			diffDraw1 = d1c*(diff > 20)			
+			diff *= (d1!=0)*(d1<2000)
+			diffDraw1 = d1c*(diff > 1)
 			out1, objects1, labelInds1 = extractPeople_2(diffDraw1)
 			if len(labelInds1) > 0:
 				d1, com1, vecs1, touched1 = featureExt1.run(d1, out1, objects1, labelInds1)
@@ -180,21 +182,25 @@ print end - start
 
 # Output images to jpgs
 if 0:
-	fold = '/Users/colin/data/ICU_7May2012_Wide_jpg/'
+	# fold = '/Users/colin/data/ICU_7May2012_Wide_jpg/'
+	fold = '/Users/colin/data/ICU_7May2012_Close_jpg/'
 	reader1 = ICUReader(path, framerate, startTime, cameraNumber=0, viz=0, vizSkel=0, skelsEnabled=0, serial=1)
 	i = 0
-	while (len(reader1.allPaths) > 0):	
-		reader1.run()	
-		d1 = reader1.depthDataRaw
-		d1c = constrain(d1, 500, 4000)
-		diff = np.array(m1, dtype=int16) - np.array(d1c, dtype=int16)
-		diffDraw1 = d1c*(diff > 20)			
+	while (len(reader1.allPaths) > 0):
+		try:
+			reader1.run()	
+			d1 = reader1.depthDataRaw
+			d1c = constrain(d1, 500, 2000)
+			diff = np.array(m1, dtype=int16) - np.array(d1c, dtype=int16)
+			diffDraw1 = d1c*(diff > 20)			
 
-		# scipy.misc.imsave(fold+"d1/"+str(i)+".jpg", d1)
-		scipy.misc.imsave(fold+"d1c/"+str(i)+".jpg", d1c)
-		scipy.misc.imsave(fold+"diffDraw1/"+str(i)+".jpg", diffDraw1)
-		print len(reader1.allPaths), "left"
-		i+=1
+			# scipy.misc.imsave(fold+"d1/"+str(i)+".jpg", d1)
+			scipy.misc.imsave(fold+"d1c/"+str(i)+".jpg", d1c)
+			# scipy.misc.imsave(fold+"diffDraw1/"+str(i)+".jpg", diffDraw1)
+			print len(reader1.allPaths), "left"
+			i+=1
+		except:
+			print "Error frame"
 
 
 

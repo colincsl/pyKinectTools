@@ -1,4 +1,5 @@
 import numpy as np
+from copy import deepcopy
 
 
 def MinimumSpanningTree(distMatrix, startNode=0):
@@ -161,6 +162,97 @@ def UnstructuredAStar(start, end, edgeLists, regionXYZ):
 	print "Error"
 	return []
 
+
+
+def UnstructuredDijkstras(regionXYZ, edgeDict_):
+	edgeDict = deepcopy(edgeDict_)
+	nodeCount =len(regionXYZ)
+	distMat = np.ones([nodeCount, nodeCount], dtype=float)*np.inf
+
+	for i in edgeDict.keys():
+		for j in edgeDict[i]:
+			distMat[i,j] = np.sqrt(np.sum((regionXYZ[i]-regionXYZ[j])**2))
+			distMat[j,i] = distMat[i,j]
+
+	for i in edgeDict.keys():
+		# currentNode = i
+		# currentCost = 0
+		openSet = range(1,nodeCount)
+		openSet.remove(i)
+
+		nextEdges = edgeDict[i]
+		iters = 0
+		while len(openSet) > 0 and iters < 1000:
+			iters += 1
+			for j in nextEdges:
+				if distMat[i,j] < np.inf:
+					currentCost = distMat[i,j]
+					for k in edgeDict[j]:
+						if i != k:
+							if distMat[j,k]+currentCost < distMat[i,k]:
+								distMat[i,k] = distMat[j,k]+currentCost
+							if k in openSet:					
+								openSet.remove(k)							
+								nextEdges.append(k)
+
+					if j in openSet:
+						openSet.remove(j)
+
+			# nextEdges = set.difference(set(np.nonzero(distMat[i,:]<np.inf)[0]), set(nextEdges))
+			# nextEdges = [x for x in nextEdges if x != 0]
+
+	return distMat
+
+
+def UnstructuredDijkstrasAndBend(regionXYZ, edgeDict):
+	
+	nodeCount =len(regionXYZ)
+	distMat = np.ones([nodeCount, nodeCount], dtype=float)*np.inf
+	bendMat = np.zeros([nodeCount, nodeCount], dtype=float)#*np.inf
+	bendVecs = np.zeros([nodeCount, nodeCount, 3], dtype=float)
+
+	for i in edgeDict.keys():
+		for j in edgeDict[i]:
+			distMat[i,j] = np.sqrt(np.sum((regionXYZ[i]-regionXYZ[j])**2))
+			distMat[j,i] = distMat[i,j]
+			bendMat[i,j] = 0
+			bendMat[j,i] = 0			
+			bendVecs[i,j] = (regionXYZ[j] - regionXYZ[i]) / np.linalg.norm(regionXYZ[j] - regionXYZ[i])
+			bendVecs[j,i] = -bendVecs[i,j]
+
+	for i in edgeDict.keys():
+		# currentNode = i
+		# currentCost = 0
+		openSet = range(1,nodeCount)
+		openSet.remove(i)
+
+		nextEdges = edgeDict[i]
+		iters = 0
+		while len(openSet) > 0 and iters < 1000:
+			iters += 1
+			for j in nextEdges:
+				if distMat[i,j] < np.inf:
+					currentCost = distMat[i,j]
+					currentBend = bendMat[i,j]
+					for k in edgeDict[j]:
+						if i != k:
+							if distMat[j,k]+currentCost < distMat[i,k]:
+								bendVecs[i,k] = (regionXYZ[j] - regionXYZ[k]) / np.linalg.norm(regionXYZ[j] - regionXYZ[k])
+								distMat[i,k] = currentCost+distMat[j,k]
+								bendMat[i,k] = currentBend + (1.0 - np.abs(np.dot(bendVecs[i,j],bendVecs[i,k])))
+							if k in openSet:					
+								openSet.remove(k)
+								nextEdges.append(k)
+
+					if j in openSet:
+						openSet.remove(j)
+
+	bendMat = np.maximum(bendMat, bendMat.T)
+
+	return distMat, bendMat
+
+
+
 def reconstructPath(prevNode, currentNode):
 	if prevNode[currentNode] != -1:
 		p = []
@@ -174,4 +266,25 @@ def reconstructPath(prevNode, currentNode):
 		return p
 	else:
 		return currentNode
+
+
+
+def edgeList2Dict(edges):
+	edgeDict = {}
+	for e1,e2 in edges:
+		if e1 not in edgeDict.keys():
+			edgeDict[e1] = [e2]
+		else:
+			edgeDict[e1].append(e2)
+
+	return edgeDict
+
+def edgeDict2List(edgeDict):
+	edges = []
+	for e in edgeDict.keys():
+		for e2 in edgeDict[e]:
+			edges.append([e, e2])
+
+	return edges
+
 

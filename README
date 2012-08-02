@@ -1,11 +1,41 @@
-BSD License
+pyKinectTools
 
 Colin Lea
 2012
 
-
+---Dependencies---
 Numpy
 Scipy (inc. ndimage)
 scikits-learn
-mahota?
 from vision import features # pyvision library
+
+---Tools---
+
+Exemplar SVM?
+
+
+Background subtraction
+Simple person tracker
+Feature extraction
+
+Geodesic extrema
+
+Superpixels (+wrapper)
+Graph Algorithms
+Belief Propagation (tree-based)
+
+Iterative Closest point
+
+PCA-based gesture recognition
+
+Space-time interest point detector
+
+Laplacian Eigenmaps
+
+depth image utilities (xyz2depth,..)
+stream depth images
+skeleton utis
+HOG visualization (uses pyVision)
+chalearn annotated dataset reader
+Profiler template
+cython template

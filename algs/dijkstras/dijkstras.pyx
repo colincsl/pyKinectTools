@@ -11,10 +11,7 @@ ctypedef np.uint16_t UINT16
 ctypedef np.int16_t INT16
 ctypedef np.uint8_t UINT8
 
-# from cython.parallel import prange
 np.import_array()
-
-# cython: profile=True
 
 cdef inline int int_max(int a, int b): return a if a >= b else b
 cdef inline int int_min(int a, int b): return a if a <= b else b
@@ -32,18 +29,20 @@ cpdef inline list graphDijkstras(np.ndarray[INT16, ndim=2] dists2Tot, np.ndarray
 	cdef unsigned int currentCost, direc,prevDirec, found, checkAll
 	cdef int tmp, tmpMin=0, tmpNeigh=0
 	cdef int currentVal
+	cdef int VISITED = 254, OUTOFBOUNDS=255
+	cdef int vTMP = 250
 	cdef unsigned int d, length, i, x, y, j
 	cdef unsigned int shape_[2]
 	cdef int neigh[2][4]
-	shape_[0] = np.shape(dists2)[0]# was 0
-	shape_[1] = np.shape(dists2)[1]# was 1	
-	# shape_[1] = np.shape(dists2)[0]
-	# shape_[0] = np.shape(dists2)[1]
-	# print shape_[0], shape_[1]
+	shape_[0] = np.shape(dists2)[0]
+	shape_[1] = np.shape(dists2)[1]
 
-	cdef INT16 dists2_c[720][480][4]#[shape_[0]][shape_[1]]
-	cdef INT16 dists2Tot_c[720][480]#[shape_[0]][shape_[1]]
-	cdef UINT8 visitMat_c[720][480]#[shape_[0]][shape_[1]]
+	cdef INT16 dists2_c[720][480][4]
+	cdef INT16 dists2Tot_c[720][480]
+	cdef UINT8 visitMat_c[720][480]
+
+	# cdef np.uint16_t ***dists2_c = <np.uint16_t***>dists2.data
+
 	''' Put images into c arrays '''
 	for x in range(shape_[0]):
 		for y in range(shape_[1]):
@@ -65,14 +64,13 @@ cpdef inline list graphDijkstras(np.ndarray[INT16, ndim=2] dists2Tot, np.ndarray
 	''' main '''
 	while(1):
 	# for i in range(length):
-	# for i in prange(length, nogil=True):
 		currentCost = dists2Tot_c[current[0]][current[1]]
 		neigh[0][0] = current[0]-1; 	neigh[1][0] = current[1]
 		neigh[0][1] = current[0]+1;		neigh[1][1] = current[1]
 		neigh[0][2] = current[0];		neigh[1][2] = current[1]+1
 		neigh[0][3] = current[0];		neigh[1][3] = current[1]-1
 				
-		visitMat_c[<unsigned int>current[0]][<unsigned int>current[1]] = 254
+		visitMat_c[<unsigned int>current[0]][<unsigned int>current[1]] = VISITED
 
 		''' Check if in bounds'''
 		if (current[0] < 1) or (current[0] > shape_[0]-1) or (current[1] < 1) or (current[1] > shape_[1]-1):
@@ -97,25 +95,26 @@ cpdef inline list graphDijkstras(np.ndarray[INT16, ndim=2] dists2Tot, np.ndarray
 		''' Compute new distances and add nodes to visit list'''
 		tmpNeigh = 0
 		for j in range(4):
-			if visitMat_c[neigh[0][j]][neigh[1][j]] == 255:
+			if visitMat_c[neigh[0][j]][neigh[1][j]] == OUTOFBOUNDS:
 				tmpNeigh += 1
 				if tmpNeigh == 3:
-					visitMat_c[<unsigned int>current[0]][<unsigned int>current[1]] = 255
+					visitMat_c[<unsigned int>current[0]][<unsigned int>current[1]] = OUTOFBOUNDS
 
 
 			# if dists2_c[current[0]][current[1]][j] > 10000:
 			visitMat_c[neigh[0][j]][neigh[1][j]] = int_max(1, visitMat_c[neigh[0][j]][neigh[1][j]])
 			dists2Tot_c[neigh[0][j]][neigh[1][j]] = int_min(dists2Tot_c[neigh[0][j]][neigh[1][j]], (dists2_c[current[0]][current[1]][j] + currentCost +1))
-			# if visitMat_c[neigh[0][j]][neigh[1][j]] == 255:
+			# if visitMat_c[neigh[0][j]][neigh[1][j]] == OUTOFBOUNDS:
 			# 	visitMat_c[<unsigned int>current[0]][<unsigned int>current[1]] = 255
 			# else:
 				# visitMat_c[neigh[0][j]][neigh[1][j]] = int_max(1, visitMat_c[neigh[0][j]][neigh[1][j]])
 				# dists2Tot_c[neigh[0][j]][neigh[1][j]] = 0#int_min(dists2Tot_c[neigh[0][j]][neigh[1][j]], (dists2_c[current[0]][current[1]][j] + currentCost))
 
 		''' Find minimum direction (gradient)'''
-		tmpMin = 30000
+		# tmpMin = 30000
+		tmpMin = 32000
 		for j in range(4):
-			if visitMat_c[neigh[0][j]][neigh[1][j]] < 250:
+			if visitMat_c[neigh[0][j]][neigh[1][j]] < vTMP:
 				tmp = dists2Tot_c[neigh[0][j]][neigh[1][j]]+visitMat_c[neigh[0][j]][neigh[1][j]]
 				if tmp < tmpMin:
 					tmpMin = tmp
@@ -132,7 +131,7 @@ cpdef inline list graphDijkstras(np.ndarray[INT16, ndim=2] dists2Tot, np.ndarray
 		'''	Check if neighbors have all been visited'''
 		checkAll = 0
 		for j in range(4):
-			if visitMat_c[neigh[0][j]][neigh[1][j]] > 250:
+			if visitMat_c[neigh[0][j]][neigh[1][j]] > vTMP:
 				checkAll += 1
 		if checkAll == 4:
 			found = 0
@@ -153,23 +152,25 @@ cpdef inline list graphDijkstras(np.ndarray[INT16, ndim=2] dists2Tot, np.ndarray
 	'''Create trail going from max to min'''
 	cdef int maxVal = 0
 	cdef int maxInd[2]
+	# Get max value
 	maxInd[0] = 0; maxInd[1] = 0
 	for x in range(shape_[0]):
 		for y in range(shape_[1]):
-			if visitMat_c[x][y] == 254 and dists2Tot_c[x][y] > maxVal and dists2Tot_c[x][y] < 30000:
+			if visitMat_c[x][y] == VISITED and dists2Tot_c[x][y] > maxVal and dists2Tot_c[x][y] < 30000:
 				maxVal = dists2Tot_c[x][y]
 				maxInd[0] = x
 				maxInd[1] = y
 
-	# print "maxes: ", maxInd[0], maxInd[1], maxVal
+	cdef int break_=0
 	cdef int trailLen=1
 	cdef int v
 	cdef int trail[2000][2]	
+	cdef int tmpInd
 	trail[0][0] = maxInd[0]; trail[0][1] = maxInd[1]
 	current[0] = maxInd[0]; current[1] = maxInd[1]
 	currentVal = maxVal
 	prevDirec = 0
-	while (currentVal != 0 and trailLen < 2000):
+	while (currentVal != 0 and trailLen < 2000 and break_==0):
 		neigh[0][0] = current[0]-1; 	neigh[1][0] = current[1]
 		neigh[0][1] = current[0]+1;		neigh[1][1] = current[1]
 		neigh[0][2] = current[0];		neigh[1][2] = current[1]+1
@@ -184,7 +185,7 @@ cpdef inline list graphDijkstras(np.ndarray[INT16, ndim=2] dists2Tot, np.ndarray
 			if 1 and \
 					neigh[0][j] > 0 and neigh[1][j] >= 0 and \
 					neigh[0][j] < shape_[0] and neigh[1][j] < shape_[1] and \
-					visitMat_c[neigh[0][j]][neigh[1][j]] == 254:
+					visitMat_c[neigh[0][j]][neigh[1][j]] == VISITED:
 
 				v = dists2Tot_c[neigh[0][j]][neigh[1][j]]
 				tmp = dists2Tot_c[current[0]][current[1]] - v
@@ -209,7 +210,14 @@ cpdef inline list graphDijkstras(np.ndarray[INT16, ndim=2] dists2Tot, np.ndarray
 		trail[trailLen][1] = current[1]
 		trailLen += 1
 
-		# print direc, tmpMin
+		for j in range(7,10):
+			if (trailLen-j) > 0:
+				tmpInd = trailLen-j
+				# print "i", current[0], current[1], trail[tmpInd][0],trail[tmpInd][1]
+				if current[0] == trail[tmpInd][0] and current[1] == trail[tmpInd][1]:
+					break_ = 1
+					break
+
 	cdef list trailOut = []
 	for x in range(trailLen):
 		trailOut.append([trail[x][0], trail[x][1]])
@@ -224,7 +232,7 @@ cpdef inline list graphDijkstras(np.ndarray[INT16, ndim=2] dists2Tot, np.ndarray
 	return trailOut
 
 
-''' --------------AStar----------------------- '''
+#''' --------------AStar----------------------- '''
 
 # cdef list UnstructuredDijkstras(int start, int end, list edges, list edgePositions):
 # 	cdef int nodeCount = len(edgePositions)

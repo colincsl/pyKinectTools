@@ -97,26 +97,38 @@ def extractPeople_old(img):
 
 	return d1A, goodObjs
 
-
+# @Deprecated
 def extractPeople_2(im):
-	minPersonPixThresh = 3000
-	im_ = im[1:480, 1:640]
-	im = np.array(im, dtype=np.int16)
-	grad_x = im[1:480, 1:640] - im[1:480, 0:639]
-	grad_y = im[1:480, 1:640] - im[0:479, 1:640]
-	grad_g = np.maximum(np.abs(grad_y), np.abs(grad_x))
-	grad_bin = (grad_g < 20)*(im_ > 0)
+	return extractPeople(im)
 
-	for i in xrange(4):
-		grad_bin = nd.binary_erosion(grad_bin)
+def extractPeople(im, minPersonPixThresh=5000, gradientFilter=True):
+	# im *= im < im.max()
+	# shape_ = im.shape
+	# im_ = im[1:shape_[0], 1:shape_[1]]
+	im = np.array(im, dtype=np.int16)
+
+	if not gradientFilter:
+		grad_bin = im > 0
+	else:
+		grad = np.gradient(im)
+		# grad_x = im[1:shape_[0], 1:shape_[1]] - im[1:shape_[0], 0:shape_[1]-1]
+		# grad_y = im[1:shape_[0], 1:shape_[1]] - im[0:shape_[0]-1, 1:shape_[1]]
+		# grad_g = np.maximum(np.abs(grad_y), np.abs(grad_x))
+		grad_g = np.sqrt(grad[0]**2+grad[1]**2)
+		grad_bin = (grad_g < 20)*(im > 0)
+
+		grad_bin = nd.binary_erosion(grad_bin, iterations=2)
 
 	labels = nd.label(grad_bin)
-	objs = nd.find_objects(labels[0])
-	# get rid of noise (if count is too low)
-	objs2 = [x for x in zip(objs, (range(1, len(objs)+1))) if nd.sum(labels[0][x[0]]==x[1]) > minPersonPixThresh]
+	objs = nd.find_objects(labels[0], labels[1])
+
+	# Only extract if there are sufficient pixels
+	objs2 = [x for x in zip(objs,range(1, len(objs)+1)) if minPersonPixThresh < nd.sum(labels[0][x[0]]==x[1]) < .9*im.shape[0]*im.shape[1] ]
+	# [x[0]]
 	if len(objs2) > 0:
 		objs, goodLabels = zip(*objs2) # unzip objects
 	else:
+		objs = []
 		goodLabels = []
 
 	return labels[0], objs, goodLabels
@@ -134,4 +146,14 @@ def getMeanImage(depthImgs):
 
 	return mean_
 
+
+def removeNoise(im, thresh=500):
+	#Thresh is the envelope in the depth dimension within we remove noise
+	zAvg = im[im[:,:,2]>0,2].mean()
+	zThresh = thresh
+	im[im[:,:,2]>zAvg+zThresh] = 0
+	im[im[:,:,2]<zAvg-zThresh] = 0
+	im[:,:,2] = nd.median_filter(im[:,:,2], 3)
+
+	return im
 

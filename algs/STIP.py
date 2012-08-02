@@ -1,8 +1,8 @@
 import numpy as np
 import scipy.misc
 import os, sys
-import ndimage as nd
-
+import scipy.ndimage as nd
+from scikits.learn import neighbors
 
 
 ## Gabor filter
@@ -50,5 +50,29 @@ def generateGabors(angles, size=[20,20], rho=1):
 			gabors[:,:] = s*gauss
 
 	return gabors
+
+
+
+
+def adaptiveNonMaximalSuppression(pts, vals, radius=1):
+	# tree = neighbors.BallTree(pts.T)
+ # 	nn = tree.query_radius(pts.T, radius)
+
+	tree = neighbors.NearestNeighbors()
+	tree.fit(pts)
+	nn = tree.radius_neighbors(pts, radius, return_distance=False)
+
+ 	outputPts = []
+ 	for i in range(len(pts)):
+ 		
+ 		if vals[i] >= vals[nn[i]].max():
+ 			outputPts.append(pts[i])
+ 			# print vals[i],vals[nn[i]].max(), nn[i], i
+
+ 	outputPts = np.array(outputPts)
+ 	return outputPts
+
+
+
 
 

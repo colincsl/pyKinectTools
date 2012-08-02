@@ -1,8 +1,8 @@
 import numpy as np
 sys.path.append('/Users/colin/libs/visionTools/slic-python/')
 import slic
-from skeletonBeliefPropagation import *
-from graphAlgs import *
+from pyKinectTools.algs.skeletonBeliefPropagation import *
+from pyKinectTools.algs.graphAlgs import *
 
 
 # # Test on ICU data
