@@ -1,0 +1,16 @@
+
+
+[test]
+nose>=0.10.1
+
+[doc]
+Sphinx>=0.3
+
+[zmq]
+pyzmq>=2.1.4
+
+[parallel]
+pyzmq>=2.1.4
+
+[notebook]
+tornado>=2.0
