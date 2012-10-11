@@ -5,12 +5,13 @@ from pyKinectTools.utils.DepthUtils import *
 from openni import *
 import time
 
-class rtDepth:
+class RealTimeDevice:
 	ctx = []
 	depth = []
-	rgb = []
 	depthIm = []
 	depthIm8 = []
+	color = []	
+	colorIm = []	
 
 	constrain = []
 	maxDist = np.inf
@@ -40,10 +41,10 @@ class rtDepth:
 	def addColor(self):
 
 		try:
-			self.depth = DepthGenerator()
-			self.depth.create(self.ctx)
-			self.depth.set_resolution_preset(RES_VGA)
-			self.depth.fps = 30			
+			self.color = ImageGenerator()
+			self.color.create(self.ctx)
+			self.color.set_resolution_preset(RES_VGA)
+			self.color.fps = 30			
 		except:
 			print "Color module can not load."			
 
@@ -67,6 +68,10 @@ class rtDepth:
 			im[im > self.maxDist] = 0
 			self.depthIm = im
 			self.depthIm8 = constrain(im, self.constrain[0], self.constrain[1])
+
+		if self.color != []:
+			colorRawT = self.color.get_tuple_image_map()
+			self.colorIm = np.array(colorRawT, dtype=np.uint8).reshape([self.color.res[1],self.color.res[0], 3])
 
 
 	def generateBackgroundModel(self):

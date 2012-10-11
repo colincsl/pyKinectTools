@@ -5,7 +5,7 @@ from copy import deepcopy
 
 # import DepthReader
 # from SkelPlay import *
-from pyKinectTools.algs.PeopleTracker import *
+from pyKinectTools.algs.PersonTracker import *
 from random import randint
 import random as rand
 

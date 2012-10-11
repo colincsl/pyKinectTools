@@ -2,47 +2,48 @@
 import numpy as np, cv, cv2
 import time, os
 from copy import deepcopy
-os.chdir('/Users/colin/code/Kinect-Projects/activityRecognition/')
 
-import pyKinectTools.utils.DepthReader
-import pyKinectTools.utils.SkeletonUtils
-import pyKinectTools.algs.PeopleTracker
+from pyKinectTools.utils.DepthReader import *
+from pyKinectTools.utils.SkeletonUtils import *
+from pyKinectTools.algs.PeopleTracker import *
 
-# from SkelPlay import *
-# from PeopleTracker import *
 import random as rand
 
 
 # labels = {1:'Rounds', 2:'Talking', 3:'Observing', 4:'Checkup', 5:'Procedure', 6:'Unrelated'}
-labels = {1:'ventilator', 2:'talking', 3:'observing', 4:'diagnostics',\
- 5:'urine', 6:'other', 7:'documentation', 8:'procedure', 9:'error'}
-labels = {1:'ventilator', 3:'observing', 4:'diagnostics',\
+# labels = {1:'ventilator', 2:'talking', 3:'observing', 4:'diagnostics',\
+#  5:'urine', 6:'other', 7:'documentation', 8:'procedure', 9:'error'}
+labels = {1:'ventilator', 3:'observing/talking', 4:'checkup/diagnostics',\
  5:'urine', 6:'other', 7:'documentation', 8:'procedure'}
 
+# data = np.load('ActionData/1_5-9_Wide_labeled_AMIA.npz')
+data = np.load('ActionData/1_5-9_Wide_labeled_good.npz')
+dir_ = '/Users/colin/data/ICU_7May2012_Wide/'
 
-labelData("1.npz", '/Users/colin/data/ICU_7March2012_Head/', speed=10)
-playData("1.npz", '/Users/colin/data/ICU_7March2012_Head/', speed=10)
-playData("1.npz", '/Volumes/ICU/ICU_7March2012_Head/', speed=10)
-labelData("1.npz", '/Volumes/ICU/ICU_7March2012_Head/', speed=20)
+# labelData("1.npz", '/Users/colin/data/ICU_7March2012_Head/', speed=10)
+# playData("1.npz", '/Users/colin/data/ICU_7March2012_Head/', speed=10)
+# playData("1.npz", '/Volumes/ICU/ICU_7March2012_Head/', speed=10)
+# labelData("1.npz", '/Volumes/ICU/ICU_7March2012_Head/', speed=20)
 
-labelData("1_5-9_Wide.npz", '/Users/colin/data/ICU_7May2012_Wide/', speed=20)
-labelData("2_5-9_Close.npz", '/Users/colin/data/ICU_7May2012_Close/', speed=20)
+# labelData("1_5-9_Wide.npz", '/Users/colin/data/ICU_7May2012_Wide/', speed=20)
+# labelData("2_5-9_Close.npz", '/Users/colin/data/ICU_7May2012_Close/', speed=20)
 
-playData("1.npz", '/Users/colin/data/ICU_7May2012_Wide/', speed=10)
-playData("1.npz", '/Users/colin/data/ICU_7May2012_Close/', speed=10)
+# playData("1_5-9_Wide.npz", '/Users/colin/data/ICU_7May2012_Wide/', speed=10)
+# playData("1.npz", '/Users/colin/data/ICU_7May2012_Close/', speed=10)
 
 
-labelData("2_800s.npz", '/Users/colin/data/ICU_7March2012_Foot/')
-playData("2.npz", '/Users/colin/data/ICU_7March2012_Foot/')
-playData("2.npz", '/Volumes/ICU/ICU_7March2012_Foot/', speed=10)
-labelData("2.npz", '/Volumes/ICU/ICU_7March2012_Foot/', speed=20)
-
+# labelData("2_800s.npz", '/Users/colin/data/ICU_7March2012_Foot/')
+# playData("2.npz", '/Users/colin/data/ICU_7March2012_Foot/')
+# playData("2.npz", '/Volumes/ICU/ICU_7March2012_Foot/', speed=10)
+# labelData("2.npz", '/Volumes/ICU/ICU_7March2012_Foot/', speed=20)
 
 if 0:
 	if 0:
-		data = np.load('ActionData/1_5-9_Wide_labeled_good.npz')
+		# data = np.load('ActionData/1_5-9_Wide_labeled_good.npz')
+		
 		# data = np.load('ActionData/1_4-23_labeled.npz')
-		data = np.load('ActionData/1.npz')
+		# data = np.load('ActionData/1.npz')
+		# dir_ = '/Users/colin/data/ICU_7May2012_Wide_jpg/'
 		# dir_ = '/Users/colin/data/ICU_7March2012_Head/'
 		dir_ = '/Users/colin/data/ICU_7May2012_Wide/'
 	else:
@@ -57,7 +58,8 @@ if 0:
 	m = data['meta']	
 	p = [x for x in p if type(x['label'])==unicode]
 	p = [x for x in p if int(x['label']) != 9] # not erroneous
-	p = [x for x in p if int(x['label']) != 9] # not erroneous
+	p = [x for x in p if int(x['label']) != -1] # not erroneous
+
 	for i in xrange(len(p)):
 		if int(p[i]['label']) == 2:
 			p[i]['label'] = 3
@@ -79,29 +81,44 @@ if 0:
 	for i in xrange(len(labelNames)):
 		labelInds.append([y for x,y in zip(p, range(0,len(p))) if 'label' in x.keys() and int(x['label'])==labelNames[i]])
 
+	labeledTimes = []
+	for i in xrange(len(labelNames)):
+		labeledTimes.append(np.sum([p[x]['elapsed'] for x in labelInds[i]]))
+
+
+# -------
+
 	# Show label images
 	for lab in xrange(len(labelNames)):
 		figure(lab)
-		for i in xrange(len(inds[lab])):
-			subplot(2,int(len(inds[lab])/2),i)	
-			img = DepthReader.getDepthImage(dir_+p[inds[lab][i]]['data']['filename'][0])
+		for i in xrange(len(labelInds[lab])):
+			subplot(2,int(len(labelInds[lab])/2),i)	
+			img = DepthReader.getDepthImage(dir_+p[labelInds[lab][i]]['data']['filename'][0])
 			imshow(img)
 			axis('off')
 			title(labelNames[lab])
 
-	### Time ###
+	################# Time #############
 	# Get time for each label
-	labeledTimes = []
-	for i in xrange(len(labelNames)):
-		labeledTimes.append(np.sum([p[x]['elapsed'] for x in inds[i]]))
+	allTimes = [x['elapsed'] for x in p]	
+	labeledTimes = [np.sum([p[x2]['elapsed'] for x2 in x]) for x in labelInds]
+	classifiedTimes = [np.sum(allTimes*(classifiedLabels==i)) for i in labelNames]
+
+	bar(np.array(range(len(labeledTimes)))*2, labeledTimes, color='r')
+	bar(np.array(range(len(labeledTimes)))*2+1, classifiedTimes, color='b')
+	title('Time per task'); xlabel('Tasks'); ylabel('Time (sec)')
+	xticks(np.arange(1,len(labels)*2, 2), [x[1] for x in labels.items()]); 
 
 	# Time histogram
 	times = [x['elapsed'] for x in p if x['elapsed'] > 10]
 	times_hist = np.histogram(times, bins=20, range=[10,250])
-	plot(times_hist[0])
+	plot(times_hist[0], 'k')
 	title('Histogram of action durations (Median: 37 sec)')
-	xticks(range(0,len(times_hist[1]), 2), times_hist[1][::2]); xlabel('Time (sec)');
-	ylabel('Count')
+	xticks(np.arange(1,len(labels)*2, 2), [x[1] for x in labels.items()]); 
+	# xticks(range(.5,len(times_hist[1])*2+1, 2), times_hist[1][::2]); 
+	xlabel('Time (sec)'); ylabel('Count')
+
+	# Time plot
 
 	# Average times
 	eventCount = np.sum([1 for x in p if x['elapsed'] > 10])	
@@ -156,13 +173,35 @@ if 0:
 	xticks(fontsize=16)
 	yticks(fontsize=16)
 
+	# *****************************
+	# Plot of each action over time
+	COLORS = 'krgbcmy'
 	figure(3)
 	ids = []
+	maxEnd = 0
+	cumDurations = np.zeros(len(labelNames))
 	for i in range(len(p)):
 		start = p[i]['data']['time'][0]
 		end = p[i]['data']['time'][-1]
-		l = p[i]['label']
-		plot([start, end], [l,l], linewidth=20)
+
+		if end > maxEnd:
+			maxEnd = end
+		l = int(p[i]['label'])
+		if l > 1:
+			l -= 1
+		cumDurations[l-1] += end-start
+		l2 = deepcopy(classifiedLabels[i])
+		if l2 > 1:
+			l2 -= 1
+
+		# plot([start, end], [l,l], linewidth=2, color=COLORS[mod(l,len(COLORS))])
+		plot([start, end], [l+.15,l+.15], linewidth=3, color='r')
+		plot([start, end], [l2-.15,l2-.15], linewidth=3, color='b')		
+	axis([0, maxEnd, 0, 8])
+	title('Actions over time')
+	xlabel('Time (hours)'); ylabel("Actions")
+	yticks(range(1,len(labeledTimes)+1,1), [x[1] for x in labels.items()]); 
+	xticks(range(0,maxEnd, 3600), floor(arange(0, maxEnd, 3600)/3600))
 
 	# Show images
 	for i in range(len(argmaxs_)):
@@ -183,13 +222,13 @@ if 0:
 	figure(4)
 	# for i in range(len(argmaxs_)):
 		# com = p[argmaxs_[i]]['com']
-	colors = 'rgbkcy'
+
 	# tt=0
 	# for i in xrange(30000):
 	# 	if i in timeEvents:
 	# 		for val,j in zip(timeEvents[i], xrange(len(timeEvents[i]))):
 	# 			com = p[timeEvents[i][val][0]]['com']
-	# 			plot(-com[0], com[2], 'o', color=colors[j%6])
+	# 			plot(-com[0], com[2], 'o', color=COLORS[j%6])
 	# 			tt +=1
 	t == 0
 	for per in p:
@@ -202,6 +241,21 @@ if 0:
 	xticks(fontsize=16); yticks(fontsize=16)
 	axis([-1050,1050,500, 3100])
 	axis('equal')
+
+
+
+	# Display jpgs of one activity
+	uInds = labelInds[4]
+	cv2.namedWindow("win")
+	for i in uInds:
+		for filename in p[i]['data']['filename']:
+			im = getDepthImage(dir_+filename)
+			# imshow(im)
+			cv2.imshow("win", im.astype(np.float)/im.max())
+			cv2.waitKey(1)
+		cv2.imshow("win", np.ones([200,200])*255)
+		cv2.waitKey(100)			
+
 
 	# -------------------Features-------------------------------------------------	
 	frameCounts = [len(x['data']['time']) for x in p]
@@ -282,6 +336,10 @@ if 0:
 	comsX = coms[:,0]
 	comsY = coms[:,1]
 	comsZ = coms[:,2]
+	# comsSTD = np.array([np.std(x['data']['com'], 0) for x in p])
+	# comsX = comsSTD[:,0]
+	# comsY = comsSTD[:,1]
+	# comsZ = comsSTD[:,2]
 
 	## Orientation comparison
 	ornFeatures = np.array([np.mean(x['data']['ornCompare'], 0) for x in p])
@@ -307,6 +365,7 @@ if 0:
 		# plot(ang1Hist)
 		ornHists.append(ang1Hist)
 	ornHists = np.array(ornHists)
+	ornHists = np.nan_to_num(ornHists)
 
 	
 	# do personCount
@@ -378,10 +437,10 @@ if 0:
 	featuresNorm = np.array(featuresNorm).T
 
 	X = featuresNorm
-	X = np.nan_to_num(X)
-	COLORS = 'rgbkcyr'*2
+	# X = np.nan_to_num(X)
+	COLORS = 'rgbcmyk'
 	eventLabels = [int(x['label']) for x in p]
-	labelColorsTmp = [COLORS[int(x['label'])] for x in p]
+	labelColorsTmp = [COLORS[int(x['label'])%len(COLORS)] for x in p]
 
 	# --------------------------------------------------------------------------------
 	## Clustering
@@ -538,6 +597,7 @@ if 0:
 	# ----------------- SVM pair-wise ---------------------
 	from sklearn import svm as SVM
 	truthLabels = np.array([int(x['label']) for x in p])
+	classCounts = [len(x) for x in labelInds]
 	# truthLabels[np.nonzero(np.equal(truthLabels,7))[0]] = 6
 
 	# classWeights = {}
@@ -549,27 +609,61 @@ if 0:
 	# for i in range(1,1000,10):
 	svmAll = SVM.SVC(C=100, probability=True, kernel='rbf')
 	svmAll.fit(X, truthLabels)
-	weightedScore  = svmAll.score(X, truthLabels) # 47%	
+	weightedScore  = svmAll.score(X, truthLabels) # 87.17%	
 	print weightedScore #80.1% new
 	pred = svmAll.predict(X) # 89.2% %old
 	import random as rand
 
 	labelCount = len(labels.keys())+2
-	scores = []; classConfusion = np.zeros([labelCount,labelCount])
-	ratio=100
+	scores = []
+	classConfusion = np.zeros([labelCount,labelCount])
+	ratio=len(p)
 	classScores = np.zeros([ratio, labelCount])
+	# classScores = np.zeros(labelCount)
 	t0 = time.time()
 
 	svmScore = []
-	for i in range(ratio):
+	# for i in range(ratio):
 
-		testInds = [x for x in range(len(X)) if rand.randint(0,ratio-1) == 0]
-		perLabelCount = [np.sum(1 for x in testInds if x in labelInds[ii]) for ii in range(len(labelInds))]
-		for z,zInd in zip(perLabelCount, range(len(perLabelCount))):
-			if z == 0:
-				testInds.append(labelInds[zInd][rand.randint(0,len(labelInds[zInd])-1)])
-		perLabelCount = [np.sum(1 for x in testInds if x in labelInds[ii]) for ii in range(len(labelInds))]
-		trainInds = [x for x in range(len(X)) if x not in testInds]			
+
+	# 	testInds = [x for x in range(len(X)) if rand.randint(0,ratio-1) == 0]
+	# 	perLabelCount = [np.sum(1 for x in testInds if x in labelInds[ii]) for ii in range(len(labelInds))]
+	# 	for z,zInd in zip(perLabelCount, range(len(perLabelCount))):
+	# 		if z == 0:
+	# 			testInds.append(labelInds[zInd][rand.randint(0,len(labelInds[zInd])-1)])
+	# 	perLabelCount = [np.sum(1 for x in testInds if x in labelInds[ii]) for ii in range(len(labelInds))]
+	# 	trainInds = [x for x in range(len(X)) if x not in testInds]			
+
+	# 	'''Train'''
+	# 	XTrain = X[trainInds]
+	# 	truthTrain = truthLabels[trainInds]
+	# 	svmAll = SVM.SVC(C=100, probability=True, kernel='rbf')
+	# 	svmAll.fit(XTrain, truthTrain)		
+	# 	'''Test'''
+	# 	XTest = X[testInds]
+	# 	truthTest = truthLabels[testInds]
+	# 	weightedScore  = svmAll.score(XTest, truthTest) # 47%
+	# 	scores.append(weightedScore)
+	# 	fPred = svmAll.predict(XTest)		
+	# 	print weightedScore
+	# 	"""Store results"""
+	# 	for j in range(1, labelCount+1):
+	# 		predInds = np.nonzero(np.equal(truthTest, j))
+	# 		classScores[i, j-1] = np.sum(np.equal(fPred[predInds], truthTest[predInds]), dtype=float) / np.sum(np.equal(truthTest, j))
+	# print 'Mean:', np.mean(scores)
+
+	for i in range(len(X)):
+
+		# testInds = [x for x in range(len(X)) if rand.randint(0,ratio-1) == 0]
+		# perLabelCount = [np.sum(1 for x in testInds if x in labelInds[ii]) for ii in range(len(labelInds))]
+		# for z,zInd in zip(perLabelCount, range(len(perLabelCount))):
+			# if z == 0:
+				# testInds.append(labelInds[zInd][rand.randint(0,len(labelInds[zInd])-1)])
+		# perLabelCount = [np.sum(1 for x in testInds if x in labelInds[ii]) for ii in range(len(labelInds))]
+		# trainInds = [x for x in range(len(X)) if x not in testInds]			
+		testInds = [i]
+		trainInds = range(len(X))
+		trainInds.remove(i)
 
 		'''Train'''
 		XTrain = X[trainInds]
@@ -579,7 +673,7 @@ if 0:
 		'''Test'''
 		XTest = X[testInds]
 		truthTest = truthLabels[testInds]
-		weightedScore  = svmAll.score(XTest, truthTest) # 47%
+		weightedScore  = svmAll.score(XTest, truthTest)
 		scores.append(weightedScore)
 		fPred = svmAll.predict(XTest)		
 		print weightedScore
@@ -608,7 +702,7 @@ if 0:
 	axis([-.75, labelCount-2.5, 0, 1])
 	xlabel('Classes', fontsize=20)
 	ylabel('Accuracy', fontsize=20)
-	title('Per-class accuracy using a Decision Forest', fontsize=26)
+	title('Per-class accuracy using an SVM', fontsize=26)
 	# savefig("/Users/colin/Desktop/PerClassAccuracy_D2.svg", format="svg")
 
 	"""Class Confusion"""
@@ -651,12 +745,16 @@ if 0:
 		ylabel("Weighting", fontsize=22)
 		axis([-.25, fCount, 0, .2])
 
-	forest = ExtraTreesClassifier(n_estimators=200, compute_importances=False, n_jobs=1, bootstrap=True, random_state=0, max_features=fCount) # BEST
+	# forest = RandomForestClassifier(n_estimators=200, compute_importances=False, n_jobs=1, bootstrap=True, random_state=0, max_features=fCount) # BEST
+	# forest = RandomForestClassifier(n_estimators=100, compute_importances=False, n_jobs=1, bootstrap=True, random_state=0, max_features=fCount)	
 	# forest = ExtraTreesClassifier(n_estimators=20, compute_importances=False, n_jobs=1, bootstrap=True, random_state=0, max_features=fCount)	
+
+
+	forest = ExtraTreesClassifier(n_estimators=20, compute_importances=False, n_jobs=1, bootstrap=True, random_state=0, max_features=5)
 	Xorig = deepcopy(X)
 	truthLabelsOrig = deepcopy(truthLabels)
-	XWO6 = np.array([x for x, y in zip(Xorig, truthLabelsOrig) if y != 6])
-	truthLabelsWO6 = np.array([y for x, y in zip(Xorig, truthLabelsOrig) if y != 6])
+	# XWO6 = np.array([x for x, y in zip(Xorig, truthLabelsOrig) if y != 6])
+	# truthLabelsWO6 = np.array([y for x, y in zip(Xorig, truthLabelsOrig) if y != 6])
 	X = Xorig
 	truthLabels = truthLabelsOrig
 
@@ -667,19 +765,68 @@ if 0:
 	forestScores = []; classConfusion = np.zeros([labelCount,labelCount])
 	forestProbs = []; forestProbGood = 0; forestProbTotal = 0;
 	forestIndivScores = []
-	ratio=100
+	ratio=len(p)
 	forestClassScores = np.zeros([ratio, labelCount])
 	t0 = time.time()
-	for i in range(ratio):
+	classifiedLabels = []
+
+	# for i in range(ratio):
+
+	# 	"""Create training/testing sets"""
+	# 	testInds = [x for x in range(len(X)) if rand.randint(0,ratio-1) == 0]
+	# 	perLabelCount = [np.sum(1 for x in testInds if x in labelInds[ii]) for ii in range(len(labelInds))]
+	# 	for z,zInd in zip(perLabelCount, range(len(perLabelCount))):
+	# 		if z == 0:
+	# 			testInds.append(labelInds[zInd][rand.randint(0,len(labelInds[zInd])-1)])
+	# 	perLabelCount = [np.sum(1 for x in testInds if x in labelInds[ii]) for ii in range(len(labelInds))]
+	# 	trainInds = [x for x in range(len(X)) if x not in testInds]			
+
+	# 	"""Training Data"""
+	# 	XTrain = X[trainInds]
+	# 	truthTrain = truthLabels[trainInds]
+	# 	forest.fit(XTrain, truthTrain)
+	# 	"""Testing Data"""
+	# 	XTest = X[testInds]
+	# 	truthTest = truthLabels[testInds]
+	# 	# Look at probability of scores
+	# 	if len(truthTest) > 0:
+	# 		fPredProb = forest.predict_proba(XTest).max(1)
+	# 		forestProbs.append(fPredProb)
+	# 		forestProbTotal += len(truthTest)
+	# 		forestProbGood += np.sum(fPredProb > .7)
+	# 	else:
+	# 		forestProbs.append([])
+
+	# 	weightedScore = forest.score(XTest, truthTest)
+	# 	# weightedScore = np.sum(fPred == truthTest, dtype=float) / len(fPred)
+	# 	fPred = forest.predict(XTest)	
+	# 	predictTest = fPred
+	# 	forestIndivScores.append(fPred == truthTest)
+	# 	forestScores.append(weightedScore)
+	# 	print weightedScore
+	# 	"""Confusion matrix"""
+	# 	if 0:
+	# 		# predictTest = forest.predict(XTest)
+	# 		for j in xrange(len(predictTest)):
+	# 			classConfusion[mapLab2Ind[truthTest[j]], mapLab2Ind[predictTest[j]]] += 1
+	# 	"""Store results"""
+	# 	for j in range(1, labelCount+1):
+	# 		predInds = np.nonzero(np.equal(truthTest, j))
+	# 		forestClassScores[i, j-1] = np.sum(np.equal(fPred[predInds], truthTest[predInds]), dtype=float) / np.sum(np.equal(truthTest, j))
+
+	for i in range(len(X)):
 
 		"""Create training/testing sets"""
-		testInds = [x for x in range(len(X)) if rand.randint(0,ratio-1) == 0]
-		perLabelCount = [np.sum(1 for x in testInds if x in labelInds[ii]) for ii in range(len(labelInds))]
-		for z,zInd in zip(perLabelCount, range(len(perLabelCount))):
-			if z == 0:
-				testInds.append(labelInds[zInd][rand.randint(0,len(labelInds[zInd])-1)])
-		perLabelCount = [np.sum(1 for x in testInds if x in labelInds[ii]) for ii in range(len(labelInds))]
-		trainInds = [x for x in range(len(X)) if x not in testInds]			
+		# testInds = [x for x in range(len(X)) if rand.randint(0,ratio-1) == 0]
+		# perLabelCount = [np.sum(1 for x in testInds if x in labelInds[ii]) for ii in range(len(labelInds))]
+		# for z,zInd in zip(perLabelCount, range(len(perLabelCount))):
+			# if z == 0:
+				# testInds.append(labelInds[zInd][rand.randint(0,len(labelInds[zInd])-1)])
+		# perLabelCount = [np.sum(1 for x in testInds if x in labelInds[ii]) for ii in range(len(labelInds))]
+		# trainInds = [x for x in range(len(X)) if x not in testInds]
+		testInds = [i]
+		trainInds = range(len(X))
+		trainInds.remove(i)
 
 		"""Training Data"""
 		XTrain = X[trainInds]
@@ -689,23 +836,21 @@ if 0:
 		XTest = X[testInds]
 		truthTest = truthLabels[testInds]
 		# Look at probability of scores
-		if len(truthTest) > 0:
-			fPredProb = forest.predict_proba(XTest).max(1)
-			forestProbs.append(fPredProb)
-			forestProbTotal += len(truthTest)
-			forestProbGood += np.sum(fPredProb > .7)
-		else:
-			forestProbs.append([])
+		fPredProb = forest.predict_proba(XTest).max(1)
+		forestProbs.append(fPredProb)
+		forestProbTotal += len(truthTest)
+		forestProbGood += np.sum(fPredProb > .7)
 
 		weightedScore = forest.score(XTest, truthTest)
 		# weightedScore = np.sum(fPred == truthTest, dtype=float) / len(fPred)
 		fPred = forest.predict(XTest)	
+		classifiedLabels.append(fPred)		
 		predictTest = fPred
 		forestIndivScores.append(fPred == truthTest)
 		forestScores.append(weightedScore)
 		print weightedScore
 		"""Confusion matrix"""
-		if 0:
+		if 1:
 			# predictTest = forest.predict(XTest)
 			for j in xrange(len(predictTest)):
 				classConfusion[mapLab2Ind[truthTest[j]], mapLab2Ind[predictTest[j]]] += 1
@@ -714,6 +859,8 @@ if 0:
 			predInds = np.nonzero(np.equal(truthTest, j))
 			forestClassScores[i, j-1] = np.sum(np.equal(fPred[predInds], truthTest[predInds]), dtype=float) / np.sum(np.equal(truthTest, j))
 
+
+
 	highConfResults = []
 	for r1, c1 in zip(forestIndivScores, forestProbs):
 		for c2 in range(len(c1)):
@@ -721,7 +868,7 @@ if 0:
 				highConfResults.append(r1[c2])
 	print np.mean(highConfResults)
 
-	print 'Time:', time.time()-t0
+	# print 'Time:', time.time()-t0
 	print 'Overall Mean:', np.nansum(forestScores)/(~np.isnan(forestScores)).sum()
 	 # ~63%, new 48%
 
@@ -730,7 +877,7 @@ if 0:
 	xticks(arange(len(labelNames)), [labels[x] for x in labels.keys()])
 	fMean = np.nansum(forestClassScores, 0) / np.sum(-np.isnan(forestClassScores), 0)
 	fMean = [fMean[0],fMean[2],fMean[3],fMean[4],fMean[5],fMean[6],fMean[7]]	
-	print 'Per-class means', fMean
+	# print 'Per-class means', fMean
 	print 'Overall per-class mean', np.nansum(fMean) / np.sum(~np.isnan(fMean))
 
 	"""Per-class accuracy"""

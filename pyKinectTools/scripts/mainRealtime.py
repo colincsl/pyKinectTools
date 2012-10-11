@@ -6,16 +6,20 @@ import cv, cv2
 # People extraction/tracking
 from pyKinectTools.algs.BackgroundSubtraction import *
 from pyKinectTools.algs.PeopleTracker import Tracker
+# from pyKinectTools.algs.PersonTracker import Tracker
 from pyKinectTools.algs.FeatureExtraction import *
 from pyKinectTools.algs.GlobalSignalSystem import *
 # Skeletal
-from pyKinectTools.algs.GeodesicSkeleton import *
-from pyKinectTools.algs.PictorialStructures import *
+# from pyKinectTools.algs.GeodesicSkeleton import *
+# from pyKinectTools.algs.PictorialStructures import *
 from pyKinectTools.algs.Manifolds import *
-# Utils
-from pyKinectTools.algs.Realtime import *
-from pyKinectTools.utils.DepthUtils import *
+# Data readers
 from pyKinectTools.utils.DepthReader import DepthReader
+from pyKinectTools.utils.RealtimeReader import *
+# from pyKinectTools.algs.SocketReader import *
+# Utils
+from pyKinectTools.algs.Normals import *
+from pyKinectTools.utils.DepthUtils import *
 # Classifiers
 from sklearn.ensemble import ExtraTreesClassifier
 from sklearn import svm as SVM
@@ -23,15 +27,20 @@ from sklearn import svm as SVM
 from Foundation import *
 import AppKit
 
+
 '''------------ Setup Kinect ------------'''
-depthConstraint = [500, 4000]
+depthConstraint = [500, 5000]
 if 0:
 	''' Physical Kinect '''
-	depthDevice = rtDepth()
+	depthDevice = RealTimeDevice()
 	depthDevice.addDepth(depthConstraint)
+	depthDevice.addColor()
 	depthDevice.start()
-	depthDevice.generateBackgroundModel()
 	depthDevice.setMaxDist(depthConstraint[1])
+	depthDevice.generateBackgroundModel()
+elif 0:
+	''' Socket Kinect '''
+	depthCamera = socketDevice
 else:
 	''' ICU Data '''	
 	path = '/Users/colin/data/ICU_7May2012_Wide/'
@@ -90,12 +99,13 @@ gss = GlobalSignalSystem(markers=markers, radius=30)
 
 featureExt = Features(['basis'])
 
-recData = np.load("/Users/colin/code/pyKinectTools/data/icu_classification_wide.npz")
-recLabels = recData['labels'].tolist()
-recFeatureNames = recData['featureNames']
-recFeatureLimits = recData['featureLimits'].tolist()
-recForest = cPickle.load(open("/Users/colin/code/pyKinectTools/data/icu_forest.pkl"))
-recSVM = cPickle.load(open("/Users/colin/code/pyKinectTools/data/icu_svm.pkl"))
+if 0:
+	recData = np.load("/Users/colin/code/pyKinectTools/data/icu_classification_wide.npz")
+	recLabels = recData['labels'].tolist()
+	recFeatureNames = recData['featureNames']
+	recFeatureLimits = recData['featureLimits'].tolist()
+	recForest = cPickle.load(open("/Users/colin/code/pyKinectTools/data/icu_forest.pkl"))
+	recSVM = cPickle.load(open("/Users/colin/code/pyKinectTools/data/icu_svm.pkl"))
 
 # with open("icu_forest.pkl", "wb") as fid:
 #     cPickle.dump(forest, fid)
@@ -123,12 +133,13 @@ posMatNew = getTopdownMap(depthRaw, sceneRotation)
 
 # topBounds = np.array([4000,4000,2000])
 topBounds = np.array([4000,4000,depthConstraint[1]])
-rezNewPos = 700
+rezNewPos = 960
 
 
 while 1:
 	depthDevice.update()
 	depthRaw = depthDevice.depthIm
+	colorRaw = depthDevice.colorIm
 	depthRaw[depthRaw > depthConstraint[1], :] = 0
 	depthRaw8 = depthDevice.depthIm8
 	posMatTop = getTopdownMap(depthRaw, sceneRotation, centroid=sceneCentroid, rez=rezNewPos, bounds=topBounds)
@@ -175,8 +186,8 @@ while 1:
 	'''------ Global Signal System -----'''
 	gss.update(comsTopDown)
 	# Add each marker position to topological map
-	for m in gss.getMarkerPos():
-		cv2.circle(posMatTop, (m[1], m[0]), radius=20, color=[150,0,0], thickness=-1)
+	# for m in gss.getMarkerPos():
+		# cv2.circle(posMatTop, (m[1], m[0]), radius=20, color=[150,0,0], thickness=-1)
 
 	'''--------- Classification ---------'''
 	if 0 and tracker.newSequences > 0:
@@ -324,7 +335,8 @@ while 1:
 	chart = gss.getChart()
 
 	cv2.imshow("Depth", imLabelsP*1.0/imLabelsP.max())
-	cv2.imshow("Signals", chart/float(chart.max()))
+	# cv2.imshow("Signals", chart/float(chart.max()))
+	cv2.imshow("Signals", np.ascontiguousarray(colorRaw[:,:,0]))
 	cv2.imshow("Top", posMatTop)
 	# cv2.imshow("Depth", posMatTop)
 	# cv2.imshow("Depth", imLab*1.0/imLab.max())

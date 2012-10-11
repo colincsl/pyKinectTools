@@ -4,6 +4,8 @@ Calculate normals of a depth map.
 
 This code is slow! Make faster by using cython and/or gpu.
 
+bleh, do efficient gradient method
+
 Colin Lea
 pyKinectTools
 2012
@@ -11,6 +13,25 @@ pyKinectTools
 
 import numpy as np
 from pyKinectTools.utils.DepthUtils import *
+
+def calcNormals(posMat):
+	mask = posMat[:,:,2] > 0
+	gxx, gxy = np.gradient(posMat[:,:,0], 1)
+	gyx, gyy = np.gradient(posMat[:,:,1], 1)
+	gzx, gzy = np.gradient(posMat[:,:,2], 1)
+
+	xVecs = np.dstack([gxx, gyx, gzx])
+	# xVecs[xVecs > 100] = 0
+	norms = np.sqrt(np.sum(xVecs**2, 2))
+	xVecs /= norms[:,:, np.newaxis]
+	
+	yVecs = np.dstack([gxy, gyy, gzy])
+	# yVecs[yVecs > 100] = 0
+	norms = np.sqrt(np.sum(yVecs**2, 2))
+	yVecs /= norms[:,:, np.newaxis]
+
+	zVecs = np.cross(xVecs, yVecs)
+	zVecs[zVecs > 1] = 0
 
 def calculateNormals(posMat, radius=3):
 	# print posMat

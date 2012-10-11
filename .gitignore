@@ -1,4 +1,5 @@
 /data
 *.pyc
-*/build
+build/
 algs/dijkstras/build/*
+.ropeproject/

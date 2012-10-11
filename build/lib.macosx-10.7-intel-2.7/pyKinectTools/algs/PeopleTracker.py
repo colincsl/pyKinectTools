@@ -4,12 +4,13 @@ import time, os
 from copy import deepcopy
 from random import randint
 
-import pyKinectTools.utils.DepthReader
+# import pyKinectTools.utils.DepthReader
+from pyKinectTools.utils.DepthReader import *
 from pyKinectTools.utils.DepthUtils import *
 
 
 class Tracker:
-	def __init__(self, name="PeopleTracker", dir_="."):
+	def __init__(self, name="PersonTracker", dir_="."):
 		self.people = []
 		self.people_open = []
 		self.name = name #+ "_" + str(int(time.time()))
@@ -137,8 +138,8 @@ def showLabeledImage(data, ind_j, dir_, rgb=0):
 		# imgD=img[:,::-1, :]
 		imgD=img
 	else:
-		img = DepthReader.getDepthImage(dir_+data['data']['filename'][ind_j])
-		imgD = DepthReader.constrain(img, 500, 5000)
+		img = getDepthImage(dir_+data['data']['filename'][ind_j])
+		imgD = constrain(img, 500, 5000)
 		imgD = np.dstack([imgD, imgD, imgD])
 
 	# com_xyz =  np.array(data['data']['com'])
@@ -208,32 +209,38 @@ def playData(filename, dir_='/Users/colin/data/ICU_7March2012_Head/', speed=3, l
 
 	for ii in range(startFrame, len(p)): # For each segmented person
 		data = p[ii] # person data
+		if len(data['data']['time']) <= 5:
+			data['label'] = -1
+			print ii, " too short"
 		# if data['elapsed'] > 10: # filter really short segments
-		if 1:#len(data['data']['time']) > 5:
+		play = 1
+		while play == 1 and len(data['data']['time']) > 5:
+			play = 1
 			com = np.array([data['com']])
 			# com_uv = list(world2depth(com).T)[0] #COM in image coords
-			play = 0#1
+			# play = 0
 			for j in xrange(0, len(data['data']['time']), speed):
 
 				showLabeledImage(data, j, dir_)
 
-				# Get label
-				if label and (play or (j > len(data['data']['time'])-speed)):
-					# lab = raw_input("Label (Play: p; Prev Err: pe [label]; Save: s): ")
-					lab = raw_input(("Label frame "+str(ii)+": "))
-					if lab == "p":
-						play = 0
-					elif lab[:2] == "pe":
-						errorFrames.append(ii)
-						data['label'] = lab[3:]
-					elif lab[0] == "s":
-						np.savez(name, data=p, meta=m)
-						play = 0
-					else:
-						data['label'] = lab
-						break
+			# Get label
+			if label and (play or (j > len(data['data']['time'])-speed)):
+				# lab = raw_input("Label (Play: p; Prev Err: pe [label]; Save: s): ")
+				lab = raw_input(("Label sequence "+str(ii)+": "))
+				if lab == "p":
+					play = 1
+				elif lab[:2] == "pe":
+					errorFrames.append(ii)
+					data['label'] = lab[3:]
+				elif lab[0] == "s":
+					np.savez(name, data=p, meta=m)
+					play = 0
+				else:
+					data['label'] = lab
+					play=0
+					break
 
-				time.sleep(.01)
+			time.sleep(.01)
 			# imgD[:,:,:] = 255
 			# cv2.imshow("a", imgD)
 			# ret = cv2.waitKey(1)

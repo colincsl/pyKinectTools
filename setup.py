@@ -15,7 +15,7 @@ import numpy as np
 
 ext_modules = [Extension("pyKinectTools.algs.NeighborSuperpixels", ["pyKinectTools/algs/NeighborSuperpixels.pyx"]),
 			Extension("pyKinectTools.algs.dijkstrasGraph", ["pyKinectTools/algs/dijkstras.pyx"]),
-			Extension("pyKinectTools.algs.dijkstrasGraphNew", ["pyKinectTools/algs/dijkstras_New.pyx"])
+			Extension("pyKinectTools.algs.Dijkstras", ["pyKinectTools/algs/dijkstras_New.pyx"])
 				]
 
 for e in ext_modules:

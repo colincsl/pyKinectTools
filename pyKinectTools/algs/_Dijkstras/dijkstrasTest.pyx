@@ -9,7 +9,7 @@ import pdb
 from math import floor
 sys.path.append('/Users/colin/code/Kinect-Projects/activityRecognition/')
 from DepthReader import DepthReader
-from PeopleTracker import Tracker
+from PersonTracker import Tracker
 from SkelPlay import *
 from BackgroundSubtraction import *
 from FeatureExtraction import *

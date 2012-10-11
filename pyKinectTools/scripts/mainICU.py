@@ -8,7 +8,7 @@ from copy import deepcopy
 
 
 from pyKinectTools.utils.DepthReader import DepthReader
-from pyKinectTools.algs.PeopleTracker import Tracker
+from pyKinectTools.algs.PersonTracker import Tracker
 from pyKinectTools.utils.DepthUtils import *
 from pyKinectTools.algs.BackgroundSubtraction import *
 from pyKinectTools.algs.FeatureExtraction import *

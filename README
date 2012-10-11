@@ -9,9 +9,9 @@ Scipy (inc. ndimage)
 scikits-learn
 from vision import features # pyvision library
 
----Tools---
+---Installation instructions---
 
-Exemplar SVM?
+---Tools---
 
 
 Background subtraction
