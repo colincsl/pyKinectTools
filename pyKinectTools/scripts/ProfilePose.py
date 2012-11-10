@@ -7,8 +7,8 @@ import pdb
 from math import floor
 from copy import deepcopy
 
-sys.path.append('/Users/colin/code/Kinect-Projects/activityRecognition/')
-sys.path.append('/Users/colin/libs/vlfeat/vl/pyQuickShift/')
+#sys.path.append('/Users/colin/code/Kinect-Projects/activityRecognition/')
+#sys.path.append('/Users/colin/libs/vlfeat/vl/pyQuickShift/')
 from pyKinectTools.utils.DepthReader import DepthReader
 from pyKinectTools.utils.PersonTracker import Tracker
 from pyKinectTools.utils.SkeletonUtils

@@ -32,14 +32,13 @@ setup(
 	author_email = 'colincsl@gmail.com',
 	license = "FreeBSD",
 	version= "0.1",
-	name = 'NeighborSuperpixels',
+	name = 'pyKinectTools',
 	cmdclass = {'build_ext': build_ext},
 	include_dirs = [np.get_include()],
 	ext_modules = ext_modules,
 	packages= [	"pyKinectTools",
 				"pyKinectTools.algs",
 				"pyKinectTools.utils",
-				"pyKinectTools.scripts",
 				"pyKinectTools.data"
 			]
 )

@@ -1,6 +1,5 @@
 from pylab import *
 import numpy as np
-import cv
 
 ''' 
 ---XYZ Convention---
@@ -37,21 +36,22 @@ def depth2world(x_, y=0, d=0):
 
 def world2depth(x_, y=0, z=0):
     if type(x_) == list:
-        y = np.array(x_[1])#*10
+        y = np.array(x_[1])
         z = np.array(x_[2])
-        x = np.array(x_[0])#*10  
+        x = np.array(x_[0])
         if z == 0:
             return [0,0,0]
         # z = np.maximum(1, z)
     elif type(x_) == np.ndarray:
-        y = np.array(x_[:,1])#*10
+        y = np.array(x_[:,1])
         z = np.array(x_[:,2])
-        x = np.array(x_[:,0])#*10
+        x = np.array(x_[:,0])
         z = np.maximum(1, z)
     else:
         x  = x_
 
-    yo = 640 - np.array((np.round(x / fx_d / z + cx_d)), dtype=np.int)
+    yo = np.array((np.round(x / fx_d / z + cx_d)), dtype=np.int)
+    # yo = 640 - np.array((np.round(x / fx_d / z + cx_d)), dtype=np.int)
     xo = 480 - np.array((np.round((y / fy_d / z) + cy_d)), dtype=np.int)
     do = np.array(z, dtype=np.int)
     return np.array([xo, yo, do])
