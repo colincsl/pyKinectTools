@@ -8,9 +8,9 @@ from pyKinectTools.utils.RealtimeReader import *
 from multiprocessing import Pool, Process, Queue
 
 # DIR = '/Users/colin/Data/icu_test/'
-# DIR = '/home/clea/Data/icu_test/'
+DIR = '/home/clea/Data/ICU_Nov2012/'
 # DIR = '/media/Data/icu_test/'
-DIR = '/media/Data/CV_class/'
+# DIR = '/media/Data/CV_class/'
 
 pool = Pool(processes = 1)
 # queue = SimpleQueue()
@@ -21,19 +21,13 @@ def save_frame(depthName, depth, colorName, color, usersName, users):
 
         try:
                 # sm.imsave(depthName, depth)
-                # depth = sm.imresize(depth, [240,320], 'nearest', 'I')
-                # print depth.dtype
-                # import pdb
-                # pdb.set_trace()
                 im = Image.fromarray(depth.astype(np.int32), 'I')
-                im.resize([240,320])
+                im = im.resize([320,240])
                 im.save(depthName)
-                # print depthName
 
                 color = sm.imresize(color, [240,320,3], 'nearest')
                 sm.imsave(colorName, color)
-                # sm.imsave(depthName, sm.imresize(depthRaw8, [240,320], 'nearest'))
-                # sm.imsave(colorName, sm.imresize(colorRaw, [240,320,3],'nearest'))                
+
                 np.savez(usersName, users=users)
                 return 0
         except:
@@ -41,7 +35,7 @@ def save_frame(depthName, depth, colorName, color, usersName, users):
                 return -1
 
 
-def main(deviceID=1, dir_=DIR, viz=0, frameDifferencePercent=8, depthStoreCount=10):
+def main(deviceID=1, dir_=DIR, viz=0, frameDifferencePercent=5, depthStoreCount=10):
 
         if viz:
                 import cv2
@@ -63,8 +57,8 @@ def main(deviceID=1, dir_=DIR, viz=0, frameDifferencePercent=8, depthStoreCount=
         colorOld = [] #None
 
         maxFramerate = 30
-        # minFramerate = 1.0/3.0
-        minFramerate = 30
+        minFramerate = 3.0
+        # minFramerate = 30
         recentMotionTime = time.clock()
         
 
@@ -151,7 +145,7 @@ def main(deviceID=1, dir_=DIR, viz=0, frameDifferencePercent=8, depthStoreCount=
 
 
                 ''' Write to file if there has been substantial change. '''
-                if 1 or diff > frameDifferencePercent or time.clock()-prevFrameTime > 1.0/minFramerate or time.clock()-recentMotionTime < 5:
+                if diff > frameDifferencePercent or time.clock()-prevFrameTime > minFramerate or time.clock()-recentMotionTime < 3:
                         if depthRaw8 != []:
                                 ''' Create a folder if it doesn't exist '''
                                 if not os.path.isdir(dir_+day):
@@ -215,28 +209,30 @@ def main(deviceID=1, dir_=DIR, viz=0, frameDifferencePercent=8, depthStoreCount=
                                 # else:
                                 #         processList.append(p)
 
-
-                ''' Display skeletons '''
-                if viz:
-                        # print "Users: ", len(users)
-                        for u_key in users.keys():
-                                u = users[u_key]
-                                pt = world2depth(u.com)
-                                w = 10
-                                d[pt[0]-w:pt[0]+w, pt[1]-w:pt[1]+w] = 255
-                                w = 7
-                                if u.tracked:
-                                        print "Joints: ", len(u.jointPositions)
-                                        for j in u.jointPositions.keys():
-                                                pt = world2depth(u.jointPositions[j])
-                                                d[pt[0]-w:pt[0]+w, pt[1]-w:pt[1]+w] = 150                                                        
+                                prevFrameTime = time.clock()
 
 
-                if viz:
-                        cv2.imshow("depth", d)
-                        r = cv2.waitKey(10)
-                        if r >= 0:
-                                break
+                        ''' Display skeletons '''
+                        if viz:
+                                # print "Users: ", len(users)
+                                for u_key in users.keys():
+                                        u = users[u_key]
+                                        pt = world2depth(u.com)
+                                        w = 10
+                                        d[pt[0]-w:pt[0]+w, pt[1]-w:pt[1]+w] = 255
+                                        w = 7
+                                        if u.tracked:
+                                                print "Joints: ", len(u.jointPositions)
+                                                for j in u.jointPositions.keys():
+                                                        pt = world2depth(u.jointPositions[j])
+                                                        d[pt[0]-w:pt[0]+w, pt[1]-w:pt[1]+w] = 150                                                        
+
+
+                        if viz:
+                                cv2.imshow("depth", d)
+                                r = cv2.waitKey(10)
+                                if r >= 0:
+                                        break
 
 
 ''' there shouldn't be 2 threads when nothing is going on! '''
