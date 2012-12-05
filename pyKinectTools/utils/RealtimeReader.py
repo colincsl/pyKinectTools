@@ -50,7 +50,8 @@ class RealTimeDevice:
         bgModel = []
         bgModel8 = []
 
-        def __init__(self, device=-1, ctx=[]):
+        # def __init__(self, device=-1, ctx=[]):
+        def __init__(self, device=-1, ctx=[], getSkel=True):
 
                 self.deviceNumber = device
                 if ctx != []:
@@ -65,7 +66,9 @@ class RealTimeDevice:
                     print "New context created for depth device. (#", self.deviceNumber, ")"
                     self.depth = self.ctx.find_existing_node(NODE_TYPE_DEPTH)
                     self.color = self.ctx.find_existing_node(NODE_TYPE_IMAGE)
-                    self.user = self.ctx.find_existing_node(NODE_TYPE_USER)
+
+                    if getSkel:
+                        self.user = self.ctx.find_existing_node(NODE_TYPE_USER)
 
                     if self.depth != [] and self.color != []:
                         self.depth.alternative_view_point_cap.set_view_point(self.color)

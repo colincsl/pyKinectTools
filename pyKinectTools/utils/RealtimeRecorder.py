@@ -3,14 +3,16 @@ import os, time, sys
 import numpy as np
 import scipy.misc as sm
 import Image
-from pyKinectTools.utils.RealtimeReader import *
+# from pyKinectTools.utils.RealtimeReader import *
+from RealtimeReader import *
 
 from multiprocessing import Pool, Process, Queue
 
 # DIR = '/Users/colin/Data/icu_test/'
-DIR = '/home/clea/Data/ICU_Nov2012/'
+# DIR = '/home/clea/Data/tmp/'
+# DIR = '/home/clea/Data/ICU_Nov2012/'
 # DIR = '/media/Data/icu_test/'
-# DIR = '/media/Data/CV_class/'
+DIR = '/media/Data/CV_class/'
 
 pool = Pool(processes = 1)
 # queue = SimpleQueue()
@@ -35,7 +37,8 @@ def save_frame(depthName, depth, colorName, color, usersName, users):
                 return -1
 
 
-def main(deviceID=1, dir_=DIR, viz=0, frameDifferencePercent=5, depthStoreCount=10):
+# def main(deviceID=1, dir_=DIR, viz=0, getSkel=True, frameDifferencePercent=5, depthStoreCount=5):
+def main(deviceID=1, dir_=DIR, viz=0, frameDifferencePercent=0*5, depthStoreCount=1):
 
         if viz:
                 import cv2
@@ -47,6 +50,7 @@ def main(deviceID=1, dir_=DIR, viz=0, frameDifferencePercent=5, depthStoreCount=
         depthConstraint = [500, 5000]
         ''' Physical Kinect '''
         depthDevice = RealTimeDevice(device=deviceID)
+        # getSkel=False
         # depthDevice.addDepth(depthConstraint)
         # depthDevice.addColor()
         # depthDevice.addUsers()
@@ -58,7 +62,7 @@ def main(deviceID=1, dir_=DIR, viz=0, frameDifferencePercent=5, depthStoreCount=
 
         maxFramerate = 30
         minFramerate = 3.0
-        # minFramerate = 30
+        # minFramerate = 30.0
         recentMotionTime = time.clock()
         
 
@@ -70,6 +74,9 @@ def main(deviceID=1, dir_=DIR, viz=0, frameDifferencePercent=5, depthStoreCount=
         currentFrame = 0;
         ms = time.clock()
         diff = 0
+
+        prevSec = 0;
+        secondCount = 0
 
         if not os.path.isdir(dir_):
                 os.mkdir(dir_)        
@@ -99,7 +106,7 @@ def main(deviceID=1, dir_=DIR, viz=0, frameDifferencePercent=5, depthStoreCount=
                 if (time.clock() - float(ms))*1000 < 1000.0/maxFramerate:
                         continue                
 
-                if viz:
+                if viz and 0:
                         for i in depthDevice.user.users:
                                 tmpPx = depthDevice.user.get_user_pixels(i)
 
@@ -124,6 +131,20 @@ def main(deviceID=1, dir_=DIR, viz=0, frameDifferencePercent=5, depthStoreCount=
                 minute = str(time_.tm_min)
                 second = str(time_.tm_sec)
                 ms = str(time.clock())
+                ms_str = str(ms)[str(ms).find(".")+1:]
+
+                if second != prevSec:
+                        secondCount = 0
+                        prevSec = second
+                else:
+                        secondCount += 1
+
+                secondCount = str(secondCount)
+                if len(ms_str) == 1:
+                        ms_str = '0' + ms_str
+                if len(secondCount) == 1:
+                        secondCount = '0' + secondCount
+
 
                 # Look at how much of the image has changed
                 if depthOld != []:
@@ -134,7 +155,6 @@ def main(deviceID=1, dir_=DIR, viz=0, frameDifferencePercent=5, depthStoreCount=
                         if diff > frameDifferencePercent:
                                 recentMotionTime = time.clock()
 
-                # depthOld = depthRaw8
                 depthOld.append(depthRaw8)                                
 
                 ''' Keep track of framerate '''
@@ -145,6 +165,7 @@ def main(deviceID=1, dir_=DIR, viz=0, frameDifferencePercent=5, depthStoreCount=
 
 
                 ''' Write to file if there has been substantial change. '''
+                # if 1:
                 if diff > frameDifferencePercent or time.clock()-prevFrameTime > minFramerate or time.clock()-recentMotionTime < 3:
                         if depthRaw8 != []:
                                 ''' Create a folder if it doesn't exist '''
@@ -173,13 +194,20 @@ def main(deviceID=1, dir_=DIR, viz=0, frameDifferencePercent=5, depthStoreCount=
                                                 pass
 
                                 ''' Define filenames '''
+                                # depthName = dir_+day+"/"+hour+"/"+minute+"/device_"+str(deviceID)+"/"+"depth"+"/"+\
+                                #                         "depth_"+day+"_"+hour+"_"+minute+"_"+second+"_"+ms_str+".png"
+                                # colorName = dir_+day+"/"+hour+"/"+minute+"/device_"+str(deviceID)+"/"+"color"+"/"+\
+                                #                         "color_"+day+"_"+hour+"_"+minute+"_"+second+"_"+ms_str+".jpg"
+                                # usersName = dir_+day+"/"+hour+"/"+minute+"/device_"+str(deviceID)+"/"+"skel"+"/"+\
+                                #                         "skel_"+day+"_"+hour+"_"+minute+"_"+second+"_"+ms_str    
                                 depthName = dir_+day+"/"+hour+"/"+minute+"/device_"+str(deviceID)+"/"+"depth"+"/"+\
-                                                        "depth_"+day+"_"+hour+"_"+minute+"_"+second+"_"+str(ms)[str(ms).find(".")+1:]+".png"
+                                                        "depth_"+day+"_"+hour+"_"+minute+"_"+second+"_"+secondCount+"_"+ms_str+".png"
                                 colorName = dir_+day+"/"+hour+"/"+minute+"/device_"+str(deviceID)+"/"+"color"+"/"+\
-                                                        "color_"+day+"_"+hour+"_"+minute+"_"+second+"_"+str(ms)[str(ms).find(".")+1:]+".jpg"
+                                                        "color_"+day+"_"+hour+"_"+minute+"_"+second+"_"+secondCount+"_"+ms_str+".jpg"
                                 usersName = dir_+day+"/"+hour+"/"+minute+"/device_"+str(deviceID)+"/"+"skel"+"/"+\
-                                                        "skel_"+day+"_"+hour+"_"+minute+"_"+second+"_"+str(ms)[str(ms).find(".")+1:]    
+                                                        "skel_"+day+"_"+hour+"_"+minute+"_"+second+"_"+secondCount+"_"+ms_str
 
+                                # print 'c:', secondCount
                                 # print str(ms), str(ms)[str(ms).find(".")+1:]                                            
 
                                 ''' Save data '''
@@ -230,6 +258,8 @@ def main(deviceID=1, dir_=DIR, viz=0, frameDifferencePercent=5, depthStoreCount=
 
                         if viz:
                                 cv2.imshow("depth", d)
+                                # cv2.imshow("depth", colorRaw)
+                                # cv2.imshow("depth", np.logical_and((depthRaw8 - depthOld[0]) > 200, (depthRaw8 - depthOld[0]) < 20000).astype(np.uint8)*255)
                                 r = cv2.waitKey(10)
                                 if r >= 0:
                                         break

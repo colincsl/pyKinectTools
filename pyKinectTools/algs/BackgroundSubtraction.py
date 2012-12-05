@@ -147,6 +147,15 @@ def getMeanImage(depthImgs):
 
 	return mean_
 
+def fillImage(im):
+	## Close holes in images
+	inds = nd.distance_transform_edt(im<500, return_distances=False, return_indices=True)
+	i2 = np.nonzero(im<50)
+	i3 = inds[:, i2[0], i2[1]]
+	im[i2] = im[i3[0], i3[1]] # For all errors, set to avg 
+
+	return im
+
 
 def removeNoise(im, thresh=500):
 	#Thresh is the envelope in the depth dimension within we remove noise
