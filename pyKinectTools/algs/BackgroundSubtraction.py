@@ -101,7 +101,7 @@ def extractPeople_old(img):
 def extractPeople_2(im):
 	return extractPeople(im)
 
-def extractPeople(im, minPersonPixThresh=7000, gradientFilter=True):
+def extractPeople(im, minPersonPixThresh=500, gradientFilter=True):
 	# im *= im < im.max()
 	# shape_ = im.shape
 	# im_ = im[1:shape_[0], 1:shape_[1]]
@@ -113,8 +113,9 @@ def extractPeople(im, minPersonPixThresh=7000, gradientFilter=True):
 		# grad = np.gradient(im)
 		# grad_g = np.sqrt(grad[0]**2+grad[1]**2)
 		# grad_bin = (grad_g < 50)*(im > 0)
-		grad_g = np.diff(np.asarray(im, dtype=np.int16), 3)		
-		grad_bin = (np.abs(grad_g) < 20) * (im[:,1:-2]>0)
+		grad_g = np.diff(im.astype(np.int16), 3)		
+		# grad_bin = (np.abs(grad_g) < 20) * (im[:,1:-2]>0)
+		grad_bin = (np.abs(grad_g) < 100) * (im[:,1:-2]>0)
 
 		# grad_bin = nd.binary_erosion(grad_bin, iterations=1)
 
