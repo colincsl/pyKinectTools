@@ -5,6 +5,7 @@ import scipy.misc as sm
 import scipy.ndimage as nd
 from skimage import feature
 from pyKinectTools.utils.DepthUtils import world2depth
+from pyKinectTools.algs.BackgroundSubtraction import fillImage
 from pyKinectTools.algs.BackgroundSubtraction import *
 
 
@@ -88,6 +89,11 @@ def plotUsers(image, users, vis=True, device=2, backgroundModel=None, computeHog
 
 	return ret
 
+def format(x):
+	if len(x) == 1:
+		return x+'0'
+	else:
+		return x
 
 # -------------------------MAIN------------------------------------------
 
@@ -120,24 +126,15 @@ for dirs in hourDirs: # Hours
 			# Get filenames # Seconds
 			depthTmp = os.listdir(dirs+'/'+Dir+'/'+deviceID+depthFolder)
 			skelTmp = os.listdir(dirs+'/'+Dir+'/'+deviceID+skelFolder)
-			# ------------ BLAHBLAHBLAH SORT THIS!!
-			depthTmpSort = [int(x[-5]) if len(x)==23 else int(x[-6:-4]) for x in depthTmp]
-			# depthTmpSort = ['0'+x[-5] if len(x)==23 else x[-6:-4] for x in depthTmp]			
-			depthTmp = [depthTmp[i] for i in np.argsort(depthTmpSort)]
-			skelTmp.sort(key=lambda x: int(x))
-			# depthTmp.sort(key=lambda x: os.path.getmtime(dirs+'/'+Dir+'/'+deviceID+depthFolder+x))
-			# skelTmp.sort(key=lambda x: os.path.getmtime(dirs+'/'+Dir+'/'+deviceID+skelFolder+x))
-			# depthTmp.sort(key=lambda x: os.path.getctime(dirs+'/'+Dir+'/'+deviceID+depthFolder+x))
-			# skelTmp.sort(key=lambda x: os.path.getctime(dirs+'/'+Dir+'/'+deviceID+skelFolder+x))			
-			# depthTmp.sort()
-			# skelTmp.sort()
+			# Sort files
+			tmpSort = [int(format(x.split('_')[-2]))*100 + int(format(x.split('_')[-1][:x.split('_')[-1].find('.')])) for x in depthTmp]
+			depthTmp = np.array(depthTmp)[np.argsort(tmpSort)].tolist()#[depthTmp[i] for i in np.argsort(depthTmpSort)]
+			skelTmp = np.array(skelTmp)[np.argsort(tmpSort)].tolist()
+
 			depthFiles.append([x for x in depthTmp if x.find('.png')>=0])
 			skelFiles.append([x for x in skelTmp if x.find('.npz')>=0])
-			# print depthFiles[0][0:10]
-			# print skelFiles[0][0:10]
 
 		# For each device and image
-		''' Todo: seconds don't align! '''
 		deviceCount = len(depthFiles)
 		maxIms = np.max([len(x) for x in depthFiles])
 		for i in range(maxIms):
@@ -148,14 +145,16 @@ for dirs in hourDirs: # Hours
 				else:
 					continue
 				print depthFiles[d][i]
+				if len(depthFiles[d][i]) < 24:
+					continue
 				# Load Skeleton Data
 				data = np.load(dirs+'/'+Dir+'/'+devices[d]+skelFolder+skelFile)
 				users = data['users'].tolist()
 				data.close()
 				coms = [users[x].com for x in users.keys() if users[x].com[2] > 0.0]
 				# if len(users.keys()) == 0
-				# if backgroundTemplates.shape[2] == backgroundCount and len(coms) <= 1:
-				# 	continue
+				if backgroundTemplates.shape[2] == backgroundCount and len(coms) <= 1:
+					continue
 				jointCount = 0
 				for u in users.items():
 					# print "Joint size:", len(u[1].jointPositions.keys())
@@ -212,31 +211,29 @@ for dirs in hourDirs: # Hours
 					# depthIm[mask] = 0
 
 
-
-
-				cv2.namedWindow("a")
+				# cv2.namedWindow("a")
 				# cv2.imshow("a", backgroundModel.astype(np.float) /3000.0)
-				cv2.imshow("a", depthIm.astype(np.float) /4000.0)
-				try:
-					pass
+				# cv2.imshow("a", depthIm.astype(np.float) /4000.0)
+				# try:
+					# pass
 					# cv2.imshow("a", mask.astype(np.float)/mask.max())
-					# cv2.imshow("a", mask.astype(np.uint8)*255)
-				except:
-					pass
-				ret = cv2.waitKey(50)
+				# 	cv2.imshow("a", mask.astype(np.uint8)*255)
+				# except:
+				# 	pass
+				# ret = cv2.waitKey(20)
 				# # ret = 1
-				imLabels, objectSlices, labelInds = extractPeople(depthIm, minPersonPixThresh=500, gradientFilter=True)
+				# imLabels, objectSlices, labelInds = extractPeople(depthIm, minPersonPixThresh=500, gradientFilter=True)
 
-				imTmp = np.zeros_like(imLabels)
-				for l in labelInds:
-					imTmp = np.maximum(imTmp, imLabels==l)
+				# imTmp = np.zeros_like(imLabels)
+				# for l in labelInds:
+				# 	imTmp = np.maximum(imTmp, imLabels==l)
 
 				# depthIm[:, 1:-2] *= imTmp
-				# ret = plotUsers(depthIm, users, device=devices[d], backgroundModel=backgroundModel)
-				# try:
-				# 	ret = plotUsers(depthIm, users, device=devices[d], backgroundModel=backgroundModel)
-				# except:
-				# 	print "Error plotting"
+				ret = plotUsers(depthIm, users, device=devices[d], backgroundModel=backgroundModel)
+				try:
+					ret = plotUsers(depthIm, users, device=devices[d], backgroundModel=backgroundModel)
+				except:
+					print "Error plotting"
 
 				if ret > 0:
 					break					
