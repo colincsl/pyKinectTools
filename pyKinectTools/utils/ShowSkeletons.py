@@ -35,14 +35,15 @@ def plotUsers(image, users, vis=True, device=2, backgroundModel=None, computeHog
 		# Only plot if there are valid coordinates (not [0,0,0])
 		if uvw[0] > 0:
 			if users[u].tracked:
-				print users[u].userID, " tracked"
+				print users[u].userID, "tracked"
 			else:
 				# print ""
 				pass
 			# print uvw
 
 			#Only look at box around users
-			uImg = image[uvw[0]/2-textureSize[0]/2:uvw[0]/2+textureSize[0]/2, 320-(uvw[1]/2+textureSize[1]/2):320-(uvw[1]/2-textureSize[1]/2)]
+			uImg = image[uvw[0]/2-textureSize[0]/2:uvw[0]/2+textureSize[0]/2, (uvw[1]/2-textureSize[1]/2):(uvw[1]/2+textureSize[1]/2)]
+			# uImg = image[uvw[0]/2-textureSize[0]/2:uvw[0]/2+textureSize[0]/2, 320-(uvw[1]/2+textureSize[1]/2):320-(uvw[1]/2-textureSize[1]/2)]			
 
 			if uImg.size == 0 or uImg.max()==0:
 				return 0
@@ -62,7 +63,7 @@ def plotUsers(image, users, vis=True, device=2, backgroundModel=None, computeHog
 			lbpIm *= mask
 
 			# Colorize COM
-			cv2.rectangle(depthIm, tuple([320-uvw[1]/2-3, uvw[0]/2-3]), tuple([320-uvw[1]/2+3, uvw[0]/2+3]), (100))
+			cv2.rectangle(depthIm, tuple([uvw[1]/2-3, uvw[0]/2-3]), tuple([uvw[1]/2+3, uvw[0]/2+3]), (100))
 
 			# Create bounding box
 			# print uvw, tuple([uvw[0]/2-textureSize[0]/2, (uvw1]/2-textureSize[0]/2)]), tuple([uvw[0]/2+textureSize[1]/2,(uvw[1]/2+textureSize[1]/2)])
@@ -79,8 +80,8 @@ def plotUsers(image, users, vis=True, device=2, backgroundModel=None, computeHog
 		if uvw[0] > 0:
 			if computeHog:
 				cv2.namedWindow('HOG_'+str(device))
-				# cv2.imshow('HOG_'+str(device), hogIm/float(hogIm.max()))
-				cv2.imshow('HOG_'+str(device), uImg.astype(np.float)/(1.*uImg.max()))
+				cv2.imshow('HOG_'+str(device), hogIm/float(hogIm.max()))
+				# cv2.imshow('HOG_'+str(device), uImg.astype(np.float)/(1.*uImg.max()))
 			if computeLBP:
 				cv2.namedWindow('LBP_'+str(device))
 				cv2.imshow('LBP_'+str(device), lbpIm/float(lbpIm.max()))
@@ -144,7 +145,7 @@ for dirs in hourDirs: # Hours
 					skelFile = skelFiles[d][i]
 				else:
 					continue
-				print depthFiles[d][i]
+				# print depthFiles[d][i]
 				if len(depthFiles[d][i]) < 24:
 					continue
 				# Load Skeleton Data

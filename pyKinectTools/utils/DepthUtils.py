@@ -30,7 +30,7 @@ def depth2world(x_, y=0, d=0):
     if np.all(d==0):
         return [0,0,0]
     xo = ((x - cx_d) * d * fx_d)
-    yo = ((y - cy_d) * d * fy_d)
+    yo = - ((y - cy_d) * d * fy_d)
     zo = d
     return np.array([xo, yo, zo]).T    
 
