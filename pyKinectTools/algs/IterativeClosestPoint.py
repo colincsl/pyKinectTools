@@ -7,14 +7,13 @@ pyKinectTools
 '''
 
 import numpy as np
-from copy import deepcopy
 
 
-def IterativeClosestPoint(pointcloud, template, maxIters=100, minChange=.0001):
+def PointCloudRegistration(pointcloud, template, maxIters=100, minChange=.0001):
 	# Uses Arun's SVD-based method
 	# Output: R=3x3 rotation matrix, T=3x translation vector 
 
-	pointcloudInit = deepcopy(pointcloud)
+	pointcloudInit = np.copy(pointcloud)
 	R = np.eye(3)
 	T = pointcloud.mean(1)
 
