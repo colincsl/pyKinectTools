@@ -29,6 +29,21 @@ class User:
                     self.jointOrientations[j] = -1                    
                     self.jointOrientationsConfidence[j] = -1
 
+
+        def toDict(self):
+            d = {}
+            d['com'] = self.com
+            d['userID'] = self.userID
+            d['jointPositions'] = self.jointPositions
+            d['jointPositionsConfidence'] = self.jointPositionsConfidence
+            d['jointOrientations'] = self.jointOrientations
+            d['jointOrientationsConfidence'] = self.jointOrientationsConfidence
+            d['timestamp'] = self.timestamp
+            d['tracked'] = self.tracked
+            d['joints'] = self.joints
+
+            return d
+
 class RealTimeDevice:
         ctx = []
         deviceNumber = None
@@ -162,7 +177,6 @@ class RealTimeDevice:
                     self.colorIm = np.frombuffer(self.color.get_raw_image_map_bgr(), np.uint8).reshape([self.color.res[1],self.color.res[0], 3])
 
             if self.user != []:
-
                     for i in self.user.users:
                         self.users[i].com = self.user.get_com(i)
                         self.users[i].timestamp = self.user.timestamp

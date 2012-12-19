@@ -1,17 +1,20 @@
 import os
+import cPickle as pickle
 import cv2
 import numpy as np
 import scipy.misc as sm
 import scipy.ndimage as nd
 from skimage import feature
 from pyKinectTools.utils.DepthUtils import world2depth
-from pyKinectTools.algs.BackgroundSubtraction import fillImage
 from pyKinectTools.algs.BackgroundSubtraction import *
+from pyKinectTools.utils.RealtimeReader import *
 
+''' Get features relative to objects '''
 
 ''' Find temporal sub-second offset '''
 
-textureSize = [100,50]
+# textureSize = [100,50]
+textureSize = [50,50]
 Cam_OFFSETS = [0, 18, 13]
 MS_OFFSET = -20
 allFeatures_perUser = {}
@@ -24,7 +27,7 @@ else:
 	skelFolder = '/skel/skel/'
 
 
-def computeFeatures(imageFiles, userFiles, dev=-1):
+def computeFeatures_perSecond(imageFiles, userFiles, dev=-1):
 	''' images is a set of 1 second worth of images '''
 
 	features_perSecond = {}
@@ -33,14 +36,15 @@ def computeFeatures(imageFiles, userFiles, dev=-1):
 
 	# Go through each user for all frames
 	for i in xrange(len(imageFiles)):
-		data = np.load(dirs+'/'+Dir+'/'+'device_'+str(dev)+skelFolder+userFiles[i])
+		# data = np.load(dirs+'/'+Dir+'/'+'device_'+str(dev)+skelFolder+userFiles[i])
+		data = pickle.load(dirs+'/'+Dir+'/'+'device_'+str(dev)+skelFolder+userFiles[i])
 		users = data['users'].tolist()
 		data.close()
 		time = [int(x.split('_')[-2])*100 + int(format(x.split('_')[-1][:x.split('_')[-1].find('.')])) for x in depthTmp]
 
 		for u in users.keys():
 			frameFeat = {}
-			xyz = users[u].com
+			xyz = users[u]['com']
 			uvw = world2depth(xyz)
 
 			# Only plot if there are valid coordinates (not [0,0,0])
@@ -104,9 +108,65 @@ def computeFeatures(imageFiles, userFiles, dev=-1):
 
 
 
+def computeFeatures_perFrame(image, users, device=2, computeHog=True, computeLBP=False, vis=False):
+
+	features = {}
+
+	# Head, Left hand, right hand
+	bodyIndicies = [0, 5, 8] 
+
+	for u in users.keys():
+		xyz = users[u]['com']
+		uvw = world2depth(xyz)
+		hogs = []
+
+		# Only plot if there are valid coordinates (not [0,0,0])
+		if uvw[0] > 0 and users[u]['tracked']:
+
+			''' HOG at each Body positions '''
+			for i in bodyIndicies:
+				pt = world2depth(users[u]['jointPositions'][users[1]['jointPositions'].keys()[i]])
+				uImg = image[pt[0]/2-textureSize[0]/2:pt[0]/2+textureSize[0]/2, (pt[1]/2-textureSize[1]/2):(pt[1]/2+textureSize[1]/2)]
+
+				if uImg.size == 0 or uImg.max()==0:
+					return
+
+				# Ensure it's the right size
+				uImg = np.ascontiguousarray(uImg)
+				uImg.resize(textureSize)
+
+				# Scale and prevent blooming
+				uImg = np.copy(uImg).astype(np.float)
+				uImg[uImg>0] -= np.min(uImg[uImg>0])
+				# This reduces problems with stark changes in background
+				uImg = np.minimum(uImg, 100)
+				# uImg /= (np.max(uImg)/255.)
+
+				fillImage(uImg)
+				if not vis:
+					hogArray = feature.hog(uImg, visualise=False)
+				else:
+					hogArray, hogIm = feature.hog(uImg, visualise=True)
+					cv2.namedWindow("hog_"+str(i))
+					cv2.imshow("hog_"+str(i), hogIm)
+					# cv2.imshow("hog_"+str(i), uImg)
+					ret = cv2.waitKey(10)
+
+				hogs.append(hogArray)
+
+		if uvw[0] > 0:
+			features[u] = { 
+							'com':xyz,
+							'time':users[u]['timestamp'],
+							'device':device,
+							'hogs':hogs
+							}
+
+	return features
 
 
-def plotUsers(image, users, vis=True, device=2, backgroundModel=None, computeHog=True, computeLBP=True):
+
+def plotUsers(image, users, vis=True, device=2, backgroundModel=None, computeHog=True, computeLBP=False):
 
 	# if backgroundModel is not None:
 	# 	mask = np.abs(backgroundModel.astype(np.int16) - image) > 30
@@ -114,49 +174,89 @@ def plotUsers(image, users, vis=True, device=2, backgroundModel=None, computeHog
 	ret = 0
 	usersPlotted = 0
 	uvw = [-1]
+	# hogPositions = ['head', 'hand_l', 'hand_r']
+	bodyIndicies = [0, 5, 8] # See SkeletonUtils.py
+	hogs = []
 	for u in users.keys():
-		xyz = users[u].com
-		uvw = world2depth(xyz)
+		if users[u]['tracked']:
+			xyz = users[u]['com']
+			uvw = world2depth(xyz)
 
-		# Only plot if there are valid coordinates (not [0,0,0])
-		if uvw[0] > 0:
-			# if users[u].tracked:
-			# 	print users[u].userID, "tracked"
-			# else:
-			# 	# print ""
-			# 	pass
-			# # print uvw
+			# Only plot if there are valid coordinates (not [0,0,0])
+			if uvw[0] > 0:
+				if users[u]['tracked']:
 
-			#Only look at box around users
-			uImg = image[uvw[0]/2-textureSize[0]/2:uvw[0]/2+textureSize[0]/2, (uvw[1]/2-textureSize[1]/2):(uvw[1]/2+textureSize[1]/2)]
-			# uImg = image[uvw[0]/2-textureSize[0]/2:uvw[0]/2+textureSize[0]/2, 320-(uvw[1]/2+textureSize[1]/2):320-(uvw[1]/2-textureSize[1]/2)]			
+					''' Body positions '''
 
-			if uImg.size == 0 or uImg.max()==0:
-				return 0
+					for i in bodyIndicies:
+						pt = world2depth(users[u]['jointPositions'][users[1]['jointPositions'].keys()[i]])
+						uImg = image[pt[0]/2-textureSize[0]/2:pt[0]/2+textureSize[0]/2, (pt[1]/2-textureSize[1]/2):(pt[1]/2+textureSize[1]/2)]
 
-			uImg = np.copy(uImg).astype(np.float)
-			uImg[uImg>0] -= np.min(uImg[uImg>0])
-			uImg /= (np.max(uImg)/255.)
+						if uImg.size == 0 or uImg.max()==0:
+							return
 
-			mask = uImg > 0
-			fillImage(uImg)
+						uImg = np.ascontiguousarray(uImg)
+						uImg.resize(textureSize)
 
-			# Extract features
-			hogArray,hogIm = feature.hog(uImg, visualise=True)
-			lbpIm = feature.local_binary_pattern(uImg, 20, 10, 'uniform')	
+						uImg = np.copy(uImg).astype(np.float)
+						uImg[uImg>0] -= np.min(uImg[uImg>0])
+						# from IPython import embed
+						# embed()
 
-			hogIm *= mask
-			lbpIm *= mask
+						uImg = np.minimum(uImg, 100)
+						# uImg /= (np.max(uImg)/255.)
 
-			# Colorize COM
-			cv2.rectangle(depthIm, tuple([uvw[1]/2-3, uvw[0]/2-3]), tuple([uvw[1]/2+3, uvw[0]/2+3]), (100))
+						fillImage(uImg)
+						# hogArray = feature.hog(uImg, visualise=False)
 
-			# Create bounding box
-			# print uvw, tuple([uvw[0]/2-textureSize[0]/2, (uvw1]/2-textureSize[0]/2)]), tuple([uvw[0]/2+textureSize[1]/2,(uvw[1]/2+textureSize[1]/2)])
-			# cv2.rectangle(depthIm, tuple([uvw[0]/2-textureSize[1]/2, (uvw[1]/2-textureSize[0]/2)]), tuple([uvw[0]/2+textureSize[1]/2,(uvw[1]/2+textureSize[0]/2)]), (100))
-			# cv2.rectangle(depthIm, tuple([320-(uvw[1]/2-textureSize[1]/2), uvw[0]/2-textureSize[0]/2]), tuple([320-(uvw[1]/2+textureSize[1]/2), uvw[0]/2+textureSize[0]/2]), (100))
+						hogArray, hogIm = feature.hog(uImg, visualise=True)
+						cv2.namedWindow("hog_"+str(i))
+						cv2.imshow("hog_"+str(i), hogIm)
+						# cv2.imshow("hog_"+str(i), uImg)
+						
+						ret = cv2.waitKey(10)
+						hogs.append(hogArray)
 
-			usersPlotted += 1
+
+					''' Whole body '''
+					#Only look at box around users
+					# uImg = image[uvw[0]/2-textureSize[0]/2:uvw[0]/2+textureSize[0]/2, (uvw[1]/2-textureSize[1]/2):(uvw[1]/2+textureSize[1]/2)]
+					# # uImg = image[uvw[0]/2-textureSize[0]/2:uvw[0]/2+textureSize[0]/2, 320-(uvw[1]/2+textureSize[1]/2):320-(uvw[1]/2-textureSize[1]/2)]			
+
+					# if uImg.size == 0 or uImg.max()==0:
+					# 	return 0
+
+					# uImg = np.copy(uImg).astype(np.float)
+					# uImg[uImg>0] -= np.min(uImg[uImg>0])
+					# uImg /= (np.max(uImg)/255.)
+
+					# mask = uImg > 0
+					# fillImage(uImg)
+
+					# # Extract features
+					# hogArray,hogIm = feature.hog(uImg, visualise=True)
+					# lbpIm = feature.local_binary_pattern(uImg, 20, 10, 'uniform')	
+
+					# hogIm *= mask
+					# lbpIm *= mask
+
+					# Colorize COM
+					cv2.rectangle(depthIm, tuple([uvw[1]/2-3, uvw[0]/2-3]), tuple([uvw[1]/2+3, uvw[0]/2+3]), (4000))
+
+					# Create bounding box
+					# print uvw, tuple([uvw[0]/2-textureSize[0]/2, (uvw1]/2-textureSize[0]/2)]), tuple([uvw[0]/2+textureSize[1]/2,(uvw[1]/2+textureSize[1]/2)])
+					# cv2.rectangle(depthIm, tuple([uvw[0]/2-textureSize[1]/2, (uvw[1]/2-textureSize[0]/2)]), tuple([uvw[0]/2+textureSize[1]/2,(uvw[1]/2+textureSize[0]/2)]), (100))
+					# cv2.rectangle(depthIm, tuple([320-(uvw[1]/2-textureSize[1]/2), uvw[0]/2-textureSize[0]/2]), tuple([320-(uvw[1]/2+textureSize[1]/2), uvw[0]/2+textureSize[0]/2]), (100))
+
+					# Plot skeleton
+					if vis:
+						w = 3
+						# print "Joints: ", len(u.jointPositions)
+						for j in users[u]['jointPositions'].keys():
+							pt = world2depth(users[u]['jointPositions'][j])
+							depthIm[pt[0]/2-w:pt[0]/2+w, pt[1]/2-w:pt[1]/2+w] = 4000                                                        
+
+					usersPlotted += 1
 
 	if vis is True and usersPlotted >= 0:
 		# Make sure windows open
@@ -164,9 +264,9 @@ def plotUsers(image, users, vis=True, device=2, backgroundModel=None, computeHog
 		cv2.imshow('Depth_'+str(device), depthIm/float(depthIm.max()))
 		# If there are users
 		if uvw[0] > 0:
-			if computeHog:
-				cv2.namedWindow('HOG_'+str(device))
-				cv2.imshow('HOG_'+str(device), hogIm/float(hogIm.max()))
+			# if computeHog:
+				# cv2.namedWindow('HOG_'+str(device))
+				# cv2.imshow('HOG_'+str(device), hogIm/float(hogIm.max()))
 				# cv2.imshow('HOG_'+str(device), uImg.astype(np.float)/(1.*uImg.max()))
 			if computeLBP:
 				cv2.namedWindow('LBP_'+str(device))
@@ -198,9 +298,11 @@ class multiCameraTimeline:
 		while 1:
 			# Get latest file names/times
 			tmpFiles = [self.files[i][self.stamp[i]] if self.stamp[i]<self.fileLengths[i] else np.inf for i in xrange(self.devCount)]
-			sec = [int(x.split('_')[-2])*100 if type(x)==str else np.inf for x in tmpFiles]
-			ms = [int(format(x.split('_')[-1][:x.split('_')[-1].find('.')])) if type(x)==str else np.inf for x in tmpFiles]
-			ms = [(x+MS_OFFSET)%100 for x in ms]
+			# sec = [int(x.split('_')[-2])*100 if type(x)==str else np.inf for x in tmpFiles]
+			# ms = [int(format(x.split('_')[-1][:x.split('_')[-1].find('.')])) if type(x)==str else np.inf for x in tmpFiles]
+			# ms = [(x+MS_OFFSET)%100 for x in ms]
+			sec = [int(x.split('_')[-4])*100 if type(x)==str else np.inf for x in tmpFiles]
+			ms = [int(x.split('_')[-3]) if type(x)==str else np.inf for x in tmpFiles]			
 			times = [s*100 + m for s,m in zip(sec, ms)]
 			# times = [int(x.split('_')[-2])*100 + int(format(x.split('_')[-1][:x.split('_')[-1].find('.')])) if type(x)==str else np.inf for x in tmpFiles]
 
@@ -227,9 +329,6 @@ class multiCameraTimeline:
 			# if dev == 2:
 			# 	print times[dev], tmpFiles[dev], self.stamp, dev
 			yield dev, tmpFiles[dev]
-
-
-
 
 
 
@@ -265,38 +364,39 @@ for dirs in hourDirs: # Hours
 			# Get filenames # Seconds
 			depthTmp = os.listdir(dirs+'/'+Dir+'/'+deviceID+depthFolder)
 			skelTmp = os.listdir(dirs+'/'+Dir+'/'+deviceID+skelFolder)
-			# Sort files
-			depthTmp = [x for x in depthTmp if len(x.split('_')[-1][:x.split('_')[-1].find('.')])==2]
+			''' Sort files '''
+			# depthTmp = [x for x in depthTmp if len(x.split('_')[-1][:x.split('_')[-1].find('.')])==2]
 			# Extract times as number
-			tmpSort = [int(x.split('_')[-2])*100 + int(format(x.split('_')[-1][:x.split('_')[-1].find('.')])) for x in depthTmp]
+			# tmpSort = [int(x.split('_')[-3])*100 + int(format(x.split('_')[-1][:x.split('_')[-1].find('.')])) for x in depthTmp]			
+
+			tmpSort = [int(x.split('_')[-3])*100 + int(format(x.split('_')[-2])) for x in depthTmp]			
 			depthTmp = np.array(depthTmp)[np.argsort(tmpSort)].tolist()
-			skelTmp = np.array(skelTmp)[np.argsort(tmpSort)].tolist()
-
 			depthFiles.append([x for x in depthTmp if x.find('.png')>=0])
-			skelFiles.append([x for x in skelTmp if x.find('.npz')>=0])
 
-			dev = int(deviceID[-1])
+			tmpSort = [int(x.split('_')[-4])*100 + int(format(x.split('_')[-3])) for x in skelTmp]			
+			skelTmp = np.array(skelTmp)[np.argsort(tmpSort)].tolist()			
+			skelFiles.append([x for x in skelTmp if x.find('.dat')>=0])
 
-			# Add features
-			try:
-				features = computeFeatures(depthFiles[dev], skelFiles[dev], dev=dev)
-				for u in features.keys():
-					if u in allFeatures_perUser:
-						allFeatures_perUser[u].append(features[u])
-					else:
-						allFeatures_perUser[u] = [features[u]]
-				print features.keys(), allFeatures_perUser.keys()
-			except:
-				print "Error making features"
+		# 	dev = int(deviceID[-1])
 
+		# 	# Add features
+		# 	try:
+		# 		features = computeFeatures(depthFiles[dev], skelFiles[dev], dev=dev)
+		# 		for u in features.keys():
+		# 			if u in allFeatures_perUser:
+		# 				allFeatures_perUser[u].append(features[u])
+		# 			else:
+		# 				allFeatures_perUser[u] = [features[u]]
+		# 		print features.keys(), allFeatures_perUser.keys()
+		# 	except:
+		# 		print "Error making features"
 
+		# ret = cv2.waitKey(10)
+		# if ret >= 0:
+		# 	break
 
-		ret = cv2.waitKey(10)
-		if ret >= 0:
-			break
-
-		if 1:
-			continue
+		# if 1:
+		# 	continue
 
 
 		# For each device and image	
@@ -317,21 +417,28 @@ for dirs in hourDirs: # Hours
 			# skelFile = skelFiles[d][i]		
 
 		for dev, depthFile in multiCameraTimeline(depthFiles):
-			skelFile = 'skel_'+depthFile[6:-3]+'npz'
+
+			skelFile = 'skel_'+depthFile[6:-4]+'_.dat'
 
 			# Load Skeleton Data
-			data = np.load(dirs+'/'+Dir+'/'+devices[dev]+skelFolder+skelFile)
-			users = data['users'].tolist()
-			data.close()
-			coms = [users[x].com for x in users.keys() if users[x].com[2] > 0.0]
+			# data = np.load(dirs+'/'+Dir+'/'+devices[dev]+skelFolder+skelFile)
+			try:
+				with open(dirs+'/'+Dir+'/'+devices[dev]+skelFolder+skelFile, 'rb') as inFile:
+					users = pickle.load(inFile)
+			except:
+				print "No user file:", skelFile
+				continue
+			# users = data['users'].tolist()
+			# data.close()
+			coms = [users[x]['com'] for x in users.keys() if users[x]['com'][2] > 0.0]
+
 
 			jointCount = 0
-			for u in users.items():
-				if len(u[1].jointPositions.keys()) > 0:
-					jointCount = len(u[1].jointPositions.keys())
-
-			# if jointCount == 0:
-			# 	continue
+			for i in users.keys():
+				user = users[i]
+				# if user['jointPositions'][user['jointPositions'].keys()[0]] != -1:
+					# print user['jointPositionsConfidence']
+					# jointCount = 1
 			print depthFile
 
 			# if backgroundTemplates.shape[2] == backgroundCount and len(coms) <= 1:
@@ -365,23 +472,25 @@ for dirs in hourDirs: # Hours
 
 			# 	depthIm[mask] = 0
 
-			mask = None
-			if backgroundModel is None:
-				backgroundModel = depthIm.copy()
-				backgroundTemplates = depthIm[:,:,np.newaxis].copy()
-			else:
-				mask = np.abs(backgroundModel.astype(np.int16) - depthIm)
-				mask[depthIm < 500] = 0
 
-				depthBG = depthIm.copy()
-				# depthBG[~mask] = 0
-				if backgroundTemplates.shape[2] < backgroundCount or np.random.rand() < bgPercentage:
-					# mask = np.abs(backgroundTemplates[:,:,0].astype(np.int16) - depthIm)# < 20
-					backgroundTemplates = np.dstack([backgroundTemplates, depthBG])
-					backgroundModel = backgroundTemplates.sum(-1) / np.maximum((backgroundTemplates>0).sum(-1), 1)
-					# backgroundModel = nd.maximum_filter(backgroundModel, np.ones(2))
-				if backgroundTemplates.shape[2] > backgroundCount:
-					backgroundTemplates = backgroundTemplates[:,:,1:]
+			# ''' Background model #2 '''
+			# mask = None
+			# if backgroundModel is None:
+			# 	backgroundModel = depthIm.copy()
+			# 	backgroundTemplates = depthIm[:,:,np.newaxis].copy()
+			# else:
+			# 	mask = np.abs(backgroundModel.astype(np.int16) - depthIm)
+			# 	mask[depthIm < 500] = 0
+
+			# 	depthBG = depthIm.copy()
+			# 	# depthBG[~mask] = 0
+			# 	if backgroundTemplates.shape[2] < backgroundCount or np.random.rand() < bgPercentage:
+			# 		# mask = np.abs(backgroundTemplates[:,:,0].astype(np.int16) - depthIm)# < 20
+			# 		backgroundTemplates = np.dstack([backgroundTemplates, depthBG])
+			# 		backgroundModel = backgroundTemplates.sum(-1) / np.maximum((backgroundTemplates>0).sum(-1), 1)
+			# 		# backgroundModel = nd.maximum_filter(backgroundModel, np.ones(2))
+			# 	if backgroundTemplates.shape[2] > backgroundCount:
+			# 		backgroundTemplates = backgroundTemplates[:,:,1:]
 
 				# depthIm[mask] = 0
 
@@ -404,7 +513,14 @@ for dirs in hourDirs: # Hours
 			# 	imTmp = np.maximum(imTmp, imLabels==l)
 
 			# depthIm[:, 1:-2] *= imTmp
-			ret = plotUsers(depthIm, users, device=devices[dev], backgroundModel=backgroundModel)
+			features = computeFeatures_perFrame(depthIm, users, device=devices[dev], vis=True)
+			if features is not None:
+				for k in features.keys():
+					if k not in allFeatures_perUser.keys():
+						allFeatures_perUser[k] = [features[k]]
+					else:
+						allFeatures_perUser[k].append(features[k])
+			# ret = plotUsers(depthIm, users, device=devices[dev], backgroundModel=backgroundModel)
 			# try:
 			# 	ret = plotUsers(depthIm, users, device=devices[dev], backgroundModel=backgroundModel)
 			# except:
@@ -447,3 +563,7 @@ for dirs in hourDirs: # Hours
 	# figure(6); imshow(lIm)
 
 	# seg.quickshift(np.repeat((depthIm[:,:,newaxis]/200).astype(np.uint8), 3, 2))
+
+
+
+# np.save("../../AllFeatures", allFeatures_perUser)
