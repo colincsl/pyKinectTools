@@ -19,12 +19,12 @@ Cam_OFFSETS = [0, 18, 13]
 MS_OFFSET = -20
 allFeatures_perUser = {}
 
-if 1:
+if 0:
 	depthFolder = '/depth/'
 	skelFolder = '/skel/'
 else:
-	depthFolder = '/depth/depth/'
-	skelFolder = '/skel/skel/'
+	depthFolder = ''
+	skelFolder = ''
 
 
 def computeFeatures_perSecond(imageFiles, userFiles, dev=-1):
@@ -36,8 +36,8 @@ def computeFeatures_perSecond(imageFiles, userFiles, dev=-1):
 
 	# Go through each user for all frames
 	for i in xrange(len(imageFiles)):
-		# data = np.load(dirs+'/'+Dir+'/'+'device_'+str(dev)+skelFolder+userFiles[i])
-		data = pickle.load(dirs+'/'+Dir+'/'+'device_'+str(dev)+skelFolder+userFiles[i])
+		# data = np.load(hourDir+'/'+minuteDir+'/'+'device_'+str(dev)+skelFolder+userFiles[i])
+		data = pickle.load(hourDir+'/'+minuteDir+'/'+'device_'+str(dev)+skelFolder+userFiles[i])
 		users = data['users'].tolist()
 		data.close()
 		time = [int(x.split('_')[-2])*100 + int(format(x.split('_')[-1][:x.split('_')[-1].find('.')])) for x in depthTmp]
@@ -59,9 +59,8 @@ def computeFeatures_perSecond(imageFiles, userFiles, dev=-1):
 
 				if u not in hogs or i == int(len(imageFiles)/2):
 
-					image = sm.imread(dirs+'/'+Dir+'/'+devices[dev]+depthFolder+imageFiles[i])
+					image = sm.imread(hourDir+'/'+minuteDir+'/'+devices[dev]+depthFolder+imageFiles[i])
 					cv2.namedWindow("Pre-HOG")
-					# import pdb; pdb.set_trace()
 					cv2.imshow("Pre-HOG", image.astype(np.float)/5000)
 					cv2.waitKey(10)
 					image = np.array(image, dtype=np.uint16)
@@ -340,194 +339,206 @@ backgroundModel = None
 backgroundCount = 20
 bgPercentage = .05
 
-hourDirs = os.listdir('.')
-hourDirs = [x for x in hourDirs if x[0]!='.']
-hourDirs.sort(key=lambda x: int(x))
+dayDirs = os.listdir('depth/')
+dayDirs = [x for x in dayDirs if x[0]!='.']
+dayDirs.sort(key=lambda x: int(x))
 
-for dirs in hourDirs: # Hours
-	minuteDirs = os.listdir(dirs)
-	minuteDirs = [x for x in minuteDirs if x[0]!='.']
-	minuteDirs.sort(key=lambda x: int(x))
-	for Dir in minuteDirs: # Minutes
-
-		if Dir[0] == '.': # Prevent from reading hidden files
-			continue
-
-		depthFiles = []
-		skelFiles = []
-
-		# For each available device:
-		devices = os.listdir(dirs+'/'+Dir)
-		devices = [x for x in devices if x[0]!='.' and x.find('tmp')<0]
-		devices.sort()
-		for deviceID in devices:
-			# Get filenames # Seconds
-			depthTmp = os.listdir(dirs+'/'+Dir+'/'+deviceID+depthFolder)
-			skelTmp = os.listdir(dirs+'/'+Dir+'/'+deviceID+skelFolder)
-			''' Sort files '''
-			# depthTmp = [x for x in depthTmp if len(x.split('_')[-1][:x.split('_')[-1].find('.')])==2]
-			# Extract times as number
-			# tmpSort = [int(x.split('_')[-3])*100 + int(format(x.split('_')[-1][:x.split('_')[-1].find('.')])) for x in depthTmp]			
-
-			tmpSort = [int(x.split('_')[-3])*100 + int(format(x.split('_')[-2])) for x in depthTmp]			
-			depthTmp = np.array(depthTmp)[np.argsort(tmpSort)].tolist()
-			depthFiles.append([x for x in depthTmp if x.find('.png')>=0])
-
-			tmpSort = [int(x.split('_')[-4])*100 + int(format(x.split('_')[-3])) for x in skelTmp]			
-			skelTmp = np.array(skelTmp)[np.argsort(tmpSort)].tolist()			
-			skelFiles.append([x for x in skelTmp if x.find('.dat')>=0])
-
-		# 	dev = int(deviceID[-1])
-
-		# 	# Add features
-		# 	try:
-		# 		features = computeFeatures(depthFiles[dev], skelFiles[dev], dev=dev)
-		# 		for u in features.keys():
-		# 			if u in allFeatures_perUser:
-		# 				allFeatures_perUser[u].append(features[u])
-		# 			else:
-		# 				allFeatures_perUser[u] = [features[u]]
-		# 		print features.keys(), allFeatures_perUser.keys()
-		# 	except:
-		# 		print "Error making features"
-
-		# ret = cv2.waitKey(10)
-		# if ret >= 0:
-		# 	break
-
-		# if 1:
-		# 	continue
+for dayDir in dayDirs:
+	hourDirs = os.listdir('depth/'+dayDir)
+	hourDirs = [x for x in hourDirs if x[0]!='.']
+	hourDirs.sort(key=lambda x: int(x))
 
 
-		# For each device and image	
+	for hourDir in hourDirs: # Hours
+		minuteDirs = os.listdir('depth/'+dayDir+'/'+hourDir)
+		minuteDirs = [x for x in minuteDirs if x[0]!='.']
+		minuteDirs.sort(key=lambda x: int(x))
+		for minuteDir in minuteDirs: # Minutes
 
-		# deviceCount = len(depthFiles)
-		# maxIms = np.max([len(x) for x in depthFiles])
-		# for i in range(maxIms):
-			# for d in range(deviceCount):
-				# if i < len(depthFiles[d]):
-				# 	depthFile = depthFiles[d][i]
-				# 	skelFile = skelFiles[d][i]
-				# else:
-				# 	continue
-				# print depthFiles[d][i]
-				# if len(depthFiles[d][i]) < 24:
-				# 	continue
-			# depthFile = depthFiles[d][i]
-			# skelFile = skelFiles[d][i]		
-
-		for dev, depthFile in multiCameraTimeline(depthFiles):
-
-			skelFile = 'skel_'+depthFile[6:-4]+'_.dat'
-
-			# Load Skeleton Data
-			# data = np.load(dirs+'/'+Dir+'/'+devices[dev]+skelFolder+skelFile)
-			try:
-				with open(dirs+'/'+Dir+'/'+devices[dev]+skelFolder+skelFile, 'rb') as inFile:
-					users = pickle.load(inFile)
-			except:
-				print "No user file:", skelFile
+			if minuteDir[0] == '.': # Prevent from reading hidden files
 				continue
-			# users = data['users'].tolist()
-			# data.close()
-			coms = [users[x]['com'] for x in users.keys() if users[x]['com'][2] > 0.0]
+
+			depthFiles = []
+			skelFiles = []
+
+			# For each available device:
+			devices = os.listdir('depth/'+dayDir+'/'+hourDir+'/'+minuteDir)
+			devices = [x for x in devices if x[0]!='.' and x.find('tmp')<0]
+			devices.sort()
+			for deviceID in devices:
+				# Get filenames # Seconds
+				# depthTmp = os.listdir(hourDir+'/'+minuteDir+'/'+deviceID+depthFolder)
+				# skelTmp = os.listdir(hourDir+'/'+minuteDir+'/'+deviceID+skelFolder)
+				depthTmp = os.listdir('depth/'+dayDir+'/'+hourDir+'/'+minuteDir+'/'+deviceID+depthFolder)
+				skelTmp = os.listdir('skel/'+dayDir+'/'+hourDir+'/'+minuteDir+'/'+deviceID+skelFolder)			
+				''' Sort files '''
+				# depthTmp = [x for x in depthTmp if len(x.split('_')[-1][:x.split('_')[-1].find('.')])==2]
+				# Extract times as number
+				# tmpSort = [int(x.split('_')[-3])*100 + int(format(x.split('_')[-1][:x.split('_')[-1].find('.')])) for x in depthTmp]			
+
+				tmpSort = [int(x.split('_')[-3])*100 + int(format(x.split('_')[-2])) for x in depthTmp]			
+				depthTmp = np.array(depthTmp)[np.argsort(tmpSort)].tolist()
+				depthFiles.append([x for x in depthTmp if x.find('.png')>=0])
+
+				tmpSort = [int(x.split('_')[-4])*100 + int(format(x.split('_')[-3])) for x in skelTmp]			
+				skelTmp = np.array(skelTmp)[np.argsort(tmpSort)].tolist()			
+				skelFiles.append([x for x in skelTmp if x.find('.dat')>=0])
+
+			# 	dev = int(deviceID[-1])
+
+			# 	# Add features
+			# 	try:
+			# 		features = computeFeatures(depthFiles[dev], skelFiles[dev], dev=dev)
+			# 		for u in features.keys():
+			# 			if u in allFeatures_perUser:
+			# 				allFeatures_perUser[u].append(features[u])
+			# 			else:
+			# 				allFeatures_perUser[u] = [features[u]]
+			# 		print features.keys(), allFeatures_perUser.keys()
+			# 	except:
+			# 		print "Error making features"
+
+			# ret = cv2.waitKey(10)
+			# if ret >= 0:
+			# 	break
+
+			# if 1:
+			# 	continue
 
 
-			jointCount = 0
-			for i in users.keys():
-				user = users[i]
-				# if user['jointPositions'][user['jointPositions'].keys()[0]] != -1:
-					# print user['jointPositionsConfidence']
-					# jointCount = 1
-			print depthFile
+			# For each device and image	
 
-			# if backgroundTemplates.shape[2] == backgroundCount and len(coms) <= 1:
-			# if len(coms) < 1:	
-				# continue
+			# deviceCount = len(depthFiles)
+			# maxIms = np.max([len(x) for x in depthFiles])
+			# for i in range(maxIms):
+				# for d in range(deviceCount):
+					# if i < len(depthFiles[d]):
+					# 	depthFile = depthFiles[d][i]
+					# 	skelFile = skelFiles[d][i]
+					# else:
+					# 	continue
+					# print depthFiles[d][i]
+					# if len(depthFiles[d][i]) < 24:
+					# 	continue
+				# depthFile = depthFiles[d][i]
+				# skelFile = skelFiles[d][i]		
 
-			# Load Image
-			depthIm = sm.imread(dirs+'/'+Dir+'/'+devices[dev]+depthFolder+depthFile)
-			depthIm = np.array(depthIm, dtype=np.uint16)
+			for dev, depthFile in multiCameraTimeline(depthFiles):
 
-			# Background model
-			# fillImage(depthIm)
-			# mask = None
-			# if backgroundModel is None:
-			# 	backgroundModel = depthIm.copy()
-			# 	backgroundTemplates = depthIm[:,:,np.newaxis].copy()
-			# else:
-			# 	mask = np.abs(backgroundModel.astype(np.int16) - depthIm) < 50
-			# 	mask[depthIm < 500] = 0
+				skelFile = 'skel_'+depthFile[6:-4]+'_.dat'
 
-			# 	depthBG = depthIm.copy()
-			# 	depthBG[~mask] = 0
-			# 	if backgroundTemplates.shape[2] < backgroundCount or np.random.rand() < bgPercentage:
-			# 		# mask = np.abs(backgroundTemplates[0].astype(np.int16) - depthIm) < 20
-			# 		backgroundTemplates = np.dstack([backgroundTemplates, depthBG])
-			# 		backgroundModel = backgroundTemplates.sum(-1) / np.maximum((backgroundTemplates>0).sum(-1), 1)
-			# 		backgroundModel = nd.maximum_filter(backgroundModel, np.ones(2))
-			# 	if backgroundTemplates.shape[2] > backgroundCount:
-			# 		# backgroundTemplates.pop(0)
-			# 		backgroundTemplates = backgroundTemplates[:,:,1:]
-
-			# 	depthIm[mask] = 0
+				# Load Skeleton Data
+				# data = np.load(hourDir+'/'+minuteDir+'/'+devices[dev]+skelFolder+skelFile)
+				try:
+					# with open('skel/'+dayDir+'/'+hourDir+'/'+minuteDir+'/'+devices[dev]+skelFolder+skelFile, 'rb') as inFile:
+					# 	users = pickle.load(inFile)
+					with open('skel/'+dayDir+'/'+hourDir+'/'+minuteDir+'/'+devices[dev]+'/'+skelFile, 'rb') as inFile:
+						users = pickle.load(inFile)				
+				except:
+					print "No user file:", skelFile
+					continue
+				# users = data['users'].tolist()
+				# data.close()
+				coms = [users[x]['com'] for x in users.keys() if users[x]['com'][2] > 0.0]
 
 
-			# ''' Background model #2 '''
-			# mask = None
-			# if backgroundModel is None:
-			# 	backgroundModel = depthIm.copy()
-			# 	backgroundTemplates = depthIm[:,:,np.newaxis].copy()
-			# else:
-			# 	mask = np.abs(backgroundModel.astype(np.int16) - depthIm)
-			# 	mask[depthIm < 500] = 0
+				jointCount = 0
+				for i in users.keys():
+					user = users[i]
+					# if user['jointPositions'][user['jointPositions'].keys()[0]] != -1:
+						# print user['jointPositionsConfidence']
+						# jointCount = 1
+				print depthFile
 
-			# 	depthBG = depthIm.copy()
-			# 	# depthBG[~mask] = 0
-			# 	if backgroundTemplates.shape[2] < backgroundCount or np.random.rand() < bgPercentage:
-			# 		# mask = np.abs(backgroundTemplates[:,:,0].astype(np.int16) - depthIm)# < 20
-			# 		backgroundTemplates = np.dstack([backgroundTemplates, depthBG])
-			# 		backgroundModel = backgroundTemplates.sum(-1) / np.maximum((backgroundTemplates>0).sum(-1), 1)
-			# 		# backgroundModel = nd.maximum_filter(backgroundModel, np.ones(2))
-			# 	if backgroundTemplates.shape[2] > backgroundCount:
-			# 		backgroundTemplates = backgroundTemplates[:,:,1:]
+				# if backgroundTemplates.shape[2] == backgroundCount and len(coms) <= 1:
+				# if len(coms) < 1:	
+					# continue
 
-				# depthIm[mask] = 0
+				# Load Image
+				depthIm = sm.imread('depth/'+dayDir+'/'+hourDir+'/'+minuteDir+'/'+devices[dev]+'/'+depthFolder+depthFile)
+				depthIm = np.array(depthIm, dtype=np.uint16)
+
+				# Background model
+				# fillImage(depthIm)
+				# mask = None
+				# if backgroundModel is None:
+				# 	backgroundModel = depthIm.copy()
+				# 	backgroundTemplates = depthIm[:,:,np.newaxis].copy()
+				# else:
+				# 	mask = np.abs(backgroundModel.astype(np.int16) - depthIm) < 50
+				# 	mask[depthIm < 500] = 0
+
+				# 	depthBG = depthIm.copy()
+				# 	depthBG[~mask] = 0
+				# 	if backgroundTemplates.shape[2] < backgroundCount or np.random.rand() < bgPercentage:
+				# 		# mask = np.abs(backgroundTemplates[0].astype(np.int16) - depthIm) < 20
+				# 		backgroundTemplates = np.dstack([backgroundTemplates, depthBG])
+				# 		backgroundModel = backgroundTemplates.sum(-1) / np.maximum((backgroundTemplates>0).sum(-1), 1)
+				# 		backgroundModel = nd.maximum_filter(backgroundModel, np.ones(2))
+				# 	if backgroundTemplates.shape[2] > backgroundCount:
+				# 		# backgroundTemplates.pop(0)
+				# 		backgroundTemplates = backgroundTemplates[:,:,1:]
+
+				# 	depthIm[mask] = 0
 
 
-			# cv2.namedWindow("a")
-			# cv2.imshow("a", backgroundModel.astype(np.float) /5000.0)
-			# cv2.imshow("a", depthIm.astype(np.float) /5000.0)
-			# try:
-				# pass
-				# cv2.imshow("a", mask.astype(np.float)/mask.max())
-			# 	cv2.imshow("a", mask.astype(np.uint8)*255)
-			# except:
-			# 	pass
-			# ret = cv2.waitKey(20)
-			# # ret = 1
-			# imLabels, objectSlices, labelInds = extractPeople(depthIm, minPersonPixThresh=500, gradientFilter=True)
+				# ''' Background model #2 '''
+				# mask = None
+				# if backgroundModel is None:
+				# 	backgroundModel = depthIm.copy()
+				# 	backgroundTemplates = depthIm[:,:,np.newaxis].copy()
+				# else:
+				# 	mask = np.abs(backgroundModel.astype(np.int16) - depthIm)
+				# 	mask[depthIm < 500] = 0
 
-			# imTmp = np.zeros_like(imLabels)
-			# for l in labelInds:
-			# 	imTmp = np.maximum(imTmp, imLabels==l)
+				# 	depthBG = depthIm.copy()
+				# 	# depthBG[~mask] = 0
+				# 	if backgroundTemplates.shape[2] < backgroundCount or np.random.rand() < bgPercentage:
+				# 		# mask = np.abs(backgroundTemplates[:,:,0].astype(np.int16) - depthIm)# < 20
+				# 		backgroundTemplates = np.dstack([backgroundTemplates, depthBG])
+				# 		backgroundModel = backgroundTemplates.sum(-1) / np.maximum((backgroundTemplates>0).sum(-1), 1)
+				# 		# backgroundModel = nd.maximum_filter(backgroundModel, np.ones(2))
+				# 	if backgroundTemplates.shape[2] > backgroundCount:
+				# 		backgroundTemplates = backgroundTemplates[:,:,1:]
 
-			# depthIm[:, 1:-2] *= imTmp
-			features = computeFeatures_perFrame(depthIm, users, device=devices[dev], vis=True)
-			if features is not None:
-				for k in features.keys():
-					if k not in allFeatures_perUser.keys():
-						allFeatures_perUser[k] = [features[k]]
-					else:
-						allFeatures_perUser[k].append(features[k])
-			# ret = plotUsers(depthIm, users, device=devices[dev], backgroundModel=backgroundModel)
-			# try:
-			# 	ret = plotUsers(depthIm, users, device=devices[dev], backgroundModel=backgroundModel)
-			# except:
-			# 	print "Error plotting"
+					# depthIm[mask] = 0
 
-				# if ret > 0:
-					# break					
+
+				# cv2.namedWindow("a")
+				# cv2.imshow("a", backgroundModel.astype(np.float) /5000.0)
+				# cv2.imshow("a", depthIm.astype(np.float) /5000.0)
+				# try:
+					# pass
+					# cv2.imshow("a", mask.astype(np.float)/mask.max())
+				# 	cv2.imshow("a", mask.astype(np.uint8)*255)
+				# except:
+				# 	pass
+				# ret = cv2.waitKey(20)
+				# # ret = 1
+				# imLabels, objectSlices, labelInds = extractPeople(depthIm, minPersonPixThresh=500, gradientFilter=True)
+
+				# imTmp = np.zeros_like(imLabels)
+				# for l in labelInds:
+				# 	imTmp = np.maximum(imTmp, imLabels==l)
+
+				# depthIm[:, 1:-2] *= imTmp
+				features = computeFeatures_perFrame(depthIm, users, device=devices[dev], vis=True)
+				if features is not None:
+					for k in features.keys():
+						if k not in allFeatures_perUser.keys():
+							allFeatures_perUser[k] = [features[k]]
+						else:
+							allFeatures_perUser[k].append(features[k])
+				# ret = plotUsers(depthIm, users, device=devices[dev], backgroundModel=backgroundModel)
+				# try:
+				# 	ret = plotUsers(depthIm, users, device=devices[dev], backgroundModel=backgroundModel)
+				# except:
+				# 	print "Error plotting"
+
+					# if ret > 0:
+						# break					
+				if ret > 0:
+					break
 			if ret > 0:
 				break
 		if ret > 0:

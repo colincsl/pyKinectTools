@@ -19,20 +19,21 @@ pool = Pool(processes = 1)
 processList = []
 processCount = 2
 
-def save_frame(depthName, depth, colorName, color, userName, users):
+def save_frame(depthName, depth, colorName, color, userName, users, mask=None):
 
         try:
                 # sm.imsave(depthName, depth)
                 im = Image.fromarray(depth.astype(np.int32), 'I')
                 im = im.resize([320,240])
                 im.save(depthName)
+                
+                if mask != None:
+                        mask = sm.imresize(mask, [240,320], 'nearest')
+                        sm.imsave(depthName[:-4]+"_mask.jpg", mask)
 
                 color = sm.imresize(color, [240,320,3], 'nearest')
                 sm.imsave(colorName, color)
 
-                # np.savez(userName, users=users)
-                # from IPython import embed
-                # embed()
                 usersOut = {}
                 for k in users.keys():
                         # from IPython import embed
@@ -49,7 +50,7 @@ def save_frame(depthName, depth, colorName, color, userName, users):
                 return -1
 
 
-def main(deviceID=1, dir_=DIR, viz=0, getSkel=True, frameDifferencePercent=5, depthStoreCount=5):
+def main(deviceID=1, dir_=DIR, viz=0, getSkel=True, frameDifferencePercent=5, anonomize=True,  depthStoreCount=5):
 # def main(deviceID=1, dir_=DIR, viz=0, frameDifferencePercent=0*5, depthStoreCount=1):
 
         if viz:
@@ -74,7 +75,7 @@ def main(deviceID=1, dir_=DIR, viz=0, getSkel=True, frameDifferencePercent=5, de
 
         maxFramerate = 30
         minFramerate = 1.0/3.0
-        motionLagTime = 3
+        motionLagTime = 5
         recentMotionTime = time.clock()
         
 
@@ -191,58 +192,78 @@ def main(deviceID=1, dir_=DIR, viz=0, getSkel=True, frameDifferencePercent=5, de
 
 
                                         ''' Create a folder if it doesn't exist '''
-                                        if not os.path.isdir(dir_+day):
-                                                try:
-                                                        os.mkdir(dir_+day)
-                                                except:
-                                                        pass
-                                        if not os.path.isdir(dir_+day+"/"+hour):
-                                                try:
-                                                        os.mkdir(dir_+day+"/"+hour)
-                                                except:
-                                                        pass
-                                        if not os.path.isdir(dir_+day+"/"+hour+"/"+minute):
-                                                try:
-                                                        os.mkdir(dir_+day+"/"+hour+"/"+minute)
-                                                except:
-                                                        pass
-                                        if not os.path.isdir(dir_+day+"/"+hour+"/"+minute+"/device_"+str(deviceID)):
-                                                try:
-                                                        os.mkdir(dir_+day+"/"+hour+"/"+minute+"/device_"+str(deviceID))
-                                                        os.mkdir(dir_+day+"/"+hour+"/"+minute+"/device_"+str(deviceID)+"/"+"depth")
-                                                        os.mkdir(dir_+day+"/"+hour+"/"+minute+"/device_"+str(deviceID)+"/"+"color")
-                                                        os.mkdir(dir_+day+"/"+hour+"/"+minute+"/device_"+str(deviceID)+"/"+"skel")
-                                                except:
-                                                        pass
+
+                                        # if not os.path.isdir(dir_+day):
+                                        #         try:
+                                        #                 os.mkdir(dir_+day)
+                                        #         except:
+                                        #                 pass
+                                        # if not os.path.isdir(dir_+day+"/"+hour):
+                                        #         try:
+                                        #                 os.mkdir(dir_+day+"/"+hour)
+                                        #         except:
+                                        #                 pass
+                                        # if not os.path.isdir(dir_+day+"/"+hour+"/"+minute):
+                                        #         try:
+                                        #                 os.mkdir(dir_+day+"/"+hour+"/"+minute)
+                                        #         except:
+                                        #                 pass
+                                        # if not os.path.isdir(dir_+day+"/"+hour+"/"+minute+"/device_"+str(deviceID)):
+                                                # try:
+                                                        # os.mkdir(dir_+day+"/"+hour+"/"+minute+"/device_"+str(deviceID))
+                                                        # os.mkdir(dir_+day+"/"+hour+"/"+minute+"/device_"+str(deviceID)+"/"+"depth")
+                                                        # os.mkdir(dir_+day+"/"+hour+"/"+minute+"/device_"+str(deviceID)+"/"+"color")
+                                                        # os.mkdir(dir_+day+"/"+hour+"/"+minute+"/device_"+str(deviceID)+"/"+"skel")
+                                                # except:
+                                                        # pass
+                                        depthDir = dir_+'depth/'+day+"/"+hour+"/"+minute+"/device_"+str(deviceID)
+                                        colorDir = dir_+'color/'+day+"/"+hour+"/"+minute+"/device_"+str(deviceID)
+                                        skelDir = dir_+'skel/'+day+"/"+hour+"/"+minute+"/device_"+str(deviceID)
+                                        # print ""
+                                        # print depthDir, depthDir.split('/')
+                                        if not os.path.isdir(depthDir):
+                                                for p in xrange(4, len(depthDir.split("/"))+1):                         
+                                                        try:
+                                                                # print "/".join(depthDir.split('/')[0:p]), p
+                                                                # os.mkdir("/".join(depthDir.split('/'))) 
+                                                                os.mkdir("/".join(depthDir.split('/')[0:p])) 
+                                                                os.mkdir("/".join(colorDir.split('/')[0:p]))
+                                                                os.mkdir("/".join(skelDir.split('/')[0:p]))
+                                                                        # os.mkdir(dir_+day+"/"+type_dir+"/"+hour+"/"+minute+"/device_"+str(deviceID)) 
+
+                                                        except:
+                                                                # print "error making dir"
+                                                                pass
+
 
                                         ''' Define filenames '''
                                         # depthName = dir_+day+"/"+hour+"/"+minute+"/device_"+str(deviceID)+"/"+"depth"+"/"+\
-                                        #                         "depth_"+day+"_"+hour+"_"+minute+"_"+second+"_"+ms_str+".png"
+                                        #                         "depth_"+day+"_"+hour+"_"+minute+"_"+second+"_"+secondCount+"_"+ms_str+".png"
                                         # colorName = dir_+day+"/"+hour+"/"+minute+"/device_"+str(deviceID)+"/"+"color"+"/"+\
-                                        #                         "color_"+day+"_"+hour+"_"+minute+"_"+second+"_"+ms_str+".jpg"
+                                        #                         "color_"+day+"_"+hour+"_"+minute+"_"+second+"_"+secondCount+"_"+ms_str+".jpg"
+                                        # # The extra "_" at the end makes it easier to read
                                         # usersName = dir_+day+"/"+hour+"/"+minute+"/device_"+str(deviceID)+"/"+"skel"+"/"+\
-                                        #                         "skel_"+day+"_"+hour+"_"+minute+"_"+second+"_"+ms_str    
-                                        depthName = dir_+day+"/"+hour+"/"+minute+"/device_"+str(deviceID)+"/"+"depth"+"/"+\
-                                                                "depth_"+day+"_"+hour+"_"+minute+"_"+second+"_"+secondCount+"_"+ms_str+".png"
-                                        colorName = dir_+day+"/"+hour+"/"+minute+"/device_"+str(deviceID)+"/"+"color"+"/"+\
-                                                                "color_"+day+"_"+hour+"_"+minute+"_"+second+"_"+secondCount+"_"+ms_str+".jpg"
-                                        # The extra "_" at the end makes it easier to read
-                                        usersName = dir_+day+"/"+hour+"/"+minute+"/device_"+str(deviceID)+"/"+"skel"+"/"+\
-                                                                "skel_"+day+"_"+hour+"_"+minute+"_"+second+"_"+secondCount+"_"+ms_str+"_.dat"
+                                        #                         "skel_"+day+"_"+hour+"_"+minute+"_"+second+"_"+secondCount+"_"+ms_str+"_.dat"
+                                        depthName = depthDir + "/depth_"+day+"_"+hour+"_"+minute+"_"+second+"_"+secondCount+"_"+ms_str+".png"
+                                        colorName = colorDir + "/color_"+day+"_"+hour+"_"+minute+"_"+second+"_"+secondCount+"_"+ms_str+".jpg"
+                                        usersName = skelDir + "/skel_"+day+"_"+hour+"_"+minute+"_"+second+"_"+secondCount+"_"+ms_str+"_.dat"
 
 
                                         # print 'c:', secondCount
                                         # print str(ms), str(ms)[str(ms).find(".")+1:]                                            
 
                                         ''' Save data '''
-                                        # sm.imsave(depthName, sm.imresize(depthRaw8, [240,320], 'nearest'))
-                                        # sm.imsave(colorName, sm.imresize(colorRaw, [240,320,3],'nearest'))
-
-                                        # sm.imsave(depthName, depthRaw8)
-                                        # sm.imsave(colorName, colorRaw)
-                                        # np.savez(usersName, users=users)
-
-                                        save_frame(depthName, depthRaw8, colorName, colorRaw, usersName, users)
+                                        ''' Anonomize '''
+                                        if anonomize:
+                                                mask = np.ma.ones([480,640])
+                                                mask.mask = True
+                                                for i in depthDevice.user.users:
+                                                        mask.mask *= np.equal(np.array(depthDevice.user.get_user_pixels(i)).reshape([480,640]), 0)#[:,:,np.newaxis]
+                                                save_frame(depthName, depthRaw8, colorName, colorRaw, usersName, users, mask=mask.mask)
+                                        else:
+                                                save_frame(depthName, depthRaw8, colorName, colorRaw, usersName, users)
+                                        # save_frame(depthName, depthRaw8, colorName, colorRaw*mask.mask[:,:,np.newaxis], usersName, users)
+                                        # save_frame(depthName, depthRaw8, colorName, colorRaw, usersName, users, mask=mask.mask)
 
                                         ''' Have it compress/save on another processor '''
                                         # p = Process(target=save_frame, args=(depthName, depthRaw8, colorName, colorRaw, usersName, users))
@@ -263,7 +284,6 @@ def main(deviceID=1, dir_=DIR, viz=0, getSkel=True, frameDifferencePercent=5, de
                                         #         processList.append(p)
 
                                         prevFrameTime = time.clock()
-                                        # prevFrame = currentFrame
 
 
 
@@ -285,7 +305,10 @@ def main(deviceID=1, dir_=DIR, viz=0, getSkel=True, frameDifferencePercent=5, de
 
                                 if viz:
                                         cv2.imshow("depth", d)
-                                        # cv2.imshow("depth", colorRaw)
+                                        # if len(users.keys()) > 0 and users[1].tracked==1:
+                                                # from IPython import embed
+                                                # embed()                         
+                                        # cv2.imshow("depth", colorRaw*mask.mask[:,:,np.newaxis ])
                                         # cv2.imshow("depth", np.logical_and((depthRaw8 - depthOld[0]) > 200, (depthRaw8 - depthOld[0]) < 20000).astype(np.uint8)*255)
                                         r = cv2.waitKey(10)
                                         if r >= 0:
