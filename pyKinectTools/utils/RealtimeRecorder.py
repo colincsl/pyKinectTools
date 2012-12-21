@@ -255,10 +255,11 @@ def main(deviceID=1, dir_=DIR, viz=0, getSkel=True, frameDifferencePercent=5, an
                                         ''' Save data '''
                                         ''' Anonomize '''
                                         if anonomize:
-                                                mask = np.ma.ones([480,640])
+                                                # mask = np.ma.ones([480,640])
+                                                mask = np.ones([480,640])
                                                 mask.mask = True
                                                 for i in depthDevice.user.users:
-                                                        mask.mask *= np.equal(np.array(depthDevice.user.get_user_pixels(i)).reshape([480,640]), 0)#[:,:,np.newaxis]
+                                                        mask = np.max(mask, np.equal(np.array(depthDevice.user.get_user_pixels(i)).reshape([480,640]), 0))
                                                 save_frame(depthName, depthRaw8, colorName, colorRaw, usersName, users, mask=mask.mask)
                                         else:
                                                 save_frame(depthName, depthRaw8, colorName, colorRaw, usersName, users)
