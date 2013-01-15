@@ -11,7 +11,7 @@ from copy import deepcopy
 #sys.path.append('/Users/colin/libs/vlfeat/vl/pyQuickShift/')
 from pyKinectTools.utils.DepthReader import DepthReader
 from pyKinectTools.utils.PersonTracker import Tracker
-from pyKinectTools.utils.SkeletonUtils
+# from pyKinectTools.utils.SkeletonUtils import *
 # from SkelPlay import *
 from pyKinectTools.algs.BackgroundSubtraction import *
 from pyKinectTools.algs.FeatureExtraction import *
@@ -618,4 +618,7 @@ if 1:
 if 0:
 
 	if __name__=="__main__":
+
+		from meliae import scanner
+		scanner.dump_all_objects( "ShowSkelsMem.memProf" )		
 		cProfile.run('main()')

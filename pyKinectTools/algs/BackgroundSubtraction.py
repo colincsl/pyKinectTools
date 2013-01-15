@@ -3,6 +3,9 @@ import os, time, sys
 import numpy as np
 import scipy.ndimage as nd
 
+# import cProfile
+# from profilehooks import profile
+
 
 def constrain(img, mini=-1, maxi=-1): #500, 4000
 	if mini == -1:
@@ -101,39 +104,43 @@ def extractPeople_old(img):
 def extractPeople_2(im):
 	return extractPeople(im)
 
-def extractPeople(im, minPersonPixThresh=500, gradientFilter=True):
-	# im *= im < im.max()
-	# shape_ = im.shape
-	# im_ = im[1:shape_[0], 1:shape_[1]]
-	# im = np.array(im, dtype=np.int16)
+def extractPeople(im, mask, minPersonPixThresh=500, gradThresh=50, gradientFilter=True):
 
+	# from IPython import embed
+	# embed()
 	if not gradientFilter:
-		grad_bin = im > 0
+		grad_bin = mask
 	else:
-		# grad = np.gradient(im)
-		# grad_g = np.sqrt(grad[0]**2+grad[1]**2)
-		# grad_bin = (grad_g < 50)*(im > 0)
-		grad_g = np.diff(im.astype(np.int16), 3)		
-		# grad_bin = (np.abs(grad_g) < 20) * (im[:,1:-2]>0)
-		grad_bin = (np.abs(grad_g) < 100) * (im[:,1:-2]>0)
-
+		grad_g = np.diff(im.astype(np.int16), 1)*mask[:,:mask.shape[1]-1]
+		grad_g = np.abs(grad_g)
+		grad_bin = (np.abs(grad_g) < gradThresh)
 		# grad_bin = nd.binary_erosion(grad_bin, iterations=1)
+		grad_bin = nd.binary_dilation(grad_bin, iterations=1)
 
-	# structure = np.array([[1,1,1],[1,1,1],[1,1,1]])
-	# labels = nd.label(grad_bin, structure)
-	labels = nd.label(grad_bin)
-	objs = nd.find_objects(labels[0])#, labels[1])
+	import cv2
+	cv2.imshow("grad", grad_g.astype(np.float)/25)
+	# cv2.imshow("gradB", grad_bin*255)
+	# print "grad:", grad_g.max()
+	labelIm, maxLabel = nd.label(im*mask)
+	connComps = nd.find_objects(labelIm, maxLabel)
 
 	# Only extract if there are sufficient pixels
-	objs2 = [x for x in zip(objs,range(1, len(objs)+1)) if minPersonPixThresh < nd.sum(labels[0][x[0]]==x[1]) < .9*im.shape[0]*im.shape[1] ]
-	# [x[0]]
-	if len(objs2) > 0:
-		objs, goodLabels = zip(*objs2) # unzip objects
+	minPersonPixThresh = 5000
+	usrTmp = [(c,l) for c,l in zip(connComps,range(1, maxLabel+1)) if minPersonPixThresh < nd.sum(labelIm[c]==l)]
+	if len(usrTmp) > 0:
+		userBoundingBoxes, userLabels = zip(*usrTmp)
 	else:
-		objs = []
-		goodLabels = []
+		userBoundingBoxes = []
+		userLabels = []
+	userCount = len(userLabels)
 
-	return labels[0], objs, goodLabels
+	#Relabel foregound mask with multiple labels
+	mask = im.astype(np.uint8)*0
+	for i,i_new in zip(userLabels, range(1, userCount+1)):
+		mask[labelIm==i] = i_new
+
+	return mask, userBoundingBoxes, userLabels
+
 
 
 def getMeanImage(depthImgs):
@@ -148,12 +155,12 @@ def getMeanImage(depthImgs):
 
 	return mean_
 
-def fillImage(im):
+def fillImage(im, tol=500):
 	## Close holes in images
-	inds = nd.distance_transform_edt(im<500, return_distances=False, return_indices=True)
+	inds = nd.distance_transform_edt(im<tol, return_distances=False, return_indices=True)
 	i2 = np.nonzero(im<50)
 	i3 = inds[:, i2[0], i2[1]]
-	im[i2] = im[i3[0], i3[1]] # For all errors, set to avg 
+	im[i2] = im[i3[0], i3[1]] # For all errors, set to avg 	
 
 	return im
 
@@ -168,3 +175,220 @@ def removeNoise(im, thresh=500):
 
 	return im
 
+
+''' Adaptive Mixture of Gaussians '''
+class AdaptiveMixtureOfGaussians:
+
+	def __init__(self, im, maxGaussians=5, learningRate=0.05, decayRate=0.25, variance=100**2):
+
+		xRez, yRez = im.shape
+		self.MaxGaussians = 5
+		self.CurrentGaussianCount = 1
+		self.LearningRate = .05
+		self.DecayRate = .025
+		self.VarianceInit = 100**2
+
+		self.Means = np.ones([xRez,yRez,self.CurrentGaussianCount])
+		self.Variances = np.ones([xRez,yRez,self.CurrentGaussianCount])*self.VarianceInit
+		self.Weights = np.ones([xRez,yRez,self.CurrentGaussianCount])*self.LearningRate
+		self.Deltas = np.zeros([xRez,yRez,self.CurrentGaussianCount])
+		self.NumGaussians = np.ones([xRez,yRez], dtype=np.uint8)
+
+		self.Means[:,:,0] = im
+		self.Deviations = ((self.Means - im[:,:,np.newaxis])**2 / self.Variances)
+		self.backgroundModel = im
+		self.currentIm = im
+
+	# @profile
+	def update(self, im):
+
+		self.currentIm = im
+
+		''' Check deviations '''
+		self.Deviations = ((self.Means - im[:,:,np.newaxis])**2 / self.Variances)
+		# print "self.Deviations:", self.Deviations[150,20]
+
+		for m in range(self.CurrentGaussianCount):
+			self.Deviations[:,:,m] = (m < self.NumGaussians)*self.Deviations[:,:,m] + (m >= self.NumGaussians)*9999999999
+
+		Ownership = np.nanargmin(self.Deviations, -1)
+		# Ownership = np.argmin(self.Deviations, -1)
+		deviationMin = np.nanmin(self.Deviations, -1)
+
+		createNewMixture = deviationMin > 3
+		# print "Dev max", deviationMin.max()
+		createNewMixture[deviationMin > 99999] = False
+		createNewMixture[self.NumGaussians > self.MaxGaussians] = False
+		self.NumGaussians[createNewMixture] += 1
+		# import cv2
+		# cv2.namedWindow("new")
+		# cv2.imshow("new", createNewMixture.astype(np.uint8)*255)
+
+		''' Add mixture if no gaussians are close to new data '''						
+		# Create new mixture using new indices
+		if self.CurrentGaussianCount < self.MaxGaussians and self.NumGaussians.max() > self.CurrentGaussianCount:
+			# print "-------New Mixture Layer------"
+			# Give extreme values for pixels without this new gaussian
+			self.Weights = np.dstack([self.Weights, (createNewMixture)*self.LearningRate])
+			self.Means = np.dstack([self.Means, im*createNewMixture + (1-createNewMixture)*np.inf])
+			self.Variances = np.dstack([self.Variances, np.ones_like(createNewMixture)*self.VarianceInit])
+			self.Deltas = np.dstack([self.Deltas, np.zeros_like(createNewMixture)])
+			self.CurrentGaussianCount += 1
+
+		# Create new mixture using existing indices
+		if np.any(createNewMixture):
+			for m in range(self.CurrentGaussianCount):
+				newGaussian = createNewMixture*(self.NumGaussians==m)
+				Ownership[newGaussian] = m
+				# print "-------New Mixture------", np.sum(newGaussian)
+				if np.any(newGaussian):
+					# print "-------New Mixture------", m
+					activeset_x, activeset_y = np.nonzero((newGaussian))
+					self.Means[activeset_x,activeset_y,m] = im[activeset_x,activeset_y]
+					self.Weights[activeset_x,activeset_y,m] = self.LearningRate
+
+
+
+		# Update gaussians
+		for m in range(self.CurrentGaussianCount):
+			# Get indices
+
+			self.Deltas[:,:,m]		= im - self.Means[:,:,m]
+			tmpOwn 					= Ownership==m
+
+			self.Weights[:,:,m]		= self.Weights[:,:,m] 	+ self.LearningRate*(tmpOwn - self.Weights[:,:,m]) - self.LearningRate*self.DecayRate			
+			tmpWeight 				= tmpOwn*(self.LearningRate/self.Weights[:,:,m])			
+
+			self.Means[:,:,m] 		= self.Means[:,:,m] 	+ tmpWeight * self.Deltas[:,:,m]
+			self.Variances[:,:,m] 	= self.Variances[:,:,m] + tmpWeight * (self.Deltas[:,:,m]**2 - self.Variances[:,:,m])
+
+			# If the mean is zero, reset
+			# self.Means[self.Means[:,:,m] == 0,m] = im[self.Means[:,:,m] == 0]
+
+		self.backgroundModel = np.nanmax(self.Means, 2)
+		# self.backgroundModel = np.nanmax(self.Means*(self.Means<10000), 2)
+		
+
+		# print "Val:", im[150,20]
+		# print "Owner:", Ownership[150,20]
+		# print "Means:", self.Means[150,20]
+		# print "Weight:", self.Weights[150,20]
+		# print "Var:", self.Variances[150,20]
+		# print 'Create new:', createNewMixture[150,20]
+		# print 'numGauss:', self.NumGaussians[150,20]
+
+
+	def getModel(self):
+		return self.backgroundModel
+
+	def getForeground(self, thresh=100):
+		return (self.backgroundModel - self.currentIm) > thresh
+
+
+
+class MedianModel:
+
+	def __init__(self):
+		self.prevDepthIms = fillImage(depthIm.copy())[:,:,np.newaxis]
+		self.prevColorIms = colorIm_g[:,:,np.newaxis]		
+
+	def update(self,depthIm, colorIm):
+
+		# Add to set of images
+		self.prevDepthIms = np.dstack([self.prevDepthIms, depthIm])
+		self.prevColorIms = np.dstack([self.prevColorIms, colorIm])
+
+		# Check if too many (or few) images
+		imCount = self.prevDepthIms.shape[2]
+		if imCount <= 1:
+			return
+
+		elif imCount > 50:
+			self.prevDepthIms = self.prevDepthIms[:,:,-50:]
+			self.prevColorIms = self.prevColorIms[:,:,-50:]	
+
+		self.backgroundModel = np.median(self.prevDepthIms, -1)
+
+	def getModel(self):
+		return self.backgroundModel		
+
+
+
+
+''' Likelihood based on optical flow'''
+
+# backgroundProb[foregroundMask == 0] = 1.
+# prevDepthIms[:,:,-1] = 5000.
+
+# if backgroundProbabilities is None:
+# 	backgroundProbabilities = backgroundProb[:,:,np.newaxis]
+# else:
+# 	backgroundProbabilities = np.dstack([backgroundProbabilities, backgroundProb])
+
+# cv2.imshow("flow_color", flow[:,:,0]/float(flow[:,:,0].max()))
+# cv2.imshow("Prob", backgroundProbabilities.mean(-1) / backgroundProbabilities.mean(-1).max())
+# tmp = np.sum(backgroundProbabilities*prevDepthIms[:,:,1:],2) / np.sum(backgroundProbabilities,2)
+# # print tmp.min(), tmp.max()
+# cv2.imshow("BG_Prob", tmp/tmp.max())
+
+# backgroundProbabilities -= .01
+# backgroundProbabilities = np.maximum(backgroundProbabilities, 0)
+
+# prob = .5
+# # backgroundModel = tmp#(tmp > prob)*tmp + (tmp < prob)*5000
+# backgroundModel = np.median(prevDepthIms, 2)
+# cv2.imshow("BG model", backgroundModel/5000.)
+
+
+
+
+# backgroundProb = np.exp(-flowMag)
+
+
+
+
+
+
+
+
+
+
+
+# else:
+# 	mask = np.abs(backgroundModel.astype(np.int16) - depthIm) < 50
+# 	mask[depthIm < 500] = 0
+
+# 	depthBG = depthIm.copy()
+# 	depthBG[~mask] = 0
+# 	if backgroundTemplates.shape[2] < backgroundCount or np.random.rand() < bgPercentage:
+# 		# mask = np.abs(backgroundTemplates[0].astype(np.int16) - depthIm) < 20
+# 		backgroundTemplates = np.dstack([backgroundTemplates, depthBG])
+# 		backgroundModel = backgroundTemplates.sum(-1) / np.maximum((backgroundTemplates>0).sum(-1), 1)
+# 		backgroundModel = nd.maximum_filter(backgroundModel, np.ones(2))
+# 	if backgroundTemplates.shape[2] > backgroundCount:
+# 		# backgroundTemplates.pop(0)
+# 		backgroundTemplates = backgroundTemplates[:,:,1:]
+
+# 	depthIm[mask] = 0
+
+
+''' Background model #2 '''
+# mask = None
+# if backgroundModel is None:
+# 	backgroundModel = depthIm.copy()
+# 	backgroundTemplates = depthIm[:,:,np.newaxis].copy()
+# else:
+# 	mask = np.abs(backgroundModel.astype(np.int16) - depthIm)
+# 	mask[depthIm < 500] = 0
+
+# 	depthBG = depthIm.copy()
+# 	# depthBG[~mask] = 0
+# 	if backgroundTemplates.shape[2] < backgroundCount or np.random.rand() < bgPercentage:
+# 		# mask = np.abs(backgroundTemplates[:,:,0].astype(np.int16) - depthIm)# < 20
+# 		backgroundTemplates = np.dstack([backgroundTemplates, depthBG])
+# 		backgroundModel = backgroundTemplates.sum(-1) / np.maximum((backgroundTemplates>0).sum(-1), 1)
+# 		# backgroundModel = nd.maximum_filter(backgroundModel, np.ones(2))
+# 	if backgroundTemplates.shape[2] > backgroundCount:
+# 		backgroundTemplates = backgroundTemplates[:,:,1:]
+
+	# depthIm[mask] = 0

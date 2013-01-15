@@ -47,13 +47,13 @@ class User:
 class RealTimeDevice:
         ctx = []
         deviceNumber = None
-        depth = []
+        depth = None
         depthIm = []
         depthIm8 = []
-        color = []
+        color = None
         colorIm = []
 
-        user = []
+        user = None
         users = {}
         userIDs = []
         skel_cap = []
@@ -65,11 +65,11 @@ class RealTimeDevice:
         bgModel = []
         bgModel8 = []
 
-        # def __init__(self, device=-1, ctx=[]):
-        def __init__(self, device=-1, ctx=[], getSkel=True):
+        # def __init__(self, device=-1, ctx=[], getSkel=True):
+        def __init__(self, device=-1, ctx=None, getDepth=True, getColor=True, getSkel=True):            
 
                 self.deviceNumber = device
-                if ctx != []:
+                if ctx is not None:
                     self.ctx = ctx
                 else:
                     self.ctx = Context()
@@ -79,33 +79,30 @@ class RealTimeDevice:
                 else:
                     self.ctx.init_from_xml_file_by_device_id('../configs/SamplesConfig.xml', self.deviceNumber)
                     print "New context created for depth device. (#", self.deviceNumber, ")"
-                    self.depth = self.ctx.find_existing_node(NODE_TYPE_DEPTH)
-                    self.color = self.ctx.find_existing_node(NODE_TYPE_IMAGE)
 
+                    if getDepth:
+                        self.depth = self.ctx.find_existing_node(NODE_TYPE_DEPTH)
+                    if getColor:
+                        self.color = self.ctx.find_existing_node(NODE_TYPE_IMAGE)
                     if getSkel:
                         self.user = self.ctx.find_existing_node(NODE_TYPE_USER)
 
-                    if self.depth != [] and self.color != []:
+                    ''' Change viewpoint if both depth and color are used '''
+                    if self.depth is not None and self.color is not None:
                         self.depth.alternative_view_point_cap.set_view_point(self.color)
-                    else:
-                        print "No depth or color node."
 
-                    if self.user != []:
+                    if self.user is not None:
                         self.skel_cap = self.user.skeleton_cap
                         self.pose_cap = self.user.pose_detection_cap
 
-                        # Register them
+                        ''' Register users '''
                         self.user.register_user_cb(self.new_user, self.lost_user)
                         self.pose_cap.register_pose_detected_cb(self.pose_detected)
                         self.skel_cap.register_c_start_cb(self.calibration_start)
                         self.skel_cap.register_c_complete_cb(self.calibration_complete)
 
-                        # Set the profile
+                        ''' Set the profile '''
                         self.skel_cap.set_profile(SKEL_PROFILE_ALL)
-
-
-                    else:
-                        print "No user node."
 
 
         def addDepth(self, constrain=[500, 2000]):
@@ -118,20 +115,18 @@ class RealTimeDevice:
                 except:
                     print "Depth module can not load."
 
-                if self.color != []:
+                if self.color is not None:
                         self.depth.alternative_view_point_cap.set_view_point(depthDevice.color)
 
         def addColor(self):
 
                 try:
                     self.color = ImageGenerator()
-                    self.color.create(self.ctx)
-                    #self.color.set_resolution_preset(RES_QVGA)
-                    #self.color.fps = 10                    
+                    self.color.create(self.ctx)      
                 except:
                     print "Color module can not load." 
 
-                if self.depth != []:
+                if self.depth is not None:
                     self.depth.alternative_view_point_cap.set_view_point(self.color)
 
         def addUsers(self):
@@ -143,13 +138,13 @@ class RealTimeDevice:
                 self.skel_cap = self.user.skeleton_cap
                 self.pose_cap = self.user.pose_detection_cap
 
-                # Register them
+                '''Register them'''
                 self.user.register_user_cb(self.new_user, self.lost_user)
                 self.pose_cap.register_pose_detected_cb(self.pose_detected)
                 self.skel_cap.register_c_start_cb(self.calibration_start)
                 self.skel_cap.register_c_complete_cb(self.calibration_complete)
 
-                # Set the profile
+                '''Set the profile'''
                 self.skel_cap.set_profile(SKEL_PROFILE_ALL)
 
             except:
@@ -169,14 +164,14 @@ class RealTimeDevice:
             ret = self.ctx.wait_any_update_all()
             assert ret == None, "Error updating depth device."
 
-            if self.depth != []:
+            if self.depth is not None:
                     self.depthIm = np.frombuffer(self.depth.get_raw_depth_map(), np.uint16).reshape([self.depth.res[1],self.depth.res[0]])
                     #self.depthIm8 = constrain(self.depthIm, self.constrain[0], self.constrain[1])
 
-            if self.color != []:
+            if self.color is not None:
                     self.colorIm = np.frombuffer(self.color.get_raw_image_map_bgr(), np.uint8).reshape([self.color.res[1],self.color.res[0], 3])
 
-            if self.user != []:
+            if self.user is not None:
                     for i in self.user.users:
                         self.users[i].com = self.user.get_com(i)
                         self.users[i].timestamp = self.user.timestamp
@@ -193,7 +188,7 @@ class RealTimeDevice:
 
 
         def generateBackgroundModel(self):
-            # Get set of 5 frames and create background model
+            '''Get set of 5 frames and create background model'''
             depthImgs = []
             depthStackInd = 0
             for i in xrange(5):

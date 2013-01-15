@@ -1,16 +1,152 @@
 import numpy as np
 from scipy import sqrt, pi, arctan2, cos, sin
 from scipy.ndimage import uniform_filter
+import cv2
 
 ''' Taken with modifications from Scikit-Image version of HOG '''
 
 
-def getFlow(im1, im2):
-    return cv2.calcOpticalFlowFarneback(im1, im2, pyr_scale=.5, levels=3, winsize=9, iterations=3, poly_n=5, poly_sigma=1.1, flags=cv2.OPTFLOW_FARNEBACK_GAUSSIAN)
+def getFlow(imPrev, imNew):
+    flow = np.zeros([imPrev.shape[0],imPrev.shape[1],2])
+    flow = cv2.calcOpticalFlowFarneback(imPrev, imNew, flow=None, pyr_scale=.5, levels=3, winsize=9, iterations=3, poly_n=5, poly_sigma=1.1, flags=cv2.OPTFLOW_FARNEBACK_GAUSSIAN)
+    return flow
+
+def getDepthFlow(imPrev, imNew):
+    # Should actually go much more than 1 pixel!!!
+    flow = np.zeros_like(imPrev)+999
+    # flow = np.repeat(flow, 2, 2)
+    
+    # flow[im1==im2,:]=0
+    flow[im1==im2]=4
+    for x in xrange(1,im1.shape[0]):
+        for y in xrange(1,im1.shape[1]):
+            if flow[x,y]==999:
+                flow[x,y] = np.argmin(im1[x-1:x+2, y-1:y+2]-im2[x-1:x+2, y-1:y+2])
+    flow[flow==999] = -2
+
+    flowNew = np.repeat(flow[:,:,np.newaxis], 2, 2)
+    flowNew[flow==0,:] = [-1,-1]
+    flowNew[flow==1,:] = [-1, 0]
+    flowNew[flow==2,:] = [-1, 1]
+    flowNew[flow==3,:] = [ 0,-1]
+    flowNew[flow==4,:] = [ 0,0]
+    flowNew[flow==5,:] = [ 0, 1]
+    flowNew[flow==6,:] = [ 1,-1]
+    flowNew[flow==7,:] = [ 1, 0]
+    flowNew[flow==8,:] = [ 1, 1]
+    return flow
+
+def hog2image(hog, imageSize=[96,72],orientations=9,pixels_per_cell=(8, 8),cells_per_block=(3, 3)):
+    from skimage import draw
+
+    sy, sx = imageSize
+    cx, cy = pixels_per_cell
+    bx, by = cells_per_block
+
+    n_cellsx = int(np.floor(sx // cx))  # number of cells in x
+    n_cellsy = int(np.floor(sy // cy))  # number of cells in y
+
+    n_blocksx = (n_cellsx - bx) + 1
+    n_blocksy = (n_cellsy - by) + 1    
+
+    hog = hog.reshape([n_blocksy, n_blocksx, by, bx, orientations])
+
+    orientation_histogram = np.zeros((n_cellsy, n_cellsx, orientations))
+    for x in range(n_blocksx):
+            for y in range(n_blocksy):
+                block = hog[y, x, :]
+                orientation_histogram[y:y + by, x:x + bx, :] = block
+
+    radius = min(cx, cy) // 2 - 1
+    hog_image = np.zeros((sy, sx), dtype=float)
+    for x in range(n_cellsx):
+        for y in range(n_cellsy):
+            for o in range(orientations):
+                centre = tuple([y * cy + cy // 2, x * cx + cx // 2])
+                dx = radius * cos(float(o) / orientations * np.pi)
+                dy = radius * sin(float(o) / orientations * np.pi)
+                rr, cc = draw.bresenham(centre[0] - dy, centre[1] - dx,
+                                        centre[0] + dy, centre[1] + dx)
+                hog_image[rr, cc] += orientation_histogram[y, x, o]
+
+    return hog_image
+
+
+def showSplit(splitIm, blocks=[4,3]):
+    for x in range(blocks[0]):
+        for y in range(blocks[1]):
+            i=y*4+x;
+            subplot(4,3,i+1)
+            imshow(splitIm[:,:,i])
+
+
+def splitIm(im, blocks=[4,3]):
+    subSizeX, subSizeY = im.shape / np.array(blocks)
+    newIms = np.empty([im.shape[0]/blocks[0], im.shape[1]/blocks[1], blocks[0]*blocks[1]])
+    for x in xrange(blocks[0]):
+        for y in xrange(blocks[1]):
+            newIms[:,:, x*blocks[1]+y] = im[x*subSizeX:(x+1)*subSizeX,y*subSizeY:(y+1)*subSizeY]
+
+    return newIms
+
+from skimage import feature
+def splitHog(im, blocks=[4,3], visualise=False):
+    ims = splitIm(im, blocks)
+
+    hogs = []
+    hogIms = []
+    for i in range(ims.shape[2]):
+        if visualise:
+            hogArray, hogIm = feature.hog(colorIm_g, visualise=True)
+            hogs.append(hogArray)
+            hogIms.append(hogArray)
+        else:
+            hogArray = feature.hog(colorIm_g, visualise=False)
+            hogs.append(hogArray)
+    
+    if visualise:
+        return hogs, hogIms
+    else:
+        return hogs
+
+# ''' #Broken!'''
+# def splitHog(hog, imageSize=[96,72], NewBlocks=[4,3], orientations=9), pixels_per_cell=(8, 8),
+#         cells_per_block=(3, 3)):
+
+#     sy, sx = imageSize
+#     cx, cy = pixels_per_cell
+#     bx, by = cells_per_block
+
+#     n_cellsx = int(np.floor(sx // cx))  # number of cells in x
+#     n_cellsy = int(np.floor(sy // cy))  # number of cells in y
+
+#     n_blocksx = (n_cellsx - bx) + 1
+#     n_blocksy = (n_cellsy - by) + 1    
+
+#     hog = hog.reshape([n_blocksy, n_blocksx, by, bx, orientations])
+
+#     orientation_histogram = np.zeros((n_cellsy, n_cellsx, orientations))
+#     for x in range(n_blocksx):
+#             for y in range(n_blocksy):
+#                 block = hog[y, x, :]
+#                 orientation_histogram[y:y + by, x:x + bx, :] = block
+
+
+#     newHog = np.empty([newBlocks[0]*newBlocks[1], n_blocksy, n_blocksx, by, bx, orientations])
+#     for x in range(n_blocksx)
+#         for y in range(n_blocksy):
+#             block = orientation_histogram[y:y + by, x:x + bx, :]
+#             newHog[i, y, x, :, :, :] = block
+
+#     n_pixPerNewBlockX,n_pixPerNewBlockY = imagesSize / np.array(newBlocks)
+#     newHogs = np.empty([n_blocksy, n_blocksx, by, bx, orientations, blocks[0]*blocks[1]])
+
 
 
 def hof(flow, orientations=9, pixels_per_cell=(8, 8),
         cells_per_block=(3, 3), visualise=False, normalise=False):
+    ''' Key difference between this and HOG is that flow is MxNx2 instead of MxN'''
+
     """Extract Histogram of Optical Flow (HOF) for a given image.
 
     Compute a Histogram of Optical Flow (HOF) by
@@ -168,7 +304,7 @@ def hof(flow, orientations=9, pixels_per_cell=(8, 8),
     thus appears several times in the final output vector with different
     normalisations. This may seem redundant but it improves the performance.
     We refer to the normalised block descriptors as Histogram of Oriented
-    Gradient (hof) descriptors.
+    Gradient (hog) descriptors.
     """
 
     n_blocksx = (n_cellsx - bx) + 1
@@ -178,7 +314,7 @@ def hof(flow, orientations=9, pixels_per_cell=(8, 8),
 
     for x in range(n_blocksx):
         for y in range(n_blocksy):
-            block = orientation_histogram[y:y + by, x:x + bx, :]
+            block = orientation_histogram[y:y+by, x:x+bx, :]
             eps = 1e-5
             normalised_blocks[y, x, :] = block / sqrt(block.sum()**2 + eps)
 

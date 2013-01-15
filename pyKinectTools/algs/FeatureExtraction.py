@@ -381,3 +381,19 @@ def orientationComparison(vecs1, direc=2, size_=5):
 
 
 
+def calculateBasicPose(depthIm, mask):
+	# Get nonzero indices and the corresponding depth values
+	inds = np.nonzero(depthIm*mask > 0)
+	depVals = depthIm[inds]
+	inds = np.vstack([inds, depthVals])
+
+	xyz = depth2world(inds.T)
+	com = xyz.mean(0)
+	xyz -= com
+
+	_, _, vh = np.linalg.svd(xyz, full_matrices=0)
+	basis = vh.T
+	if basis[1,0] < 0:
+		basis = -1*basis
+
+	return com, basis
