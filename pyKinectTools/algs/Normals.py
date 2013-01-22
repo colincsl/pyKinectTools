@@ -51,7 +51,7 @@ def calculateNormals(posMat, radius=3):
 	return normals
 
 
-def getTopdownMap(depthMap, rotation=[], rez=1000, centroid=[0,0,0], bounds=[]):
+def getTopdownMap(depthMap, rotation=None, rez=1000, centroid=[0,0,0], bounds=[]):
 	# ie. bounds=[4000,4000,2000]	
 
 	xyz = depthIm2XYZ(depthMap)
@@ -60,7 +60,10 @@ def getTopdownMap(depthMap, rotation=[], rez=1000, centroid=[0,0,0], bounds=[]):
 		centroid = xyz.mean(0)
 	xyz -= centroid
 
-	xyzNew = np.asarray(rotation*np.asmatrix(xyz.T)).T
+	if rotation is not None:
+		xyzNew = np.asarray(rotation*np.asmatrix(xyz.T)).T
+	else:
+		xyzNew = xyz
 	xyzNew += centroid
 	xyzMin = xyzNew.min(0)
 	xyzMax = xyzNew.max(0)
@@ -69,10 +72,10 @@ def getTopdownMap(depthMap, rotation=[], rez=1000, centroid=[0,0,0], bounds=[]):
 		bounds = xyzMax - xyzMin
 
 	# Top-down view
-	# indsNew = np.asarray([np.round((xyzNew[:,0] - xyzMin[0])/(xyzMax[0]-xyzMin[0])*(rez-1)),
-	# 			np.round((xyzNew[:,1] - xyzMin[1])/(xyzMax[1]-xyzMin[1])*(rez-1))], dtype=np.int)
-	indsNew = np.asarray([np.round((xyzNew[:,0] + bounds[0]/2)/bounds[0]*(rez-1)),
-				np.round((xyzNew[:,1] + bounds[1]/2)/(bounds[1])*(rez-1))], dtype=np.int)
+	indsNew = np.asarray([np.round((xyzNew[:,0] - xyzMin[0])/(xyzMax[0]-xyzMin[0])*(rez-1)),
+				np.round((xyzNew[:,1] - xyzMin[1])/(xyzMax[1]-xyzMin[1])*(rez-1))], dtype=np.int)
+	# indsNew = np.asarray([np.round((xyzNew[:,0] + bounds[0]/2)/bounds[0]*(rez-1)),
+	# 			np.round((xyzNew[:,1] + bounds[1]/2)/(bounds[1])*(rez-1))], dtype=np.int)
 
 	indsNew[indsNew < 0] = 0
 	indsNew[indsNew >= rez] = 0

@@ -384,7 +384,7 @@ def orientationComparison(vecs1, direc=2, size_=5):
 def calculateBasicPose(depthIm, mask):
 	# Get nonzero indices and the corresponding depth values
 	inds = np.nonzero(depthIm*mask > 0)
-	depVals = depthIm[inds]
+	depthVals = depthIm[inds]
 	inds = np.vstack([inds, depthVals])
 
 	xyz = depth2world(inds.T)

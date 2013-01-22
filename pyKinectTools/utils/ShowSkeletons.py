@@ -1,4 +1,5 @@
 import os
+import optparse
 import cPickle as pickle
 import cv2
 import numpy as np
@@ -7,17 +8,26 @@ import scipy.ndimage as nd
 import skimage
 from skimage import feature
 from skimage import color
-from pyKinectTools.utils.DepthUtils import world2depth
+from pyKinectTools.utils.DepthUtils import world2depth, depthIm2XYZ
 from pyKinectTools.algs.HistogramOfOpticalFlow import getFlow, hof
 from pyKinectTools.algs.BackgroundSubtraction import AdaptiveMixtureOfGaussians, fillImage, extractPeople
-from pyKinectTools.algs.FeatureExtraction import orientationComparison
+from pyKinectTools.algs.FeatureExtraction import calculateBasicPose
 # from pyKinectTools.utils.RealtimeReader import *
+
+from mayavi import mlab
+figure = mlab.figure(1, bgcolor=(0,0,0), fgcolor=(1,1,1))
+# figure = mlab.figure(1, bgcolor=(1,1,1), fgcolor=(0,0,0))
+# figure = mlab.gcf()
+mlab.clf()
+figure.scene.disable_render = True
 
 from IPython import embed
 import cProfile
 
 from time import time
 timeStart = time()
+
+
 
 np.seterr(divide='ignore')
 
@@ -58,6 +68,21 @@ def learnICADict(features, components=25):
 	hofComponents = icaHOF.components_.T
 
 	return hogComponents, hofComponents
+
+# from sklearn.decomposition import FastICA
+def learnNMFDict(features, components=25):
+	from sklearn.decomposition import NMF
+
+	nmfHOG = NMF(n_components=components)
+	nmfHOF = NMF(n_components=components)
+
+	nmfHOG.fit(np.array([x['hog'] for x in features]).T)
+	nmfHOF.fit(np.array([x['hof'] for x in features]).T)
+
+	hogComponents = icaHOG.components_.T
+	hofComponents = icaHOF.components_.T
+
+	return hogComponents, hofComponents	
 
 def displayComponents(components):
 	sides = ceil(np.sqrt(len(components)))
@@ -162,8 +187,8 @@ def computeUserFeatures(colorIm, depthIm, flow, boundingBox, mask=None, windowSi
 
 	if visualise:
 		colorHistograms = [np.histogram(colorUserIm[:,:,i], bins=20, range=(0,255))[0] for i in range(3)]
-		hogArray, hogIm = feature.hog(colorIm_g, visualise=True)
-		hofArray, hofIm = hof(flowUserIm, visualise=True)
+		hogArray, hogIm = feature.hog(colorIm_g, visualise=True, orientations=4)
+		hofArray, hofIm = hof(flowUserIm, visualise=True, orientations=5)
 
 		features = {'com':com,
 					'ornBasis':ornBasis,
@@ -172,8 +197,8 @@ def computeUserFeatures(colorIm, depthIm, flow, boundingBox, mask=None, windowSi
 					'colorHistograms':colorHistograms
 					}
 	else:
-		hogArray, hogIm = feature.hog(colorIm_g)
-		hofArray, hofIm = hof(flowUserIm)
+		hogArray, hogIm = feature.hog(colorIm_g, orientations=4)
+		hofArray, hofIm = hof(flowUserIm, orientations=5)
 
 		features = {'com':com, 
 					'ornBasis':ornBasis,
@@ -188,12 +213,6 @@ def computeUserFeatures(colorIm, depthIm, flow, boundingBox, mask=None, windowSi
 
 def plotUsers(image, users=None, flow=None, vis=True, device=2, backgroundModel=None, computeHog=True, computeLBP=False):
 
-	# if backgroundModel is not None:
-	# 	mask = np.abs(backgroundModel.astype(np.int16) - image) > 30
-	# 	image *= mask
-	ret = 0
-
-	# if users is not None:
 	usersPlotted = 0
 	uvw = [-1]
 
@@ -204,105 +223,33 @@ def plotUsers(image, users=None, flow=None, vis=True, device=2, backgroundModel=
 			xyz = users[u]['com']
 			uvw = world2depth(xyz)
 
-			# Only plot if there are valid coordinates (not [0,0,0])
+			''' Only plot if there are valid coordinates (not [0,0,0])'''
 			if uvw[0] > 0:
 				if users[u]['tracked'] and len(users[u]['jointPositions'].keys()) > 0:
 
-					''' Body positions '''
-
-					# for i in bodyIndicies:
-						# pt = world2depth(users[u]['jointPositions'][users[u]['jointPositions'].keys()[i]])
-						# uImg = image[pt[0]/2-textureSize[0]/2:pt[0]/2+textureSize[0]/2, (pt[1]/2-textureSize[1]/2):(pt[1]/2+textureSize[1]/2)]
-
-						# if uImg.size == 0 or uImg.max()==0:
-						# 	return
-
-						# uImg = np.ascontiguousarray(uImg)
-						# uImg.resize(textureSize)
-
-						# uImg = np.copy(uImg).astype(np.float)
-						# uImg[uImg>0] -= np.min(uImg[uImg>0])
-						# # from IPython import embed
-						# # embed()
-
-						# uImg = np.minimum(uImg, 100)
-						# # uImg /= (np.max(uImg)/255.)
-
-						# fillImage(uImg)
-						# # hogArray = feature.hog(uImg, visualise=False)
-
-						# hogArray, hogIm = feature.hog(uImg, visualise=True)
-						# cv2.namedWindow("hog_"+str(i))
-						# cv2.imshow("hog_"+str(i), hogIm)
-						# # cv2.imshow("hog_"+str(i), uImg)
-						
-						# ret = cv2.waitKey(10)
-						# hogs.append(hogArray)
-
-
-					''' Whole body '''
-					#Only look at box around users
-					# uImg = image[uvw[0]/2-textureSize[0]/2:uvw[0]/2+textureSize[0]/2, (uvw[1]/2-textureSize[1]/2):(uvw[1]/2+textureSize[1]/2)]
-					# # uImg = image[uvw[0]/2-textureSize[0]/2:uvw[0]/2+textureSize[0]/2, 320-(uvw[1]/2+textureSize[1]/2):320-(uvw[1]/2-textureSize[1]/2)]			
-
-					# if uImg.size == 0 or uImg.max()==0:
-					# 	return 0
-
-					# uImg = np.copy(uImg).astype(np.float)
-					# uImg[uImg>0] -= np.min(uImg[uImg>0])
-					# uImg /= (np.max(uImg)/255.)
-
-					# mask = uImg > 0
-					# fillImage(uImg)
-
-					# # Extract features
-					# hogArray,hogIm = feature.hog(uImg, visualise=True)
-					# lbpIm = feature.local_binary_pattern(uImg, 20, 10, 'uniform')	
-
-					# hogIm *= mask
-					# lbpIm *= mask
-
-					# Colorize COM
+					'''Colorize COM'''
 					cv2.rectangle(image, tuple([uvw[1]/2-3, uvw[0]/2-3]), tuple([uvw[1]/2+3, uvw[0]/2+3]), (4000))
 
-					# Create bounding box
-					# print uvw, tuple([uvw[0]/2-textureSize[0]/2, (uvw1]/2-textureSize[0]/2)]), tuple([uvw[0]/2+textureSize[1]/2,(uvw[1]/2+textureSize[1]/2)])
-					# cv2.rectangle(depthIm, tuple([uvw[0]/2-textureSize[1]/2, (uvw[1]/2-textureSize[0]/2)]), tuple([uvw[0]/2+textureSize[1]/2,(uvw[1]/2+textureSize[0]/2)]), (100))
-					# cv2.rectangle(depthIm, tuple([320-(uvw[1]/2-textureSize[1]/2), uvw[0]/2-textureSize[0]/2]), tuple([320-(uvw[1]/2+textureSize[1]/2), uvw[0]/2+textureSize[0]/2]), (100))
-
-					# Plot skeleton
-					if 1:#vis:
+					'''Plot skeleton'''
+					if 1:
 						w = 3
-						# print "Joints: ", len(u.jointPositions)
 						for j in users[u]['jointPositions'].keys():
 							pt = world2depth(users[u]['jointPositions'][j])
 							image[pt[0]/2-w:pt[0]/2+w, pt[1]/2-w:pt[1]/2+w] = 4000                                                        
 
 					usersPlotted += 1
 
-	if vis is True and usersPlotted >= 0:
+	if vis and usersPlotted >= 0:
 		# Make sure windows open
 		cv2.namedWindow('Depth_'+str(device))
 		cv2.imshow('Depth_'+str(device), image.astype(np.float)/5000.0)
-		# cv2.imshow('Depth_'+str(device), depthIm/float(depthIm.max()))
-		# If there are users
-		if uvw[0] > 0:
-			# if computeHog:
-				# cv2.namedWindow('HOG_'+str(device))
-				# cv2.imshow('HOG_'+str(device), hogIm/float(hogIm.max()))
-				# cv2.imshow('HOG_'+str(device), uImg.astype(np.float)/(1.*uImg.max()))
-			if computeLBP:
-				cv2.namedWindow('LBP_'+str(device))
-				cv2.imshow('LBP_'+str(device), lbpIm/float(lbpIm.max()))
-		
 		ret = cv2.waitKey(10)
 
 	return ret
 
+
 def format(x):
 	if len(x) == 1:
-		# print x
-		# return '-'+x+'9999999'
 		return x+'0'
 	else:
 		return x
@@ -357,13 +304,13 @@ class multiCameraTimeline:
 
 # -------------------------MAIN------------------------------------------
 # @profile
-def main():
+def main(getDepth, getColor, getSkel, getMask, calculateFeatures):
 
-	getDepth = True
-	getColor = False
-	getSkel = True
-	getMask = False
-	doBGSubtraction = False
+	# getDepth = True
+	# getColor = False
+	# getSkel = False
+	# getMask = False
+	# calculateFeatures = False
 
 	ret = 0
 	backgroundTemplates = np.empty([1,1,1])
@@ -371,8 +318,8 @@ def main():
 	backgroundCount = 20
 	bgPercentage = .05
 	prevDepthIm = None
-	# prevDepthIms = []
-	# prevColorIms = []
+	prevDepthIms = []
+	prevColorIms = []
 
 	dayDirs = os.listdir('depth/')
 	dayDirs = [x for x in dayDirs if x[0]!='.']
@@ -416,44 +363,7 @@ def main():
 						skelTmp = np.array(skelTmp)[np.argsort(tmpSort)].tolist()			
 						skelFiles.append([x for x in skelTmp if x.find('.dat')>=0])
 
-				# 	dev = int(deviceID[-1])
 
-				# 	# Add features
-				# 	try:
-				# 		features = computeFeaturesWithSkels(depthFiles[dev], skelFiles[dev], dev=dev)
-				# 		for u in features.keys():
-				# 			if u in allFeatures_perUser:
-				# 				allFeatures_perUser[u].append(features[u])
-				# 			else:
-				# 				allFeatures_perUser[u] = [features[u]]
-				# 		print features.keys(), allFeatures_perUser.keys()
-				# 	except:
-				# 		print "Error making features"
-
-				# ret = cv2.waitKey(10)
-				# if ret >= 0:
-				# 	break
-
-				# if 1:
-				# 	continue
-
-
-				# For each device and image	
-
-				# deviceCount = len(depthFiles)
-				# maxIms = np.max([len(x) for x in depthFiles])
-				# for i in range(maxIms):
-					# for d in range(deviceCount):
-						# if i < len(depthFiles[d]):
-						# 	depthFile = depthFiles[d][i]
-						# 	skelFile = skelFiles[d][i]
-						# else:
-						# 	continue
-						# print depthFiles[d][i]
-						# if len(depthFiles[d][i]) < 24:
-						# 	continue
-					# depthFile = depthFiles[d][i]
-					# skelFile = skelFiles[d][i]		
 
 				for dev, depthFile in multiCameraTimeline(depthFiles):
 					# try:
@@ -474,9 +384,9 @@ def main():
 							colorIm_g = skimage.img_as_ubyte(skimage.color.rgb2gray(colorIm))
 							# colorIm_lab = skimage.color.rgb2lab(colorIm).astype(np.uint8)
 						''' Load Mask '''
-						if getMask:
-							maskIm = sm.imread('depth/'+dayDir+'/'+hourDir+'/'+minuteDir+'/'+devices[dev]+'/'+depthFile[:-4]+"_mask.jpg") > 100
-							depthIm = depthIm*(1-maskIm)+maskIm*5000
+						# if getMask:
+						# 	maskIm = sm.imread('depth/'+dayDir+'/'+hourDir+'/'+minuteDir+'/'+devices[dev]+'/'+depthFile[:-4]+"_mask.jpg") > 100
+						# 	depthIm = depthIm*(1-maskIm)+maskIm*5000
 
 						''' Load Skeleton Data '''
 						if getSkel:
@@ -499,9 +409,10 @@ def main():
 						depthIm = np.minimum(depthIm.astype(np.float), 5000)
 						fillImage(depthIm)
 
+
 						'''Background model'''
 						if backgroundModel is None:
-							bgSubtraction = AdaptiveMixtureOfGaussians(depthIm, maxGaussians=5, learningRate=0.05, decayRate=0.25, variance=100**2)
+							bgSubtraction = AdaptiveMixtureOfGaussians(depthIm, maxGaussians=3, learningRate=0.01, decayRate=0.02, variance=300**2)
 							backgroundModel = bgSubtraction.getModel()
 							if getColor:
 								prevColorIm = colorIm_g.copy()
@@ -510,83 +421,87 @@ def main():
 							bgSubtraction.update(depthIm)
 
 						backgroundModel = bgSubtraction.getModel()
-						foregroundMask = bgSubtraction.getForeground(thresh=100)
+						foregroundMask = bgSubtraction.getForeground(thresh=50)
 
 						''' Find people '''
-						ret = plotUsers(depthIm, users, device=devices[dev], vis=True)
-
-						# foregroundMask, userBoundingBoxes, userLabels = extractPeople(depthIm, foregroundMask, minPersonPixThresh=5000, gradientFilter=True, gradThresh=50)
+						if getSkel:
+							ret = plotUsers(depthIm, users, device=devices[dev], vis=True)
+						if getMask:
+							foregroundMask, userBoundingBoxes, userLabels = extractPeople(depthIm, foregroundMask, minPersonPixThresh=1000, gradientFilter=True, gradThresh=75)
 						
-
-						#''' Compute features '''
-						# features = computeFeaturesWithSkels_perFrame(depthIm, users, device=devices[dev], vis=False)
-						# if features is not None:
-						# 	for k in features.keys():
-						# 		if k not in allFeatures_perUser.keys():
-						# 			allFeatures_perUser[k] = [features[k]]
-						# 		else:
-						# 			allFeatures_perUser[k].append(features[k])
-
-						# print depthFile
-						# cv2.namedWindow("D")
-
-
-						# if userCount > 0 and len(prevDepthIms) > 0:
-						# flowD = getFlow(prevDepthIms[-1], depthIm)
-
-						''' Color HOF '''
-						# hofArray, hofIm = hof(flow*foregroundMask[:,:,np.newaxis], visualise=True)
-						# cv2.imshow("hof_c", hofIm/float(hofIm.max()))
-						''' Depth Optical Flow '''
-						# cv2.imshow("flow_depth", flowD[:,:,0]/float(flow[:,:,0].max()))
-						# cv2.imshow("D", colorIm_g)
-						# ret = 1
-
-						if getColor:
+						''' Calculate user features '''
+						if calculateFeatures:
 							''' Color Optical Flow '''
 							flow = getFlow(prevColorIm, colorIm_g)
 							prevColorIm = colorIm_g.copy()
-
-							''' Calculate user features '''
+							
 							userCount = len(userBoundingBoxes)
 							for i in xrange(userCount):
 								userBox = userBoundingBoxes[i]
 								userMask = foregroundMask==i+1
 								allFeatures.append(computeUserFeatures(colorIm, depthIm, flow, userBox, mask=userMask, windowSize=[96,72], visualise=True))
+						''' Or get CoM + orientation '''
+						if getMask:
+							coms = []
+							orns = []
+							userCount = len(userBoundingBoxes)
+							for i in xrange(userCount):
+								userBox = userBoundingBoxes[i]
+								userMask = foregroundMask==i+1
+								com, ornBasis = calculateBasicPose(depthIm, userMask)
+								coms.append(com)
+								orns.append(ornBasis[1])
 
 
-						cv2.putText(depthIm, "Day "+dayDir+" Time "+hourDir+":"+minuteDir+" Dev#"+str(dev), (10,220), cv2.FONT_HERSHEY_DUPLEX, 0.6, 5000)					
-						# cv2.putText(colorIm, "Day "+dayDir+" Time "+hourDir+":"+minuteDir+" Dev#"+str(dev), (10,220), cv2.FONT_HERSHEY_DUPLEX, 0.6, 5000)					
-						# cv2.imshow("I", colorIm*foregroundMask[:,:,np.newaxis])
+						if getDepth:
+							cv2.putText(depthIm, "Day "+dayDir+" Time "+hourDir+":"+minuteDir+" Dev#"+str(dev), (10,220), cv2.FONT_HERSHEY_DUPLEX, 0.6, 5000)					
+							cv2.imshow("Depth", depthIm/5000.)
+						if getColor:
+							# cv2.putText(colorIm, "Day "+dayDir+" Time "+hourDir+":"+minuteDir+" Dev#"+str(dev), (10,220), cv2.FONT_HERSHEY_DUPLEX, 0.6, 5000)					
+							cv2.imshow("I_orig", colorIm)
+							if calculateFeatures:
+								cv2.imshow("I", colorIm*foregroundMask[:,:,np.newaxis])
+								cv2.imshow("I_masked", colorIm + (255-colorIm)*(((foregroundMask)[:,:,np.newaxis])))
+						if getMask:
+							cv2.imshow("Mask", foregroundMask.astype(np.float)/float(foregroundMask.max()))
+							cv2.imshow("BG Model", backgroundModel.astype(np.float)/float(backgroundModel.max()))
 
-						cv2.imshow("Depth", depthIm/5000.)
-						cv2.imshow("Mask", (foregroundMask>0).astype(np.float))
-						# cv2.imshow("I_masked", colorIm + (255-colorIm)*(((foregroundMask)[:,:,np.newaxis])))
-						# cv2.imshow("I_orig", colorIm)
-						# cv2.imshow("Labels", foregroundMask/foregroundMask.max()*255)
-						# cv2.imshow("BG model", backgroundModel/5000.)
+						''' Top Down View '''
+						if 0 and getMask:
+							from pyKinectTools.algs.Normals import getTopdownMap
+							topDownView = getTopdownMap(depthIm, rez=500)
+							cv2.imshow("Top Down", topDownView)
+
+						if 1:
+							#3D Vis
+							# figure = mlab.figure(1, fgcolor=(1,1,1), bgcolor=(0,0,0))
+							# from pyKinectTools.utils.DepthUtils import *
+							pts = depthIm2XYZ(depthIm).astype(np.int)
+							interval = 25
+							figure.scene.disable_render = True
+							mlab.clf()
+							# ss = mlab.points3d(-pts[::interval,0], pts[::interval,1], pts[::interval,2], colormap='Blues', vmin=1000., vmax=5000., mode='2dvertex')
+							ss = mlab.points3d(pts[::interval,0], pts[::interval,1], pts[::interval,2], 5.-(np.minimum(pts[::interval,2], 5000)/float((-pts[:,2]).max()))/1000., scale_factor=25., colormap='Blues')#, mode='2dvertex')
+							# , scale_factor=25.
+							mlab.view(azimuth=0, elevation=0, distance=3000., focalpoint=(0,0,0), figure=figure)#, reset_roll=False)
+							# mlab.roll(90)
+							currentView = mlab.view()
+							figure.scene.disable_render = False
+							mlab.draw()
+							# mlab.show()
+							# ss = mlab.points3d(pts[::interval,0], pts[::interval,1], pts[::interval,2], color=col, scale_factor=5)
+							# ss = mlab.points3d(pts[:,0], pts[:,1], pts[:,2], color=(1,1,1), scale_factor=5)
+
+							# from IPython import embed
+							# embed()
+
+							# ss = mlab.points3d(pts[:,0], pts[:,1], pts[:,2])
 
 						ret = cv2.waitKey(10)
 
-						# timeEnd = time()
-						# print 'Time:', timeEnd - timeStart
-						# timeStart = time()
-
-
-						# prevDepthIms.append(fillImage(depthIm))
-						# prevDepthIms.append(fillImage(depthIm.copy()))
+						# prevDepthIms.append(depthIm.copy())
 						# prevColorIms.append(colorIm_g)
-						# prevDepthIm = depthIm.copy()
-						# prevDepthIm = np.copy(depthIm)
 
-						# ret = plotUsers(depthIm, users, device=devices[dev], backgroundModel=backgroundModel)
-						# try:
-						# 	ret = plotUsers(depthIm, users, device=devices[dev], backgroundModel=backgroundModel)
-						# except:
-						# 	print "Error plotting"
-
-							# if ret > 0:
-								# break					
 						if ret > 0:
 							break
 					# except:
@@ -606,20 +521,22 @@ def main():
 
 
 if __name__=="__main__":
-	cProfile.runctx('main()', globals(), locals(), filename="ShowSkeletons.profile")
-	# main()
 
-# imLabels, objectSlices, labelInds = extractPeople(depthIm, minPersonPixThresh=500, gradientFilter=True)
+	parser = optparse.OptionParser()
+	parser.add_option('-s', '--skel', dest='skel', action="store_true", default=False, help='Enable skeleton')	
+	parser.add_option('-d', '--depth', dest='depth', action="store_true", default=False, help='Enable depth images')		
+	parser.add_option('-c', '--color', dest='color', action="store_true", default=False, help='Enable color images')	
+	parser.add_option('-m', '--mask', dest='mask', action="store_true", default=False, help='Enable enternal mask')			
+	parser.add_option('-f', '--calcFeatures', dest='bgSubtraction', action="store_true", default=False, help='Enable feature extraction')				
+	(opt, args) = parser.parse_args()
 
+	if len(args) > 0:
+		print "Wrong input argument"
+	else:
+		main(getDepth=opt.depth, getSkel=opt.skel, getColor=opt.color, getMask=opt.mask, calculateFeatures=opt.bgSubtraction)
 
-
-'''
-TODO: 
--- bg subtraction
--- color histograms
-'''
-
-
+	'''Profiling'''
+	# cProfile.runctx('main()', globals(), locals(), filename="ShowSkeletons.profile")
 
 
 

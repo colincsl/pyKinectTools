@@ -5,6 +5,8 @@ import cv2
 
 ''' Taken with modifications from Scikit-Image version of HOG '''
 
+''' Fix HOF: last orientation should be 'no motion' cell '''
+
 
 def getFlow(imPrev, imNew):
     flow = np.zeros([imPrev.shape[0],imPrev.shape[1],2])
@@ -37,6 +39,7 @@ def getDepthFlow(imPrev, imNew):
     return flow
 
 def hog2image(hog, imageSize=[96,72],orientations=9,pixels_per_cell=(8, 8),cells_per_block=(3, 3)):
+    from scipy import sqrt, pi, arctan2, cos, sin
     from skimage import draw
 
     sy, sx = imageSize
@@ -65,8 +68,10 @@ def hog2image(hog, imageSize=[96,72],orientations=9,pixels_per_cell=(8, 8),cells
                 centre = tuple([y * cy + cy // 2, x * cx + cx // 2])
                 dx = radius * cos(float(o) / orientations * np.pi)
                 dy = radius * sin(float(o) / orientations * np.pi)
-                rr, cc = draw.bresenham(centre[0] - dy, centre[1] - dx,
-                                        centre[0] + dy, centre[1] + dx)
+                # rr, cc = draw.bresenham(centre[0] - dy, centre[1] - dx,
+                #                         centre[0] + dy, centre[1] + dx)
+                rr, cc = draw.bresenham(centre[0] - dx, centre[1] - dy,
+                                        centre[0] + dx, centre[1] + dy)  
                 hog_image[rr, cc] += orientation_histogram[y, x, o]
 
     return hog_image

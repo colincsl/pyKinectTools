@@ -160,8 +160,10 @@ class RealTimeDevice:
         def stop(self):
             self.ctx.shutdown()
 
+        @profile
         def update(self):
-            ret = self.ctx.wait_any_update_all()
+            # ret = self.ctx.wait_any_update_all()
+            ret = self.ctx.wait_and_update_all()
             assert ret == None, "Error updating depth device."
 
             if self.depth is not None:
@@ -169,6 +171,8 @@ class RealTimeDevice:
                     #self.depthIm8 = constrain(self.depthIm, self.constrain[0], self.constrain[1])
 
             if self.color is not None:
+                    # from IPython import embed
+                    # embed()                
                     self.colorIm = np.frombuffer(self.color.get_raw_image_map_bgr(), np.uint8).reshape([self.color.res[1],self.color.res[0], 3])
 
             if self.user is not None:

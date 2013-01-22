@@ -51,12 +51,35 @@ def generateGabors(angles, size=[20,20], rho=1):
 
 	return gabors
 
+def CuboidDetector(sigma=1.5, tau=4):
+
+	delX = int(2*np.ceil(3*sigma)+1)
+	delY = delX
+	delT = int(2*np.ceil(3*tau)+1)
+
+	xs = np.arange(delX, dtype=np.float)[:,np.newaxis].T.repeat(delY, 0)
+	xs -= 1.0*delX/2
+	xs /= delX
+
+	ys = np.arange(delY, dtype=np.float)[:,np.newaxis].repeat(delX).reshape([delX, delY])
+	ys -= 1.0*delY/2
+	ys /= delY
+
+	# Gaussian envelope
+	gauss = np.exp(-0.5*(xs**2/sigma**2 + ys**2/sigma**2))
+	gauss -= gauss.min() 
+	gauss / gauss.max()
+
+	omega = 4./tau
+	t = np.ones(delT)
+	h_ev = -np.cos(2*np.pi*omega)*np.exp(-t**2 / tau**2)
+	h_od = -np.sin(2*np.pi*t*omega)*np.exp(-t**2 / tau**2)
+
+	return gauss, h_ev, h_od
 
 
 
 def adaptiveNonMaximalSuppression(pts, vals, radius=1):
-	# tree = neighbors.BallTree(pts.T)
- # 	nn = tree.query_radius(pts.T, radius)
 
 	tree = neighbors.NearestNeighbors()
 	tree.fit(pts)

@@ -106,21 +106,27 @@ def extractPeople_2(im):
 
 def extractPeople(im, mask, minPersonPixThresh=500, gradThresh=50, gradientFilter=True):
 
-	# from IPython import embed
-	# embed()
+
 	if not gradientFilter:
 		grad_bin = mask
 	else:
-		grad_g = np.diff(im.astype(np.int16), 1)*mask[:,:mask.shape[1]-1]
+		grad_g = np.diff(im.astype(np.int16), 1)#*(1.-mask[:,:mask.shape[1]-1])
 		grad_g = np.abs(grad_g)
 		grad_bin = (np.abs(grad_g) < gradThresh)
 		# grad_bin = nd.binary_erosion(grad_bin, iterations=1)
-		grad_bin = nd.binary_dilation(grad_bin, iterations=1)
+		grad_bin = nd.binary_erosion(grad_bin, iterations=1)
 
-	import cv2
-	cv2.imshow("grad", grad_g.astype(np.float)/25)
-	# cv2.imshow("gradB", grad_bin*255)
-	# print "grad:", grad_g.max()
+	mask = nd.binary_erosion(mask, iterations=1)
+	# import cv2
+	# cv2.imshow("grad", mask.astype(np.uint8)*255)	
+	mask[:,:-1] = mask[:,:-1]*grad_bin# np.logical_and(mask[:,:-1],grad_bin)# np.logical_not(grad_bin))
+	# cv2.imshow("grad2", mask.astype(np.uint8)*255)	
+	# ret = cv2.waitKey(10)
+	# if ret > 0:
+	# 	from matplotlib.pylab import *
+	# 	from IPython import embed
+	# 	embed()
+	# cv2.imshow("grad", grad_g.astype(np.float)/gradThresh)	
 	labelIm, maxLabel = nd.label(im*mask)
 	connComps = nd.find_objects(labelIm, maxLabel)
 
@@ -182,26 +188,41 @@ class AdaptiveMixtureOfGaussians:
 	def __init__(self, im, maxGaussians=5, learningRate=0.05, decayRate=0.25, variance=100**2):
 
 		xRez, yRez = im.shape
-		self.MaxGaussians = 5
-		self.CurrentGaussianCount = 1
-		self.LearningRate = .05
-		self.DecayRate = .025
-		self.VarianceInit = 100**2
+		self.MaxGaussians = maxGaussians
+		self.LearningRate = learningRate
+		self.DecayRate = decayRate
+		self.VarianceInit = variance
+		self.CurrentGaussianCount = 1		
 
-		self.Means = np.ones([xRez,yRez,self.CurrentGaussianCount])
-		self.Variances = np.ones([xRez,yRez,self.CurrentGaussianCount])*self.VarianceInit
-		self.Weights = np.ones([xRez,yRez,self.CurrentGaussianCount])*self.LearningRate
-		self.Deltas = np.zeros([xRez,yRez,self.CurrentGaussianCount])
+		# self.Means = np.ones([xRez,yRez,self.CurrentGaussianCount])
+		# self.Variances = np.ones([xRez,yRez,self.CurrentGaussianCount])*self.VarianceInit
+		# self.Weights = np.ones([xRez,yRez,self.CurrentGaussianCount])*self.LearningRate
+		# self.Deltas = np.zeros([xRez,yRez,self.CurrentGaussianCount])
+
+		self.Means = np.zeros([xRez,yRez,self.MaxGaussians])
+		self.Variances = np.empty([xRez,yRez,self.MaxGaussians])
+		self.Weights = np.empty([xRez,yRez,self.MaxGaussians])
+		self.Deltas = np.empty([xRez,yRez,self.MaxGaussians])
 		self.NumGaussians = np.ones([xRez,yRez], dtype=np.uint8)
 
+		self.Deltas = np.zeros([xRez,yRez,self.MaxGaussians]) + np.inf
+
 		self.Means[:,:,0] = im
+		self.Weights[:,:,0] = self.LearningRate
+		self.Variances[:,:,0] = self.VarianceInit
+
 		self.Deviations = ((self.Means - im[:,:,np.newaxis])**2 / self.Variances)
 		self.backgroundModel = im
 		self.currentIm = im
 
 	# @profile
 	def update(self, im):
+		from matplotlib.pylab import *
+		from IPython import embed
+		# embed()
 
+		import pdb
+		# pdb.set_trace()
 		self.currentIm = im
 
 		''' Check deviations '''
@@ -209,63 +230,98 @@ class AdaptiveMixtureOfGaussians:
 		# print "self.Deviations:", self.Deviations[150,20]
 
 		for m in range(self.CurrentGaussianCount):
-			self.Deviations[:,:,m] = (m < self.NumGaussians)*self.Deviations[:,:,m] + (m >= self.NumGaussians)*9999999999
+			# self.Deviations[:,:,m] = (m < self.NumGaussians)*self.Deviations[:,:,m] + (m >= self.NumGaussians)*9999999999
+			self.Deviations[m > self.NumGaussians,m] = np.inf
 
-		Ownership = np.nanargmin(self.Deviations, -1)
-		# Ownership = np.argmin(self.Deviations, -1)
-		deviationMin = np.nanmin(self.Deviations, -1)
+		Ownership = np.argmin(self.Deviations, -1)
+		deviationMin = np.min(self.Deviations, -1)
+		# Ownership = np.nanargmin(self.Deviations, -1)
+		# deviationMin = np.nanmin(self.Deviations, -1)
+		# print "Dev max", deviationMin.max()
 
 		createNewMixture = deviationMin > 3
-		# print "Dev max", deviationMin.max()
-		createNewMixture[deviationMin > 99999] = False
-		createNewMixture[self.NumGaussians > self.MaxGaussians] = False
-		self.NumGaussians[createNewMixture] += 1
-		# import cv2
-		# cv2.namedWindow("new")
-		# cv2.imshow("new", createNewMixture.astype(np.uint8)*255)
+		createNewMixture[np.isinf(deviationMin)] = False
+		replaceLowestMixture = np.logical_and(createNewMixture, self.NumGaussians>=self.MaxGaussians)
+		createNewMixture = np.logical_and(createNewMixture, self.NumGaussians<self.MaxGaussians)
 
-		''' Add mixture if no gaussians are close to new data '''						
-		# Create new mixture using new indices
-		if self.CurrentGaussianCount < self.MaxGaussians and self.NumGaussians.max() > self.CurrentGaussianCount:
-			# print "-------New Mixture Layer------"
-			# Give extreme values for pixels without this new gaussian
-			self.Weights = np.dstack([self.Weights, (createNewMixture)*self.LearningRate])
-			self.Means = np.dstack([self.Means, im*createNewMixture + (1-createNewMixture)*np.inf])
-			self.Variances = np.dstack([self.Variances, np.ones_like(createNewMixture)*self.VarianceInit])
-			self.Deltas = np.dstack([self.Deltas, np.zeros_like(createNewMixture)])
-			self.CurrentGaussianCount += 1
-
-		# Create new mixture using existing indices
+		''' Create new mixture using existing indices'''
 		if np.any(createNewMixture):
-			for m in range(self.CurrentGaussianCount):
-				newGaussian = createNewMixture*(self.NumGaussians==m)
-				Ownership[newGaussian] = m
-				# print "-------New Mixture------", np.sum(newGaussian)
-				if np.any(newGaussian):
-					# print "-------New Mixture------", m
-					activeset_x, activeset_y = np.nonzero((newGaussian))
-					self.Means[activeset_x,activeset_y,m] = im[activeset_x,activeset_y]
-					self.Weights[activeset_x,activeset_y,m] = self.LearningRate
+			activeset_x, activeset_y = np.nonzero(createNewMixture)
+			activeset_z = self.NumGaussians[activeset_x, activeset_y].ravel()
+
+			# print "-------New Mixture------", len(activeset_x)
+			self.Means[activeset_x,activeset_y,activeset_z] = im[activeset_x,activeset_y]
+			self.Weights[activeset_x,activeset_y,activeset_z] = self.LearningRate
+			self.Variances[activeset_x,activeset_y,activeset_z] = self.VarianceInit
+			self.NumGaussians[activeset_x,activeset_y] += 1
+			Ownership[activeset_x,activeset_y] = activeset_z
+
+		''' Replace lowest weighted mixture '''
+		if np.any(replaceLowestMixture):
+			activeset_x, activeset_y = np.nonzero(replaceLowestMixture)
+
+			activeset_z = np.argmin(self.Weights[activeset_x, activeset_y,:], -1)
+
+			print "-------Replace Mixture------", len(activeset_x)
+			self.Means[activeset_x,activeset_y,activeset_z] = im[activeset_x,activeset_y]
+			self.Weights[activeset_x,activeset_y,activeset_z] = self.LearningRate
+			self.Variances[activeset_x,activeset_y,activeset_z] = self.VarianceInit
+			Ownership[activeset_x,activeset_y] = activeset_z
+
+		self.CurrentGaussianCount = self.NumGaussians.max()
+
+		# if np.any(Ownership>0):
+		# 	from skimage.viewer.viewers import CollectionViewer
+		# 	nView = CollectionViewer([bgSubtraction.Weights[:,:,i]/np.nanmax(bgSubtraction.Weights[:,:,i]).astype(float) for i in range(bgSubtraction.MaxGaussians)])
+		# 	# nView = CollectionViewer([self.NumGaussians[:,:,i]/np.nanmax(self.NumGaussians[:,:,i]).astype(float) for i in range(self.MaxGaussians)])
+		# 	# nView.show()			
+		# meanView = CollectionViewer([self.Means[:,:,i]/np.nanmax(self.Means[:,:,i]).astype(float) for i in range(self.MaxGaussians)])
+		# meanView = CollectionViewer([bgSubtraction.Means[:,:,i]/np.nanmax(bgSubtraction.Means[:,:,i]).astype(float) for i in range(bgSubtraction.MaxGaussians)])
+		# 	meanView.show()
+		# 	varView = CollectionViewer([self.Variances[:,:,i]/np.nanmax(self.Variances[:,:,i]).astype(float) for i in range(self.MaxGaussians)])
+		# 	varView.show()
 
 
 
-		# Update gaussians
+		''' Update gaussians'''
 		for m in range(self.CurrentGaussianCount):
-			# Get indices
-
 			self.Deltas[:,:,m]		= im - self.Means[:,:,m]
 			tmpOwn 					= Ownership==m
+			# print "Own:",np.sum(tmpOwn)
 
 			self.Weights[:,:,m]		= self.Weights[:,:,m] 	+ self.LearningRate*(tmpOwn - self.Weights[:,:,m]) - self.LearningRate*self.DecayRate			
 			tmpWeight 				= tmpOwn*(self.LearningRate/self.Weights[:,:,m])			
+			tmpMask = (self.Weights[:,:,m]<=0.01)
+			tmpWeight[tmpMask] = 0
 
 			self.Means[:,:,m] 		= self.Means[:,:,m] 	+ tmpWeight * self.Deltas[:,:,m]
-			self.Variances[:,:,m] 	= self.Variances[:,:,m] + tmpWeight * (self.Deltas[:,:,m]**2 - self.Variances[:,:,m])
+			# self.Variances[:,:,m] 	= self.Variances[:,:,m] + tmpWeight * (self.Deltas[:,:,m]**2 - self.Variances[:,:,m])
 
-			# If the mean is zero, reset
-			# self.Means[self.Means[:,:,m] == 0,m] = im[self.Means[:,:,m] == 0]
+			''' If the weight is zero, reset '''
 
-		self.backgroundModel = np.nanmax(self.Means, 2)
+			if np.any(tmpMask):
+				self.Variances[tmpMask, m:self.CurrentGaussianCount-2] = self.Variances[tmpMask, m+1:self.CurrentGaussianCount-1]
+				self.Means[tmpMask, m:self.CurrentGaussianCount-2] = self.Means[tmpMask, m+1:self.CurrentGaussianCount-1]
+				self.Weights[tmpMask, m:self.CurrentGaussianCount-2] = self.Means[tmpMask, m+1:self.CurrentGaussianCount-1]
+				self.Variances[tmpMask, m:self.CurrentGaussianCount-1] = 0
+				self.Means[tmpMask, m:self.CurrentGaussianCount-1] = 0
+				self.Weights[tmpMask, m:self.CurrentGaussianCount-1] = 0
+
+			import cv2
+			cv2.imshow(str(m), self.Means[:,:,m]/5000.)
+			# cv2.imshow(str(m), self.Weights[:,:,m]/np.nanmax(self.Weights[:,:,m]))
+		# cv2.imshow("ownership", Ownership/Ownership.max().astype(np.float))
+
+
+		# embed()
+		self.backgroundModel = np.max(self.Means, 2)
+		# self.backgroundModel = np.nanmax(self.Means, 2)
+		
+		'''This'''
+		# tmp = np.argmax(self.Weights,2).ravel()
+		# self.backgroundModel = self.Means[:,:,tmp]
+
+		# self.backgroundModel = self.Means[:,:,np.nanargmax(self.Weights, 2).ravel()]
 		# self.backgroundModel = np.nanmax(self.Means*(self.Means<10000), 2)
 		
 

@@ -1,22 +1,23 @@
 
-import os, time, sys
+import os, time, sys, optparse
 import numpy as np
 import scipy.misc as sm
 import Image
 from pyKinectTools.utils.RealtimeReader import *
 import cPickle as pickle
+import cProfile
 
 from multiprocessing import Pool, Process, Queue
 
 # DIR = '/Users/colin/Data/icu_test/'
 # DIR = '/home/clea/Data/tmp/'
 # DIR = '/home/clea/Data/ICU_Nov2012/'
-DIR = '/media/Data/icu_test2/'
+DIR = '/media/Data/icu_test_color/'
 # DIR = '/media/Data/CV_class/'
 
 
-
-def save_frame(depthName=None, depth=None, colorName=None, color=None, userName=None, users=None, mask=None):
+@profile
+def save_frame(depthName=None, depth=None, colorName=None, color=None, userName=None, users=None, maskName=None, mask=None):
 
 	''' Depth '''
 	if depthName is not None:
@@ -25,14 +26,14 @@ def save_frame(depthName=None, depth=None, colorName=None, color=None, userName=
 		im.save(depthName)
 		
 	'''Mask'''
-	if mask is not None and depthName is not None:
+	if mask is not None and maskName is not None:
 			mask = sm.imresize(mask, [240,320], 'nearest')
-			sm.imsave(depthName[:-4]+"_mask.jpg", mask)
+			sm.imsave(maskName, mask)
 
 	'''Color'''
 	if colorName is not None:
 		color = sm.imresize(color, [240,320,3], 'nearest')
-		sm.imsave(colorName, color)
+		# sm.imsave(colorName, color)
 
 	'''User'''
 	if userName is not None:
@@ -44,16 +45,15 @@ def save_frame(depthName=None, depth=None, colorName=None, color=None, userName=
 				pickle.dump(usersOut, outfile, protocol=pickle.HIGHEST_PROTOCOL)
 
 
-
-
-def main(deviceID=1, dir_=DIR, getSkel=False, frameDifferencePercent=5, anonomize=False, viz=False,  imgStoreCount=10):
+@profile
+def main(deviceID, record, baseDir, frameDifferencePercent, getSkel, anonomize, viz,  imgStoreCount=10):
 
 		'''------------ Setup Kinect ------------'''
 		''' Physical Kinect '''
 		depthDevice = RealTimeDevice(device=deviceID, getDepth=True, getColor=True, getSkel=getSkel)
 		depthDevice.start()
 
-		maxFramerate = 30
+		maxFramerate = 60
 		minFramerate = 1.0/3.0
 		motionLagTime = 3
 		recentMotionTime = time.clock()
@@ -72,15 +72,9 @@ def main(deviceID=1, dir_=DIR, getSkel=False, frameDifferencePercent=5, anonomiz
 		secondCount = 0
 		prevSecondCountMax = 0
 
-		''' init mask if skeleten and anonomize are on '''
-		# if not getSkel:
-			# anonomize = False
-		# if anonomize:
-				# mask = np.ones([480,640])
-
 		''' Ensure base folder is there '''
-		if not os.path.isdir(dir_):
-				os.mkdir(dir_)        
+		if not os.path.isdir(baseDir):
+				os.mkdir(baseDir)        
 
 		depthOld = []
 		colorOld = []
@@ -165,7 +159,8 @@ def main(deviceID=1, dir_=DIR, getSkel=False, frameDifferencePercent=5, anonomiz
 							foregroundMask = bgSubtraction.getForeground(thresh=100)
 							''' Find people '''
 							foregroundMask, _, _ = extractPeople(depthRaw8, foregroundMask, minPersonPixThresh=5000, gradientFilter=True, gradThresh=15)
-
+						else: 
+							foregroundMask = None
 
 						''' Write to file if there has been substantial change. '''
 						# if 1:
@@ -195,44 +190,46 @@ def main(deviceID=1, dir_=DIR, getSkel=False, frameDifferencePercent=5, anonomiz
 												prevFrame = currentFrame
 
 
-										''' Create a folder if it doesn't exist '''
-										depthDir = dir_+'depth/'+day+"/"+hour+"/"+minute+"/device_"+str(deviceID)
-										colorDir = dir_+'color/'+day+"/"+hour+"/"+minute+"/device_"+str(deviceID)
-										skelDir = dir_+'skel/'+day+"/"+hour+"/"+minute+"/device_"+str(deviceID)
+										''' Create folder/file names '''
+										depthDir = baseDir+'depth/'+day+"/"+hour+"/"+minute+"/device_"+str(deviceID)
+										depthName = depthDir + "/depth_"+day+"_"+hour+"_"+minute+"_"+second+"_"+secondCount+"_"+ms_str+".png"
+										
+										colorDir = baseDir+'color/'+day+"/"+hour+"/"+minute+"/device_"+str(deviceID)
+										colorName = colorDir + "/color_"+day+"_"+hour+"_"+minute+"_"+second+"_"+secondCount+"_"+ms_str+".jpg"
+										
+										if getSkel:
+											skelDir = baseDir+'skel/'+day+"/"+hour+"/"+minute+"/device_"+str(deviceID)
+											usersName = skelDir + "/skel_"+day+"_"+hour+"_"+minute+"_"+second+"_"+secondCount+"_"+ms_str+"_.dat"
+										else:
+											skelDir = None
+											usersName = None
 
+										if anonomize:
+											maskDir = baseDir+'mask/'+day+"/"+hour+"/"+minute+"/device_"+str(deviceID)										
+											maskName = maskDir + "/mask_"+day+"_"+hour+"_"+minute+"_"+second+"_"+secondCount+"_"+ms_str+".jpg"
+										else:
+											maskDir = None
+											maskName = None
+
+										''' Create a folder if it doesn't exist '''
 										if not os.path.isdir(depthDir):
 												for p in xrange(4, len(depthDir.split("/"))+1):                         
 														try:
 																os.mkdir("/".join(depthDir.split('/')[0:p])) 
 																os.mkdir("/".join(colorDir.split('/')[0:p]))
-																os.mkdir("/".join(skelDir.split('/')[0:p]))
+																if getSkel:
+																	os.mkdir("/".join(skelDir.split('/')[0:p]))
+																if anonomize:
+																	os.mkdir("/".join(maskDir.split('/')[0:p]))																
 														except:
 																# print "error making dir"
 																pass
 
 
-										''' Define filenames '''
-										depthName = depthDir + "/depth_"+day+"_"+hour+"_"+minute+"_"+second+"_"+secondCount+"_"+ms_str+".png"
-										colorName = colorDir + "/color_"+day+"_"+hour+"_"+minute+"_"+second+"_"+secondCount+"_"+ms_str+".jpg"
-										usersName = skelDir + "/skel_"+day+"_"+hour+"_"+minute+"_"+second+"_"+secondCount+"_"+ms_str+"_.dat"
 
 										''' Save data '''
-										''' Anonomize '''
-										if anonomize:
-												# mask = np.zeros([480,640])
-
-												# if len(depthDevice.user.users) > 0:
-												# 		# print depthDevice.user.users            
-
-												# 		for i in depthDevice.user.users:
-												# 				np.array(depthDevice.user.get_user_pixels(i)).reshape([480,640])
-
-												# 		mask = np.array(depthDevice.user.get_user_pixels(i)).reshape([480,640])
-
-												save_frame(depthName, depthRaw8, colorName, colorRaw, usersName, users, mask=foregroundMask)
-												# save_frame(depthName, depthRaw8, colorName, colorRaw, usersName, users, mask=mask)
-										else:
-												save_frame(depthName, depthRaw8, colorName, colorRaw, usersName, users)
+										if record:
+											save_frame(depthName, depthRaw8, colorName, colorRaw, usersName, users, maskName=maskName, mask=foregroundMask)
 												
 
 										prevFrameTime = time.clock()
@@ -240,7 +237,7 @@ def main(deviceID=1, dir_=DIR, getSkel=False, frameDifferencePercent=5, anonomiz
 
 
 								''' Display skeletons '''
-								if 0 and viz:
+								if viz and getSkel:
 										# print "Users: ", len(users)
 										for u_key in users.keys():
 												u = users[u_key]
@@ -260,40 +257,38 @@ def main(deviceID=1, dir_=DIR, getSkel=False, frameDifferencePercent=5, anonomiz
 												cv2.imshow("imageD", d)
 										if 0:
 												# cv2.imshow("imageM", mask/float(mask.max()))
-												cv2.imshow("image", colorRaw + (255-colorRaw)*(foregroundMask>0)[:,:,np.newaxis] + 50*(((foregroundMask)[:,:,np.newaxis])))
+												cv2.imshow("imageM", colorRaw + (255-colorRaw)*(foregroundMask>0)[:,:,np.newaxis] + 50*(((foregroundMask)[:,:,np.newaxis])))
 										if 1:
 												cv2.imshow("imageC", colorRaw)
 												# cv2.imshow("image", colorRaw + (255-colorRaw)*(foregroundMask>0)[:,:,np.newaxis] + 50*(((foregroundMask)[:,:,np.newaxis])))
 
-										r = cv2.waitKey(10)
-										if r >= 0:
+										ret = cv2.waitKey(10)
+										if ret >= 0:
 												break
 
 
 
+
+
+
 if __name__ == "__main__":
-		if len(sys.argv) > 1:
 
-				''' Viz? '''
-				if len(sys.argv) > 2:
-						viz = sys.argv[2]
-				else:
-						viz = 0
+	parser = optparse.OptionParser(usage="Usage: python %prog [devID] [view toggle] [frameDifferencePercent]")
+	parser.add_option('-d', '--device', dest='dev', type='int', default=1, help='Device# (eg 1,2,3)')
+	parser.add_option('-v', '--view', dest='viz', action="store_true", default=False, help='View video while recording')	
+	parser.add_option('-f', '--framediff', type='int', dest='frameDiffPercent', default=5, help='Frame Difference percent for dynamic framerate capture')
+	parser.add_option('-s', '--skel', action="store_true", dest='skel', default=False, help='Turn on skeleton capture')
+	parser.add_option('-a', '--anonomize', dest='anonomize', action="store_true", default=False, help='Turn on anonomization')
+	parser.add_option('-i', '--dir', dest='dir', default=DIR, help='Save directory')
+	parser.add_option('-r', '--stoprecording', dest='record', action="store_false", default=True, help="Don't record data")
+	(options, args) = parser.parse_args()
 
-				''' Get frame difference percent '''
-				if len(sys.argv) > 3:
-						frameDiffPercent = sys.argv[2]
-				else:
-						frameDiffPercent = -1
-
-				if frameDiffPercent < 0:
-						main(deviceID=int(sys.argv[1]), viz=int(viz))
-				else:
-						main(deviceID=int(sys.argv[1]), viz=int(viz), frameDifferencePercent = 6)   
-
-		else:
-				main(1)
-
+	main(
+		deviceID=options.dev, viz=options.viz,
+	 	frameDifferencePercent=options.frameDiffPercent,
+	 	baseDir=options.dir, getSkel=options.skel,
+	 	anonomize=options.anonomize, record=options.record
+	 	)
 
 
 
