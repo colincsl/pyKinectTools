@@ -1,10 +1,12 @@
-
+'''
+Implements methods for background subtraction
+--Adaptive Mixture of Gaussians
+--Median Model
+--other utility functions
+'''
 import os, time, sys
 import numpy as np
 import scipy.ndimage as nd
-
-# import cProfile
-# from profilehooks import profile
 
 
 def constrain(img, mini=-1, maxi=-1): #500, 4000
@@ -27,7 +29,7 @@ def constrain(img, mini=-1, maxi=-1): #500, 4000
 
 	return img
 
-def extractPeople_old(img):
+def extractPeople_clusterMethod(img):
 	from scipy.spatial import distance
 	from sklearn.cluster import DBSCAN
 	import cv2
@@ -100,38 +102,20 @@ def extractPeople_old(img):
 
 	return d1A, goodObjs
 
-# @Deprecated
-def extractPeople_2(im):
-	return extractPeople(im)
-
-def extractPeople(im, mask, minPersonPixThresh=500, gradThresh=50, gradientFilter=True):
-
+def extractPeople(im, mask, minPersonPixThresh=500, gradThresh=100, gradientFilter=True):
 
 	if not gradientFilter:
 		grad_bin = mask
 	else:
-		grad_g = np.diff(im.astype(np.int16), 1)#*(1.-mask[:,:mask.shape[1]-1])
-		grad_g = np.abs(grad_g)
+		grad_g = np.max(np.abs(np.gradient(im.astype(np.int16))), 0)
 		grad_bin = (np.abs(grad_g) < gradThresh)
 		# grad_bin = nd.binary_erosion(grad_bin, iterations=1)
-		grad_bin = nd.binary_erosion(grad_bin, iterations=1)
+		mask = mask*grad_bin# np.logical_and(mask[:,:-1],grad_bin)# np.logical_not(grad_bin))
 
-	mask = nd.binary_erosion(mask, iterations=1)
-	# import cv2
-	# cv2.imshow("grad", mask.astype(np.uint8)*255)	
-	mask[:,:-1] = mask[:,:-1]*grad_bin# np.logical_and(mask[:,:-1],grad_bin)# np.logical_not(grad_bin))
-	# cv2.imshow("grad2", mask.astype(np.uint8)*255)	
-	# ret = cv2.waitKey(10)
-	# if ret > 0:
-	# 	from matplotlib.pylab import *
-	# 	from IPython import embed
-	# 	embed()
-	# cv2.imshow("grad", grad_g.astype(np.float)/gradThresh)	
 	labelIm, maxLabel = nd.label(im*mask)
 	connComps = nd.find_objects(labelIm, maxLabel)
 
 	# Only extract if there are sufficient pixels
-	minPersonPixThresh = 5000
 	usrTmp = [(c,l) for c,l in zip(connComps,range(1, maxLabel+1)) if minPersonPixThresh < nd.sum(labelIm[c]==l)]
 	if len(usrTmp) > 0:
 		userBoundingBoxes, userLabels = zip(*usrTmp)
@@ -146,8 +130,6 @@ def extractPeople(im, mask, minPersonPixThresh=500, gradThresh=50, gradientFilte
 		mask[labelIm==i] = i_new
 
 	return mask, userBoundingBoxes, userLabels
-
-
 
 def getMeanImage(depthImgs):
 	mean_ = np.mean(depthImgs, 2)
@@ -219,25 +201,20 @@ class AdaptiveMixtureOfGaussians:
 	def update(self, im):
 		from matplotlib.pylab import *
 		from IPython import embed
-		# embed()
 
 		import pdb
-		# pdb.set_trace()
 		self.currentIm = im
 
 		''' Check deviations '''
 		self.Deviations = ((self.Means - im[:,:,np.newaxis])**2 / self.Variances)
-		# print "self.Deviations:", self.Deviations[150,20]
 
 		for m in range(self.CurrentGaussianCount):
-			# self.Deviations[:,:,m] = (m < self.NumGaussians)*self.Deviations[:,:,m] + (m >= self.NumGaussians)*9999999999
 			self.Deviations[m > self.NumGaussians,m] = np.inf
 
 		Ownership = np.argmin(self.Deviations, -1)
 		deviationMin = np.min(self.Deviations, -1)
 		# Ownership = np.nanargmin(self.Deviations, -1)
 		# deviationMin = np.nanmin(self.Deviations, -1)
-		# print "Dev max", deviationMin.max()
 
 		createNewMixture = deviationMin > 3
 		createNewMixture[np.isinf(deviationMin)] = False
@@ -262,13 +239,14 @@ class AdaptiveMixtureOfGaussians:
 
 			activeset_z = np.argmin(self.Weights[activeset_x, activeset_y,:], -1)
 
-			print "-------Replace Mixture------", len(activeset_x)
+			# print "-------Replace Mixture------", len(activeset_x)
 			self.Means[activeset_x,activeset_y,activeset_z] = im[activeset_x,activeset_y]
 			self.Weights[activeset_x,activeset_y,activeset_z] = self.LearningRate
 			self.Variances[activeset_x,activeset_y,activeset_z] = self.VarianceInit
 			Ownership[activeset_x,activeset_y] = activeset_z
 
 		self.CurrentGaussianCount = self.NumGaussians.max()
+		# print "Gaussians: ", self.NumGaussians.max()
 
 		# if np.any(Ownership>0):
 		# 	from skimage.viewer.viewers import CollectionViewer
@@ -291,7 +269,7 @@ class AdaptiveMixtureOfGaussians:
 
 			self.Weights[:,:,m]		= self.Weights[:,:,m] 	+ self.LearningRate*(tmpOwn - self.Weights[:,:,m]) - self.LearningRate*self.DecayRate			
 			tmpWeight 				= tmpOwn*(self.LearningRate/self.Weights[:,:,m])			
-			tmpMask = (self.Weights[:,:,m]<=0.01)
+			tmpMask = (self.Weights[:,:,m]<=0.001)
 			tmpWeight[tmpMask] = 0
 
 			self.Means[:,:,m] 		= self.Means[:,:,m] 	+ tmpWeight * self.Deltas[:,:,m]
@@ -299,25 +277,35 @@ class AdaptiveMixtureOfGaussians:
 
 			''' If the weight is zero, reset '''
 
-			if np.any(tmpMask):
-				self.Variances[tmpMask, m:self.CurrentGaussianCount-2] = self.Variances[tmpMask, m+1:self.CurrentGaussianCount-1]
-				self.Means[tmpMask, m:self.CurrentGaussianCount-2] = self.Means[tmpMask, m+1:self.CurrentGaussianCount-1]
-				self.Weights[tmpMask, m:self.CurrentGaussianCount-2] = self.Means[tmpMask, m+1:self.CurrentGaussianCount-1]
-				self.Variances[tmpMask, m:self.CurrentGaussianCount-1] = 0
-				self.Means[tmpMask, m:self.CurrentGaussianCount-1] = 0
-				self.Weights[tmpMask, m:self.CurrentGaussianCount-1] = 0
+			# embed()
+			if m < np.any(tmpMask):
+				if self.CurrentGaussianCount > 1:
+					activeset_x, activeset_y = np.nonzero(tmpMask * (self.NumGaussians > m))
+					try:
+						# self.Variances[activeset_x, activeset_y, m:self.CurrentGaussianCount-1] = self.Variances[activeset_x, activeset_y, m+1:self.CurrentGaussianCount]
+						self.Means[activeset_x, activeset_y, m:self.CurrentGaussianCount-1] = self.Means[activeset_x, activeset_y, m+1:self.CurrentGaussianCount]
+						self.Weights[activeset_x, activeset_y, m:self.CurrentGaussianCount-1] = self.Means[activeset_x, activeset_y, m+1:self.CurrentGaussianCount]
+						# self.Variances[activeset_x, activeset_y, m:self.CurrentGaussianCount-1] = 0
+						self.Means[activeset_x, activeset_y, m:self.CurrentGaussianCount-1] = 0
+						self.Weights[activeset_x, activeset_y, m:self.CurrentGaussianCount-1] = 0
+						self.NumGaussians[activeset_x, activeset_y] -= 1
+						# print "Reduce gaussians on slice", m, "max:", self.NumGaussians.max()
+					except:
+						embed()
+
 
 			import cv2
-			cv2.imshow(str(m), self.Means[:,:,m]/5000.)
+			# cv2.imshow(str(m), self.Means[:,:,m]/5000.)
 			# cv2.imshow(str(m), self.Weights[:,:,m]/np.nanmax(self.Weights[:,:,m]))
 		# cv2.imshow("ownership", Ownership/Ownership.max().astype(np.float))
 
-
+		# print np.sum(self.Weights[:,:,0]< .1)
 		# embed()
 		self.backgroundModel = np.max(self.Means, 2)
 		# self.backgroundModel = np.nanmax(self.Means, 2)
 		
 		'''This'''
+		# embed()
 		# tmp = np.argmax(self.Weights,2).ravel()
 		# self.backgroundModel = self.Means[:,:,tmp]
 

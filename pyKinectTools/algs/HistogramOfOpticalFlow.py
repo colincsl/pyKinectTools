@@ -85,14 +85,24 @@ def showSplit(splitIm, blocks=[4,3]):
             imshow(splitIm[:,:,i])
 
 
+# def splitIm(im, blocks=[4,3]):
+#     subSizeX, subSizeY = im.shape / np.array(blocks)
+#     newIms = np.empty([im.shape[0]/blocks[0], im.shape[1]/blocks[1], blocks[0]*blocks[1]])
+#     for x in xrange(blocks[0]):
+#         for y in xrange(blocks[1]):
+#             newIms[:,:, x*blocks[1]+y] = im[x*subSizeX:(x+1)*subSizeX,y*subSizeY:(y+1)*subSizeY]
+
+#     return newIms
+
 def splitIm(im, blocks=[4,3]):
     subSizeX, subSizeY = im.shape / np.array(blocks)
-    newIms = np.empty([im.shape[0]/blocks[0], im.shape[1]/blocks[1], blocks[0]*blocks[1]])
+    newIms = []
     for x in xrange(blocks[0]):
         for y in xrange(blocks[1]):
-            newIms[:,:, x*blocks[1]+y] = im[x*subSizeX:(x+1)*subSizeX,y*subSizeY:(y+1)*subSizeY]
+            newIms.append(im[x*subSizeX:(x+1)*subSizeX,y*subSizeY:(y+1)*subSizeY, :])
 
-    return newIms
+    newIms = np.dstack(newIms)
+    return newIms    
 
 from skimage import feature
 def splitHog(im, blocks=[4,3], visualise=False):

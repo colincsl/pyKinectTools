@@ -1,3 +1,6 @@
+'''
+First half of this file is the old feature extraction stuff -- second half if the new part
+'''
 
 import os, time, sys
 import numpy as np
@@ -397,3 +400,175 @@ def calculateBasicPose(depthIm, mask):
 		basis = -1*basis
 
 	return com, basis
+
+
+''' -------------------------- Features Jan 2013 ---------------------'''
+
+
+def plotUsers(image, users=None, flow=None, vis=True, device=2, backgroundModel=None, computeHog=True, computeLBP=False):
+
+	usersPlotted = 0
+	uvw = [-1]
+
+	bodyIndicies = [0, 5, 8] # See SkeletonUtils.py
+	hogs = []
+	for u in users.keys():
+		if users[u]['tracked']:
+			xyz = users[u]['com']
+			uvw = world2depth(xyz)
+
+			''' Only plot if there are valid coordinates (not [0,0,0])'''
+			if uvw[0] > 0:
+				if users[u]['tracked'] and len(users[u]['jointPositions'].keys()) > 0:
+
+					'''Colorize COM'''
+					cv2.rectangle(image, tuple([uvw[1]/2-3, uvw[0]/2-3]), tuple([uvw[1]/2+3, uvw[0]/2+3]), (4000))
+
+					'''Plot skeleton'''
+					if 1:
+						w = 3
+						for j in users[u]['jointPositions'].keys():
+							pt = world2depth(users[u]['jointPositions'][j])
+							image[pt[0]/2-w:pt[0]/2+w, pt[1]/2-w:pt[1]/2+w] = 4000                                                        
+
+					usersPlotted += 1
+
+	if vis and usersPlotted >= 0:
+		# Make sure windows open
+		cv2.namedWindow('Depth_'+str(device))
+		cv2.imshow('Depth_'+str(device), image.astype(np.float)/5000.0)
+		ret = cv2.waitKey(10)
+
+	return ret
+
+
+
+
+def computeUserFeatures(colorIm, depthIm, flow, boundingBox, timestamp, mask, windowSize=[96,72], splitBoxes=[4,3], visualise=False):
+
+	assert colorIm.shape[0:2] == depthIm.shape and flow.shape[0:2] == depthIm.shape, "Wrong dimensions when computing features"
+	
+	features = {'time':timestamp, 'boundingbox':boundingBox}
+
+	''' False positive detection '''
+	pixelRatio = np.sum(mask[boundingbox]) / (float(boundingBox[0].stop-boundingBox[0].stop)*float(boundingBox[1].stop-boundingBox[1].stop))
+	features['pixelRatio'] = pixelRatio
+
+	''' Extract User from images '''
+	if mask is not None:
+		colorUserIm = np.ascontiguousarray(colorIm[boundingBox]*mask[boundingBox][:,:,np.newaxis])
+		depthUserIm = np.ascontiguousarray(depthIm[boundingBox]*mask[boundingBox])
+		flowUserIm = np.ascontiguousarray(flow[boundingBox]*mask[boundingBox][:,:,np.newaxis])
+	else:
+		colorUserIm = np.ascontiguousarray(colorIm[boundingBox])
+		depthUserIm = np.ascontiguousarray(depthIm[boundingBox])
+		flowUserIm = np.ascontiguousarray(flow[boundingBox])
+
+	''' Resize images '''
+	colorUserIm = sm.imresize(colorUserIm, [windowSize[0],windowSize[1],3])
+	depthUserIm = sm.imresize(depthUserIm, windowSize)	
+	flowUserImTmp0 = sm.imresize(flowUserIm[:,:,0], windowSize)
+	flowUserImTmp1 = sm.imresize(flowUserIm[:,:,1], windowSize)
+	flowUserIm = np.dstack([flowUserImTmp0,flowUserImTmp0])
+
+	''' Get User Center of Mass and Orientation '''
+	com, ornBasis = calculateBasicPose(depthIm, mask)
+	features['com'] = com
+	features['com'] = ornBasis
+	
+	''' Get color histogram '''
+	colorHistograms = [np.histogram(colorUserIm[:,:,i], bins=20, range=(0,255))[0] for i in range(3)]
+	features['colorHistograms'] = colorHistograms
+
+	''' Get HOG and HOF on 4x3 subimages'''
+	colorUserIm_g = colorUserIm.mean(-1)
+
+	splitColorIms = splitIm(colorUserIm_g, splitBoxes)
+	splitFlowIms = splitIm(FlowUserIm, splitBoxes)
+
+	splitHogArrays = []; splitHogIms = []
+	splitHofArrays = []; splitHofIms = []
+
+	for i in range(splitBoxes[0]*splitBoxes[1]):
+		if visualise:
+			hogArray, hogIm = feature.hog(splitColorIms[:,:,i], visualise=True, orientations=4)
+			hofArray, hofIm = hof(splitFlowIms[:,:,i*2:i*2+2], visualise=True, orientations=5)
+			splitHogIms.append(hogIm)
+			splitHofIms.append(hogIm)
+		else:
+			hogArray = feature.hog(splitColorIms[:,:,i], visualise=False, orientations=4)
+			hofArray = hof(splitFlowIms[:,:,i*2:i*2+2], visualise=False, orientations=5)
+
+		splitHogArrays.append(hogArray)
+		splitHofArrays.append(hofArray)
+
+	features['hog'] = splitHogArrays
+	features['hof'] = splitHofArrays
+		
+	if visualise:
+		features['hogIm'] = hogIm
+		features['hofIm'] = hofIm	
+
+	return  features
+
+
+
+
+
+
+
+	def computeFeaturesWithSkels(image, users=None, flow=None, device=2, computeHog=True, computeLBP=False, vis=False):
+
+	features = {}
+
+	# Head, Left hand, right hand
+	bodyIndicies = [0, 5, 8] 
+
+	for u in users.keys():
+		xyz = users[u]['com']
+		uvw = world2depth(xyz)
+		hogs = []
+
+		# Only plot if there are valid coordinates (not [0,0,0])
+		if uvw[0] > 0 and users[u]['tracked'] and len(users[u]['jointPositions'].keys()) > 0:
+
+			''' HOG at each Body positions '''
+			for i in bodyIndicies:
+				pt = world2depth(users[u]['jointPositions'][users[u]['jointPositions'].keys()[i]])
+				uImg = image[pt[0]/2-textureSize[0]/2:pt[0]/2+textureSize[0]/2, (pt[1]/2-textureSize[1]/2):(pt[1]/2+textureSize[1]/2)]
+
+				if uImg.size == 0 or uImg.max()==0:
+					return
+
+				# Ensure it's the right size
+				uImg = np.ascontiguousarray(uImg)
+				uImg.resize(textureSize)
+
+				# Scale and prevent blooming
+				uImg = np.copy(uImg).astype(np.float)
+				uImg[uImg>0] -= np.min(uImg[uImg>0])
+				# This reduces problems with stark changes in background
+				uImg = np.minimum(uImg, 100)
+				# uImg /= (np.max(uImg)/255.)
+
+				fillImage(uImg)
+				if not vis:
+					hogArray = feature.hog(uImg, visualise=False)
+				else:
+					hogArray, hogIm = feature.hog(uImg, visualise=True)
+					cv2.namedWindow("hog_"+str(i))
+					cv2.imshow("hog_"+str(i), hogIm)
+					# cv2.imshow("hog_"+str(i), uImg)
+					ret = cv2.waitKey(10)
+
+				hogs.append(hogArray)
+
+		if uvw[0] > 0:
+			features[u] = {
+							'com':xyz,
+							'time':users[u]['timestamp'],
+							'device':device,
+							'hogs':hogs
+							}
+
+	return features
