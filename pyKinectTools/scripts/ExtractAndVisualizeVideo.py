@@ -13,6 +13,7 @@ import scipy.ndimage as nd
 import skimage
 from skimage import feature, color
 
+from pyKinectTools.utils.Utils import createDirectory
 from pyKinectTools.utils.DepthUtils import world2depth, depthIm2XYZ
 from pyKinectTools.utils.MultiCameraUtils import multiCameraTimeline, formatFileString
 from pyKinectTools.utils.FeatureUtils import saveFeatures, loadFeatures, learnICADict, learnNMFDict, displayComponents
@@ -35,7 +36,7 @@ np.seterr(all='ignore')
 
 # -------------------------MAIN------------------------------------------
 # @profile
-def main(getDepth, getColor, getSkel, getMask, calculateFeatures, visualize):
+def main(get_depth, get_color, get_skeleton, get_mask, calculate_features, visualize, save_anonomized):
 
 	ret = 0
 	backgroundTemplates = np.empty([1,1,1])
@@ -82,12 +83,12 @@ def main(getDepth, getColor, getSkel, getMask, calculateFeatures, visualize):
 						continue
 
 					''' Sort files '''
-					if getDepth:
+					if get_depth:
 						depthTmp = os.listdir('depth/'+dayDir+'/'+hourDir+'/'+minuteDir+'/'+deviceID)
 						tmpSort = [int(x.split('_')[-3])*100 + int(formatFileString(x.split('_')[-2])) for x in depthTmp]
 						depthTmp = np.array(depthTmp)[np.argsort(tmpSort)].tolist()
 						depthFiles.append([x for x in depthTmp if x.find('.png')>=0])
-					if getSkel:
+					if get_skeleton:
 						skelTmp = os.listdir('skel/'+dayDir+'/'+hourDir+'/'+minuteDir+'/'+deviceID)
 						tmpSort = [int(x.split('_')[-4])*100 + int(formatFileString(x.split('_')[-3])) for x in skelTmp]
 						skelTmp = np.array(skelTmp)[np.argsort(tmpSort)].tolist()
@@ -105,23 +106,23 @@ def main(getDepth, getColor, getSkel, getMask, calculateFeatures, visualize):
 						print depthFile
 
 						''' Load Depth '''
-						if getDepth:
+						if get_depth:
 							depthIm = sm.imread('depth/'+dayDir+'/'+hourDir+'/'+minuteDir+'/'+devices[dev]+'/'+depthFile)
 							depthIm = np.array(depthIm, dtype=np.uint16)
 						''' Load Color '''
-						if getColor:
+						if get_color:
 							colorFile = 'color_'+depthFile[6:-4]+'.jpg'
 							colorIm = sm.imread('color/'+dayDir+'/'+hourDir+'/'+minuteDir+'/'+devices[dev]+'/'+colorFile)
 							# colorIm_g = colorIm.mean(-1, dtype=np.uint8)
 							colorIm_g = skimage.img_as_ubyte(skimage.color.rgb2gray(colorIm))
 							# colorIm_lab = skimage.color.rgb2lab(colorIm).astype(np.uint8)
 						# ''' Load Mask '''
-						# if getMask:
+						# if get_mask:
 						# 	maskIm = sm.imread('depth/'+dayDir+'/'+hourDir+'/'+minuteDir+'/'+devices[dev]+'/'+depthFile[:-4]+"_mask.jpg") > 100
 						# 	depthIm = depthIm*(1-maskIm)+maskIm*5000
 
 						''' Load Skeleton Data '''
-						if getSkel:
+						if get_skeleton:
 							skelFile = 'skel_'+depthFile[6:-4]+'_.dat'
 							if os.path.isfile('skel/'+dayDir+'/'+hourDir+'/'+minuteDir+'/'+devices[dev]+'/'+skelFile):
 								with open('skel/'+dayDir+'/'+hourDir+'/'+minuteDir+'/'+devices[dev]+'/'+skelFile, 'rb') as inFile:
@@ -147,7 +148,7 @@ def main(getDepth, getColor, getSkel, getMask, calculateFeatures, visualize):
 						if backgroundModel is None:
 							bgSubtraction = AdaptiveMixtureOfGaussians(depthIm, maxGaussians=3, learningRate=0.01, decayRate=0.02, variance=300**2)
 							backgroundModel = bgSubtraction.getModel()
-							if getColor:
+							if get_color:
 								prevColorIm = colorIm_g.copy()
 							continue
 						else:
@@ -157,13 +158,13 @@ def main(getDepth, getColor, getSkel, getMask, calculateFeatures, visualize):
 						foregroundMask = bgSubtraction.getForeground(thresh=50)
 
 						''' Find people '''
-						if getSkel:
+						if get_skeleton:
 							ret = plotUsers(depthIm, users, device=devices[dev], vis=True)
-						if getMask:
+						if get_mask:
 							foregroundMask, userBoundingBoxes, userLabels = extractPeople(depthIm, foregroundMask, minPersonPixThresh=1500, gradientFilter=True, gradThresh=100)
 						
 						''' Calculate user features '''
-						if calculateFeatures:
+						if calculate_features:
 							''' Color Optical Flow '''
 							flow = getFlow(prevColorIm, colorIm_g)
 							prevColorIm = colorIm_g.copy()
@@ -174,7 +175,7 @@ def main(getDepth, getColor, getSkel, getMask, calculateFeatures, visualize):
 								userMask = foregroundMask==i+1
 								allFeatures.append(computeUserFeatures(colorIm, depthIm, flow, userBox, time=timestamp, mask=userMask, windowSize=[96,72], visualise=False))
 						''' Or get CoM + orientation '''
-						if getMask and not calculateFeatures:
+						if get_mask and not calculate_features:
 							userCount = len(userBoundingBoxes)
 							for i in xrange(userCount):
 								userBox = userBoundingBoxes[i]
@@ -186,17 +187,17 @@ def main(getDepth, getColor, getSkel, getMask, calculateFeatures, visualize):
 
 						''' Visualization '''
 						if visualize:
-							if getDepth:
+							if get_depth:
 								# " Dev#"+str(dev)
 								cv2.putText(depthIm, "Day "+dayDir+" Time "+hourDir+":"+minuteDir+":"+depthFile.split("_")[-3], (5,220), cv2.FONT_HERSHEY_DUPLEX, 0.6, 5000)					
 								cv2.imshow("Depth", depthIm/5000.)
-							if getColor:
+							if get_color:
 								# cv2.putText(colorIm, "Day "+dayDir+" Time "+hourDir+":"+minuteDir+" Dev#"+str(dev), (10,220), cv2.FONT_HERSHEY_DUPLEX, 0.6, 5000)					
 								cv2.imshow("I_orig", colorIm)
-								if calculateFeatures:
+								if get_mask:
 									# cv2.imshow("I", colorIm*foregroundMask[:,:,np.newaxis])
 									cv2.imshow("I_masked", colorIm + (255-colorIm)*(((foregroundMask)[:,:,np.newaxis])))
-							if getMask:
+							if get_mask:
 								cv2.imshow("Mask", foregroundMask.astype(np.float)/float(foregroundMask.max()))
 								# cv2.imshow("BG Model", backgroundModel.astype(np.float)/float(backgroundModel.max()))
 
@@ -241,11 +242,13 @@ def main(getDepth, getColor, getSkel, getMask, calculateFeatures, visualize):
 
 						ret = cv2.waitKey(10)
 
-						# prevDepthIms.append(depthIm.copy())
-						# prevColorIms.append(colorIm_g)
-
 						if ret > 0:
 							break
+
+					if save_anonomized and get_mask:
+						saveDir = 'color_masked/'+dayDir+'/'+hourDir+'/'+minuteDir+'/'+devices[dev]+'/'
+						createDirectory(saveDir)
+						sm.imsave(saveDir+'colorM_'+depthFile[6:-4]+'.jpg', colorIm*(1-foregroundMask))
 					# except:
 						# print "Erroneous frame"
 						# if visualize:
@@ -275,12 +278,13 @@ if __name__=="__main__":
 	parser.add_option('-s', '--skel', dest='skel', action="store_true", default=False, help='Enable skeleton')	
 	parser.add_option('-d', '--depth', dest='depth', action="store_true", default=False, help='Enable depth images')		
 	parser.add_option('-c', '--color', dest='color', action="store_true", default=False, help='Enable color images')	
-	parser.add_option('-m', '--mask', dest='mask', action="store_true", default=False, help='Enable enternal mask')			
+	parser.add_option('-m', '--mask', dest='mask', action="store_true", default=False, help='Enable enternal mask')
+	parser.add_option('-a', '--anonomize', dest='save', action="store_true", default=False, help='Save anonomized RGB image')
 	parser.add_option('-f', '--calcFeatures', dest='bgSubtraction', action="store_true", default=False, help='Enable feature extraction')		
 	parser.add_option('-v', '--visualize', dest='viz', action="store_true", default=False, help='Enable visualization')
 	(opt, args) = parser.parse_args()
 
-	if opt.bgSubtraction:
+	if opt.bgSubtraction or opt.save_anonomized:
 		opt.mask = True
 
 	if len(args) > 0:
@@ -288,7 +292,7 @@ if __name__=="__main__":
 	elif opt.depth==False and opt.color==False and opt.skel==False:
 		print "You must supply the program with some arguments."
 	else:
-		main(getDepth=opt.depth, getSkel=opt.skel, getColor=opt.color, getMask=opt.mask, calculateFeatures=opt.bgSubtraction, visualize=opt.viz)
+		main(get_depth=opt.depth, get_skeleton=opt.skel, get_color=opt.color, get_mask=opt.mask, calculate_features=opt.bgSubtraction, visualize=opt.viz, save_anonomized=opt.save)
 
 	'''Profiling'''
 	# cProfile.runctx('main()', globals(), locals(), filename="ShowSkeletons.profile")

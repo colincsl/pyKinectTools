@@ -1,5 +1,7 @@
 pyKinectTools/data
 *.pyc
+*.py~
 build
 algs/dijkstras/build/*
 .ropeproject/
+*.DS_Store

@@ -4,19 +4,19 @@ import numpy as np
 import scipy.misc as sm
 import Image
 from pyKinectTools.utils.RealtimeReader import *
+from pyKinectTools.utils.Utils import createDirectory
 import cPickle as pickle
 import cProfile
 
 from multiprocessing import Pool, Process, Queue
 
 # DIR = '/Users/colin/Data/icu_test/'
-# DIR = '/home/clea/Data/tmp/'
 # DIR = '/home/clea/Data/ICU_Nov2012/'
 DIR = '/media/Data/icu_test_color/'
 # DIR = '/media/Data/CV_class/'
 
 
-@profile
+# @profile
 def save_frame(depthName=None, depth=None, colorName=None, color=None, userName=None, users=None, maskName=None, mask=None):
 
 	''' Depth '''
@@ -45,7 +45,7 @@ def save_frame(depthName=None, depth=None, colorName=None, color=None, userName=
 				pickle.dump(usersOut, outfile, protocol=pickle.HIGHEST_PROTOCOL)
 
 
-@profile
+# @profile
 def main(deviceID, record, baseDir, frameDifferencePercent, getSkel, anonomize, viz,  imgStoreCount=10):
 
 		'''------------ Setup Kinect ------------'''
@@ -211,19 +211,26 @@ def main(deviceID, record, baseDir, frameDifferencePercent, getSkel, anonomize, 
 											maskDir = None
 											maskName = None
 
-										''' Create a folder if it doesn't exist '''
-										if not os.path.isdir(depthDir):
-												for p in xrange(4, len(depthDir.split("/"))+1):                         
-														try:
-																os.mkdir("/".join(depthDir.split('/')[0:p])) 
-																os.mkdir("/".join(colorDir.split('/')[0:p]))
-																if getSkel:
-																	os.mkdir("/".join(skelDir.split('/')[0:p]))
-																if anonomize:
-																	os.mkdir("/".join(maskDir.split('/')[0:p]))																
-														except:
-																# print "error making dir"
-																pass
+										''' Create folders if they doesn't exist '''
+										createDirectory(depthDir)
+										createDirectory(colorDir)
+										if getSkel:
+											createDirectory(skelDir)
+										if anonomize:
+											createDirectory(maskDir)
+
+										# if not os.path.isdir(depthDir):
+										# 		for p in xrange(4, len(depthDir.split("/"))+1):                         
+										# 				try:
+										# 						os.mkdir("/".join(depthDir.split('/')[0:p])) 
+										# 						os.mkdir("/".join(colorDir.split('/')[0:p]))
+										# 						if getSkel:
+										# 							os.mkdir("/".join(skelDir.split('/')[0:p]))
+										# 						if anonomize:
+										# 							os.mkdir("/".join(maskDir.split('/')[0:p]))																
+										# 				except:
+										# 						# print "error making dir"
+										# 						pass
 
 
 
