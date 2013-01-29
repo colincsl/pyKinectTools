@@ -13,13 +13,14 @@ fy_d = 1.0 / 5.9104053696870778e+02;
 cx_d = 3.3930780975300314e+02;
 cy_d = 2.4273913761751615e+02;
 
+# rez=[640,480]
 def depth2world(x_):
 
     assert type(x_) == np.ndarray, "Wrong type into depth2world"
 
     if x_.shape[0]==76800 or (x_[:,0].max() < 240 and x_[:,1].max() < 320):
-        x_[:,0] *=2
-        x_[:,1] *=2
+        x_[:,0] *= 2
+        x_[:,1] *= 2
     
     y = np.array(x_[:,0])
     x = np.array(x_[:,1])
@@ -27,23 +28,24 @@ def depth2world(x_):
     
     if np.all(d==0):
         return [0,0,0]
-    xo = ((x - cx_d) * d * fx_d)
-    yo = - ((y - cy_d) * d * fy_d)
+
+    xo =  ((x - cx_d) * d * fx_d)
+    yo = -((y - cy_d) * d * fy_d)
     zo = -d
     return np.array([xo, yo, zo]).T    
 
-def world2depth(x_, y=0, z=0):
+def world2depth(x_, rez=[640, 480]):
     assert type(x_) == np.ndarray, "world2depth input must be a numpy array"
-    x = np.array(x_[:,0])        
-    y = np.array(x_[:,1])
-    z = np.array(x_[:,2])
+    y = np.array(x_[:,1])     
+    x = np.array(x_[:,0])
+    z = np.abs(np.array(x_[:,2]))
     z = np.maximum(1, z)
 
-    yo = np.array((np.round(x / fx_d / z + cx_d)), dtype=np.int)
-    # yo = 640 - np.array((np.round(x / fx_d / z + cx_d)), dtype=np.int)
-    xo = 480 - np.array((np.round((y / fy_d / z) + cy_d)), dtype=np.int)
+    xo = (( x / (z * fx_d)) + cx_d).astype(np.int)
+    yo = ((-y / (z * fy_d)) + cy_d).astype(np.int)
+
     do = np.array(z, dtype=np.int)
-    return np.array([xo, yo, do])
+    return np.array([yo, xo, do])
 
 
 def depthIm2XYZ(depthMap):

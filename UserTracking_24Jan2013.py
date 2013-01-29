@@ -10,13 +10,21 @@ from pyKinectTools.utils.DepthUtils import world2depth
 # embed()
 
 
-def pts2map(pts, rez, centers=[300, 0, -500], span=np.ones(3, dtype=np.float)*6000):
+def pts2coords(pts, rez, centers=[300, 0, -500], span=np.ones(3, dtype=np.float)*6000):
 	xs = np.minimum(np.maximum(rez[0]+((pts[:,2]+centers[2])/span[2]*rez[0]).astype(np.int), 0),rez[0]-1)
 	ys = np.minimum(np.maximum(((pts[:,0]+centers[0])/span[0]*rez[1]).astype(np.int), 0),rez[1]-1)
 
 	return xs, ys
 
-def coms2map(coms, mapIm=None, mapRez=None, color=255, centers=[300, 0, -500], span=np.ones(3, dtype=np.float)*6000):
+def coords2pts(coords, rez, span=np.ones(3, dtype=np.float)*6000):
+	xs = (coords[:,2] - rez[0])/rez[0]*span[2] - centers[2]
+	ys = coords[:,0]/rez[1]*span[0] - centers[0]
+
+	return np.hstack([xs, ys])
+
+
+
+def map_points(pts, mapIm=None, mapRez=None, color=255, centers=[300, 0, -500], span=np.ones(3, dtype=np.float)*6000):
 	
 	color = np.array(color)
 				
@@ -30,12 +38,7 @@ def coms2map(coms, mapIm=None, mapRez=None, color=255, centers=[300, 0, -500], s
 		mapIm = 0*np.ones(mapRez)*255
 
 	''' Convert com to xy indcies '''
-	# xs = np.minimum(np.maximum(mapRez[0]*0-((coms[:,2]+centers[2])/span[2]*mapRez[0]).astype(np.int), 0),mapRez[0]-1)
-	# ys = np.minimum(np.maximum(mapRez[1]-((coms[:,0]+centers[0])/span[0]*mapRez[1]).astype(np.int), 0),mapRez[1]-1)
-	# xs = np.minimum(np.maximum(mapRez[0]+((coms[:,2]+centers[2])/span[2]*mapRez[0]).astype(np.int), 0),mapRez[0]-1)
-	# ys = np.minimum(np.maximum(((coms[:,0]+centers[0])/span[0]*mapRez[1]).astype(np.int), 0),mapRez[1]-1)
-
-	xs, ys = pts2map(coms, mapRez, centers, span)
+	xs, ys = pts2coords(pts, mapRez, centers, span)
   	mapIm[xs, ys,:] = color
 
 	return mapIm
@@ -49,7 +52,7 @@ def plotCamera(cameraPos, im, centers=[3000,0,-500], span=np.ones(3, dtype=np.fl
 	rez = im.shape
 	# x = -((cameraPos[2]+centers[2])/span[2]*rez[0]).astype(np.int)
 	# y = (rez[0]-(cameraPos[0]+centers[0])/span[0]*rez[1]).astype(np.int)       
-	x,y = pts2map(np.array([cameraPos]), rez, centers, span) 
+	x,y = pts2coords(np.array([cameraPos]), rez, centers, span) 
 	cv2.circle(im, (y,x), 5, (255,255,255), thickness=-1)
 
 def viewImage(cam_index, filetime, coms=None):
@@ -161,7 +164,8 @@ closedUsers = []
 userCount = 0
 t = timeStart
 
-im = np.zeros([600,600,3])
+mapIm = np.zeros([600,600,3])
+ims = []
 while 1:
 	
 	
@@ -175,7 +179,7 @@ while 1:
 			timesPrev[cam_index] = t#allTimes[cam_index][inds[cam_index][-1]]
 			for i in inds[cam_index]:
 				newComs[cam_index].append({'com':allComs[cam_index][i], 'time':allTimes[cam_index][i], 'camera':cam_index, 'data':allData[cam_index][i]})
-				im = coms2map(np.array([allComs[cam_index][i]]), mapIm=im, color=colors[cam_index], centers=centers)
+				mapIm = map_points(np.array([allComs[cam_index][i]]), mapIm=mapIm, color=colors[cam_index], centers=centers)
 			# print cam_index
 
 	''' Add the new people to the set of current users '''
@@ -200,7 +204,7 @@ while 1:
 				print centroid
 
 				try:
-					viewImage(u['cameras'][-1], u['data'][-1]['time'], coms=centroid)
+					ims.append(viewImage(u['cameras'][-1], u['data'][-1]['time'], coms=centroid))
 				except:
 					print "Error viewing index:" + str(cam_index) + " time:" + " ".join(newComs[cam_index][closestPerson]['data']['time'])
 
@@ -226,8 +230,8 @@ while 1:
 
 		if len(u) > 2: # At least in 2 frames
 			''' Visualize users '''
-			# im = coms2map(np.array([c[-1][0]]), mapIm=im, color=colors[i%len(colors)], centers=centers)
-			# im = coms2map(np.array(u['coms']), mapIm=im, color=colors[u['id']%len(colors)], centers=centers)
+			# im = map_points(np.array([c[-1][0]]), mapIm=im, color=colors[i%len(colors)], centers=centers)
+			# im = map_points(np.array(u['coms']), mapIm=im, color=colors[u['id']%len(colors)], centers=centers)
 			pass
 
 	# Remove dead users
@@ -237,15 +241,15 @@ while 1:
 		closedUsers.append(currentUsers.pop(i))
 
 	#Add time to bottom left of image
-	im[530:,:200] = np.array([0,0,0]) #Flush previous time
-	cv2.putText(im, str(timesPrev[0]), (10,550), cv2.FONT_HERSHEY_DUPLEX, 0.6, (255, 0,0))
-	cv2.putText(im, str(timesPrev[1]), (10,570), cv2.FONT_HERSHEY_DUPLEX, 0.6, (0, 255,0))
-	cv2.putText(im, str(timesPrev[2]), (10,590), cv2.FONT_HERSHEY_DUPLEX, 0.6, (0, 0,255))
+	mapIm[530:,:200] = np.array([0,0,0]) #Flush previous time
+	cv2.putText(mapIm, str(timesPrev[0]), (10,550), cv2.FONT_HERSHEY_DUPLEX, 0.6, (255, 0,0))
+	cv2.putText(mapIm, str(timesPrev[1]), (10,570), cv2.FONT_HERSHEY_DUPLEX, 0.6, (0, 255,0))
+	cv2.putText(mapIm, str(timesPrev[2]), (10,590), cv2.FONT_HERSHEY_DUPLEX, 0.6, (0, 0,255))
 	
-	plotCamera(cameraCenter1, im, centers=centers)
-	plotCamera(cameraCenter2, im, centers=centers)
-	plotCamera(cameraCenter3, im, centers=centers)
-	cv2.imshow("coms", im)
+	plotCamera(cameraCenter1, mapIm, centers=centers)
+	plotCamera(cameraCenter2, mapIm, centers=centers)
+	plotCamera(cameraCenter3, mapIm, centers=centers)
+	cv2.imshow("coms", mapIm)
 	
 	print "Current users: ", len(currentUsers)
 	print "Total users: ", userCount
@@ -255,3 +259,21 @@ while 1:
 	ret = cv2.waitKey(100)
 	# if ret > 0:
 		# break
+
+if 0:
+	# 2,3,5
+	imsUV = [ims[-2],ims[-3],ims[-5]]
+	# imsXYZ = [depthIm2PosIm(x) for x in imsUV]
+	imsXYZ = [depthIm2XYZ(x) for x in imsUV]
+	imsXYZ = [np.hstack([imsXYZ[x], np.ones((imsXYZ[x].shape[0], 1))]) for x in range(cameraCount)]
+
+	imsXYZ[0] = np.dot(Transform12, imsXYZ[0].T)[:3]
+	imsXYZ[1] = imsXYZ[1].T[:3]
+	imsXYZ[2] = np.dot(Transform32, imsXYZ[2].T)[:3]
+
+	# transform and show top down view
+	imTop = np.ones([600,600,3])*0
+	imsColor = [x[np.nonzero(x>0)].ravel() for x in imsUV]
+	for i in range(len(imsXYZ)):
+		xs, ys = pts2coords(imsXYZ[i].T, imTop.shape, centers=centers)
+		imTop[xs, ys, i] = imsColor[i]/5000.

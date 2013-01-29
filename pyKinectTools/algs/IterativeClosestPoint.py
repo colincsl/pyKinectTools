@@ -7,49 +7,119 @@ pyKinectTools
 '''
 
 import numpy as np
+from numpy import dot
+from scipy import spatial
 
 
-def PointCloudRegistration(pointcloud, template, maxIters=100, minChange=.0001):
-	# Uses Arun's SVD-based method
-	# Output: R=3x3 rotation matrix, T=3x translation vector 
+def IterativeClosestPoint(pts_new, pts_ref, max_iters=25, min_change=.001, pt_tolerance=500):
 
-	pointcloudInit = np.copy(pointcloud)
-	R = np.eye(3)
-	T = pointcloud.mean(1)
+	nn = spatial.cKDTree(pts_ref)
+	it = 0
+	prevErr = 10**10
+	change = np.inf
+	R_total = np.eye(3)
+	T_total = np.zeros(3)
+	pts_new_current = np.copy(pts_new)
 
-	pointcloud = pointcloud.T - T
-	minDists = np.empty(pointcloud.shape[0])
-	iters = range(maxIters)
-	residual = np.inf
-	while iters.pop():
+	err_best = np.inf
+	T_best = None
+	R_best = None
 
-		H = np.asmatrix(np.zeros([3,3]))
-		TNew = pointcloud.mean(0)# - template.mean(0)
-		T = T + TNew
+	while it < max_iters and change > min_change:
+		pts_new_current = (dot(R_total, pts_new.T).T + T_total)
+		dists, pts = nn.query(pts_new_current)
 
-		pointcloud -= TNew
+		goodPts_new = pts_new_current[dists < pt_tolerance]
+		goodPts_ref = pts_ref[pts[dists<pt_tolerance]]
 
-		for i, val in zip(range(pointcloud.shape[0]),pointcloud):
-			dists = np.sum(np.asarray(template - val)**2, 1)
-			argMin_ = np.argmin(dists)
-			minDists[i] = np.asarray(dists[argMin_])
-			H += np.asmatrix(pointcloud[i,:]).T * template[argMin_,:]
+		tmp = 2
+		while goodPts_new.shape[0] < 10:
+			goodPts_new = goodPts_new[dists < pt_tolerance*tmp]
+			goodPts_ref = pts_ref[pts[dists<pt_tolerance*tmp]]
+			tmp += 1
 
-		residualNew = np.abs(minDists.sum() / pointcloud.shape[0])
-		print "Error: ", residualNew
-		if residual - residualNew < minChange:
-			break
-		residual = residualNew
 
-		U,_,VT = np.linalg.svd(H, full_matrices=0)
-		RotNew = (VT.T*U.T)
-		R = R*RotNew
+		R,t = PointcloudRegistration(goodPts_new, goodPts_ref)
+		err = np.linalg.norm(goodPts_ref - (dot(R, goodPts_new.T).T + t), 2)
 
-		if np.abs(np.linalg.det(RotNew) - 1) > .1:
-			print "Error", np.linalg.det(RotNew) - 1
+		change = np.abs(prevErr - err)
+		prevErr = err
+		# print R, R_total
+		# print t, T_total
+		# print err
 
-		pointcloud = (R*pointcloudInit).T - T
+		R_total = dot(R, R_total)
+		T_total += t
 
-		# print "Rotated: ", np.arcsin(R[0,1])*180/np.pi
+		if err < err_best:
+			err_best = err
+			R_best = R_total
+			T_best = T_total
+
+		it += 1
+
+	return R_best, T_best
+
+
+def PointcloudRegistration(pts_new, pts_ref):
+	''' Uses Arun's SVD-based method
+		Input: Nx3 numpy arrays
+		Output: R=3x3 rotation matrix, T=3x translation vector 
+	'''
+	assert pts_new.shape == pts_ref.shape, "Inputs must be of the same dimension"
+
+	''' De-mean '''
+	mean_new = pts_new.mean(0)
+	mean_ref = pts_ref.mean(0)
+
+	pts_new -= mean_new
+	pts_ref -= mean_ref
+
+	H = np.zeros([3,3])
+	for i in range(pts_new.shape[0]):
+		H += np.outer(pts_new[i], pts_ref[i])
+
+	U,_,Vt = np.linalg.svd(H, full_matrices=0)
+
+	''' Check that it's a rotation '''
+	if np.linalg.det(Vt) < 0:
+		Vt[2] *= -1
+
+	R = dot(Vt.T, U.T)
+	T = mean_ref - dot(R, mean_new)
 
 	return R, T
+
+
+''' TESTS '''
+if 0:
+
+	def RotationZ(ang):
+		return np.array([[cos(ang), sin(ang), 0],
+						[-sin(ang), cos(ang), 0],
+						[0,			0,		 1]])
+
+	eps = .0001
+	pts_ref = np.random.random([100,3])*3000
+
+	'''1'''
+	T = [100, 0, 0]
+	R_in = RotationZ(0)
+	pts_new = dot(R_in,pts_ref.T).T + T
+	R,t = IterativeClosestPoint(pts_new, pts_ref)
+	assert np.all(t+T < eps), "Error too large in test 1"
+
+	'''2'''
+	T = [0, 0, 0]
+	R_in = RotationZ(10)
+	pts_new = dot(R_in,pts_ref.T).T + T
+	R,t = IterativeClosestPoint(pts_new, pts_ref)
+	assert np.all(dot(R_in,R) - np.eye(3) < eps), "Error too large in test 2"
+
+	'''3'''	
+	T = [0, 100, 0]
+	R_in = RotationZ(10)
+	pts_new = dot(R_in,pts_ref.T).T + T
+	R,t = IterativeClosestPoint(pts_new, pts_ref)
+	assert np.all(t+T < eps), "Error too large in translation of test 3"
+	assert np.all(dot(R_in,R) - np.eye(3) < eps), "Error too large in rotation of test 3"

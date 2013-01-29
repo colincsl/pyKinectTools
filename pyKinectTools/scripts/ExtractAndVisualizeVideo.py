@@ -77,11 +77,7 @@ def main(getDepth, getColor, getSkel, getMask, calculateFeatures, visualize):
 				devices = [x for x in devices if x[0]!='.' and x.find('tmp')<0]
 				devices.sort()
 
-				# for deviceID in ['device_1']:
-				# for deviceID in devices:
-				# from pdb import set_trace
-				# set_trace()
-				for deviceID in ['device_2']:
+				for deviceID in ['device_1']:
 					if not os.path.isdir('depth/'+dayDir+'/'+hourDir+'/'+minuteDir+'/'+deviceID):
 						continue
 
@@ -99,11 +95,11 @@ def main(getDepth, getColor, getSkel, getMask, calculateFeatures, visualize):
 
 				if len(depthFiles) == 0:
 					continue
-				# depthFiles = [['', '']].append(depthFiles)
-
-				# embed()
 				for dev, depthFile in multiCameraTimeline(depthFiles):
-					dev = 1
+					if deviceID == 'device_2':
+						dev = 1
+					else:
+						dev = 0
 					# try:
 					if 1:
 						print depthFile
@@ -191,7 +187,8 @@ def main(getDepth, getColor, getSkel, getMask, calculateFeatures, visualize):
 						''' Visualization '''
 						if visualize:
 							if getDepth:
-								cv2.putText(depthIm, "Day "+dayDir+" Time "+hourDir+":"+minuteDir+" Dev#"+str(dev), (10,220), cv2.FONT_HERSHEY_DUPLEX, 0.6, 5000)					
+								# " Dev#"+str(dev)
+								cv2.putText(depthIm, "Day "+dayDir+" Time "+hourDir+":"+minuteDir+":"+depthFile.split("_")[-3], (5,220), cv2.FONT_HERSHEY_DUPLEX, 0.6, 5000)					
 								cv2.imshow("Depth", depthIm/5000.)
 							if getColor:
 								# cv2.putText(colorIm, "Day "+dayDir+" Time "+hourDir+":"+minuteDir+" Dev#"+str(dev), (10,220), cv2.FONT_HERSHEY_DUPLEX, 0.6, 5000)					
@@ -203,12 +200,6 @@ def main(getDepth, getColor, getSkel, getMask, calculateFeatures, visualize):
 								cv2.imshow("Mask", foregroundMask.astype(np.float)/float(foregroundMask.max()))
 								# cv2.imshow("BG Model", backgroundModel.astype(np.float)/float(backgroundModel.max()))
 
-							''' Top Down View '''
-							if 0 and getMask:
-								from pyKinectTools.algs.Normals import getTopdownMap
-								topDownView = getTopdownMap(depthIm, rez=500)
-								cv2.imshow("Top Down", topDownView)
-
 
 							''' Multi-camera map '''
 							if len(coms) > 0:
@@ -216,9 +207,9 @@ def main(getDepth, getColor, getSkel, getMask, calculateFeatures, visualize):
 								mapIm = np.zeros(mapRez)
 								# embed()
 								coms_np = np.array(coms)
-								xs = np.minimum(np.maximum(-((coms_np[:,2]+500)/3000.*mapRez[0]).astype(np.int), 0),mapRez[0]+1)
+								xs = np.minimum(np.maximum(mapRez[0]+((coms_np[:,2]+500)/3000.*mapRez[0]).astype(np.int), 0),mapRez[0]-1)
 								ys = np.minimum(np.maximum(((coms_np[:,0]+500)/1500.*mapRez[0]).astype(np.int), 0), mapRez[1]-1)
-								mapIm[mapRez[0]-xs, ys] = 255
+								mapIm[xs, ys] = 255
 								cv2.imshow("Map", mapIm)
 								# scatter(coms_np[:,0], -coms_np[:,2])
 
@@ -257,9 +248,9 @@ def main(getDepth, getColor, getSkel, getMask, calculateFeatures, visualize):
 							break
 					# except:
 						# print "Erroneous frame"
-						# if visualise:
-							# cv2.imshow("D", depthIm.astype(np.float)/5000)
-							# ret = cv2.waitKey(10)
+						# if visualize:
+						# 	cv2.imshow("D", depthIm.astype(np.float)/5000)
+						# 	ret = cv2.waitKey(10)
 
 				if ret > 0:
 					break
@@ -269,7 +260,7 @@ def main(getDepth, getColor, getSkel, getMask, calculateFeatures, visualize):
 			# embed()
 			break
 
-	np.save("/media/Data/r40_cX_"+timestamp, allFeatures)
+	np.save("/media/Data/r40_cX_", allFeatures)
 	embed()
 
 if 0:

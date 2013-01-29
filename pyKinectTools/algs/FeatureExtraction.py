@@ -390,6 +390,7 @@ def calculateBasicPose(depthIm, mask):
 	depthVals = depthIm[inds]
 	inds = np.vstack([inds, depthVals])
 
+	print inds.max(-1)
 	xyz = depth2world(inds.T)
 	com = xyz.mean(0)
 	xyz -= com
@@ -444,37 +445,44 @@ def plotUsers(image, users=None, flow=None, vis=True, device=2, backgroundModel=
 
 
 
-def computeUserFeatures(colorIm, depthIm, flow, boundingBox, timestamp, mask, windowSize=[96,72], splitBoxes=[4,3], visualise=False):
+def computeUserFeatures(colorIm, depthIm, flow, bounding_box, timestamp, mask, window_size=[96,72], split_boxes=[4,3], visualise=False):
 
 	assert colorIm.shape[0:2] == depthIm.shape and flow.shape[0:2] == depthIm.shape, "Wrong dimensions when computing features"
 	
-	features = {'time':timestamp, 'boundingbox':boundingBox}
+	features = {'time':timestamp, 'bounding_box':bounding_box}
+	
+	''' Get bounding box in xyz coords '''
+	corner1 = depth2world(np.array([bounding_box[0].start,bounding_box[1].start, depthIm[bounding_box[0].start,bounding_box[1].start]]))
+	corner2 = depth2world(np.array([bounding_box[0].stop,bounding_box[1].stop, depthIm[bounding_box[0].stop,bounding_box[1].stop]]))
+	bounding_box_xyz = [corner1, corner2]
+	features['bounding_box_xyz'] = bounding_box_xyz
 
 	''' False positive detection '''
-	pixelRatio = np.sum(mask[boundingbox]) / (float(boundingBox[0].stop-boundingBox[0].stop)*float(boundingBox[1].stop-boundingBox[1].stop))
+	pixelRatio = np.sum(mask[bounding_box]) / (float(bounding_box[0].stop-bounding_box[0].stop)*float(bounding_box[1].stop-bounding_box[1].stop))
 	features['pixelRatio'] = pixelRatio
 
 	''' Extract User from images '''
 	if mask is not None:
-		colorUserIm = np.ascontiguousarray(colorIm[boundingBox]*mask[boundingBox][:,:,np.newaxis])
-		depthUserIm = np.ascontiguousarray(depthIm[boundingBox]*mask[boundingBox])
-		flowUserIm = np.ascontiguousarray(flow[boundingBox]*mask[boundingBox][:,:,np.newaxis])
+		colorUserIm = np.ascontiguousarray(colorIm[bounding_box]*mask[bounding_box][:,:,np.newaxis])
+		depthUserIm = np.ascontiguousarray(depthIm[bounding_box]*mask[bounding_box])
+		flowUserIm = np.ascontiguousarray(flow[bounding_box]*mask[bounding_box][:,:,np.newaxis])
 	else:
-		colorUserIm = np.ascontiguousarray(colorIm[boundingBox])
-		depthUserIm = np.ascontiguousarray(depthIm[boundingBox])
-		flowUserIm = np.ascontiguousarray(flow[boundingBox])
+		colorUserIm = np.ascontiguousarray(colorIm[bounding_box])
+		depthUserIm = np.ascontiguousarray(depthIm[bounding_box])
+		flowUserIm = np.ascontiguousarray(flow[bounding_box])
 
 	''' Resize images '''
-	colorUserIm = sm.imresize(colorUserIm, [windowSize[0],windowSize[1],3])
-	depthUserIm = sm.imresize(depthUserIm, windowSize)	
-	flowUserImTmp0 = sm.imresize(flowUserIm[:,:,0], windowSize)
-	flowUserImTmp1 = sm.imresize(flowUserIm[:,:,1], windowSize)
+	colorUserIm = sm.imresize(colorUserIm, [window_size[0],window_size[1],3])
+	depthUserIm = sm.imresize(depthUserIm, window_size)	
+	flowUserImTmp0 = sm.imresize(flowUserIm[:,:,0], window_size)
+	flowUserImTmp1 = sm.imresize(flowUserIm[:,:,1], window_size)
 	flowUserIm = np.dstack([flowUserImTmp0,flowUserImTmp0])
 
 	''' Get User Center of Mass and Orientation '''
 	com, ornBasis = calculateBasicPose(depthIm, mask)
 	features['com'] = com
-	features['com'] = ornBasis
+	features['com_px'] = depth2world(com)
+	features['orn'] = ornBasis
 	
 	''' Get color histogram '''
 	colorHistograms = [np.histogram(colorUserIm[:,:,i], bins=20, range=(0,255))[0] for i in range(3)]
@@ -483,13 +491,13 @@ def computeUserFeatures(colorIm, depthIm, flow, boundingBox, timestamp, mask, wi
 	''' Get HOG and HOF on 4x3 subimages'''
 	colorUserIm_g = colorUserIm.mean(-1)
 
-	splitColorIms = splitIm(colorUserIm_g, splitBoxes)
-	splitFlowIms = splitIm(FlowUserIm, splitBoxes)
+	splitColorIms = splitIm(colorUserIm_g, split_boxes)
+	splitFlowIms = splitIm(FlowUserIm, split_boxes)
 
 	splitHogArrays = []; splitHogIms = []
 	splitHofArrays = []; splitHofIms = []
 
-	for i in range(splitBoxes[0]*splitBoxes[1]):
+	for i in range(split_boxes[0]*split_boxes[1]):
 		if visualise:
 			hogArray, hogIm = feature.hog(splitColorIms[:,:,i], visualise=True, orientations=4)
 			hofArray, hofIm = hof(splitFlowIms[:,:,i*2:i*2+2], visualise=True, orientations=5)
@@ -517,7 +525,7 @@ def computeUserFeatures(colorIm, depthIm, flow, boundingBox, timestamp, mask, wi
 
 
 
-	def computeFeaturesWithSkels(image, users=None, flow=None, device=2, computeHog=True, computeLBP=False, vis=False):
+def computeFeaturesWithSkels(image, users=None, flow=None, device=2, computeHog=True, computeLBP=False, vis=False):
 
 	features = {}
 
