@@ -204,6 +204,7 @@ while 1:
 				print centroid
 
 				try:
+					print u['data'][-1]['time']
 					ims.append(viewImage(u['cameras'][-1], u['data'][-1]['time'], coms=centroid))
 				except:
 					print "Error viewing index:" + str(cam_index) + " time:" + " ".join(newComs[cam_index][closestPerson]['data']['time'])
@@ -251,8 +252,8 @@ while 1:
 	plotCamera(cameraCenter3, mapIm, centers=centers)
 	cv2.imshow("coms", mapIm)
 	
-	print "Current users: ", len(currentUsers)
-	print "Total users: ", userCount
+	# print "Current users: ", len(currentUsers)
+	# print "Total users: ", userCount
 
 	t = np.min([times1[indsPrev[0]+1],times2[indsPrev[1]+1],times3[indsPrev[2]+1]])
 

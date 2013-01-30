@@ -104,6 +104,7 @@ def main(get_depth, get_color, get_skeleton, get_mask, calculate_features, visua
 					# try:
 					if 1:
 						print depthFile
+						# import pdb
 
 						''' Load Depth '''
 						if get_depth:
@@ -112,6 +113,7 @@ def main(get_depth, get_color, get_skeleton, get_mask, calculate_features, visua
 						''' Load Color '''
 						if get_color:
 							colorFile = 'color_'+depthFile[6:-4]+'.jpg'
+							# pdb.set_trace()
 							colorIm = sm.imread('color/'+dayDir+'/'+hourDir+'/'+minuteDir+'/'+devices[dev]+'/'+colorFile)
 							# colorIm_g = colorIm.mean(-1, dtype=np.uint8)
 							colorIm_g = skimage.img_as_ubyte(skimage.color.rgb2gray(colorIm))
@@ -142,7 +144,6 @@ def main(get_depth, get_color, get_skeleton, get_mask, calculate_features, visua
 						timestamp = depthFile[:-4].split('_')[1:] # Day, hour, minute, second, millisecond, Frame number in this second
 						depthIm = np.minimum(depthIm.astype(np.float), 5000)
 						fillImage(depthIm)
-
 
 						'''Background model'''
 						if backgroundModel is None:
@@ -284,7 +285,7 @@ if __name__=="__main__":
 	parser.add_option('-v', '--visualize', dest='viz', action="store_true", default=False, help='Enable visualization')
 	(opt, args) = parser.parse_args()
 
-	if opt.bgSubtraction or opt.save_anonomized:
+	if opt.bgSubtraction or opt.save:
 		opt.mask = True
 
 	if len(args) > 0:
