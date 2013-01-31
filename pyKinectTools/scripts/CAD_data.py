@@ -39,7 +39,9 @@ import numpy as np
 import os, sys
 
 
-dir_ = '/Users/colin/Data/MSRDailyAct3D_pack1'
+# dir_ = '/Users/colin/Data/MSRDailyAct3D_pack1'
+# dir_ = '/Users/colin/Data/MSRDailyAct3D_pack1'
+dir_='.'
 os.chdir(dir_)
 
 data_raw = np.fromfile('a01_s01_e01_skeleton.txt', sep='\n')

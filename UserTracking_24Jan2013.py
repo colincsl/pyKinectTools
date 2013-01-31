@@ -6,6 +6,7 @@ import scipy.misc as sm
 from pyKinectTools.algs.IterativeClosestPoint import IterativeClosestPoint, PointcloudRegistration
 from pyKinectTools.utils.DepthUtils import world2depth
 
+import skimage
 # from IPython import embed
 # embed()
 
@@ -68,6 +69,8 @@ def viewImage(cam_index, filetime, coms=None):
 
 	cv2.imshow(str(cam_index), im/im.max().astype(np.float))	
 	ret = cv2.waitKey(10)
+	skimage.io.imshow(im)
+	skimage.io.show()
 
 	return im
 

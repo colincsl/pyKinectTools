@@ -34,6 +34,17 @@ import cProfile
 
 np.seterr(all='ignore')
 
+''' Keyboard keys '''
+keys_ESC = 1048603
+keys_right_arrow = 1113939
+keys_left_arrow = 1113937 
+keys_down_arrow = 1113940 
+keys_space = 1048608
+keys_i = 1048681
+keys_help = 1048680
+keys_frame_left = 1048673
+keys_frame_right = 1048691
+
 # -------------------------MAIN------------------------------------------
 # @profile
 def main(get_depth, get_color, get_skeleton, get_mask, calculate_features, visualize, save_anonomized):
@@ -47,99 +58,153 @@ def main(get_depth, get_color, get_skeleton, get_mask, calculate_features, visua
 	prevDepthIms = []
 	prevColorIms = []
 
-	dayDirs = os.listdir('depth/')
-	dayDirs = [x for x in dayDirs if x[0]!='.']
-	dayDirs.sort(key=lambda x: int(x))
+	day_dirs = os.listdir('depth/')
+	day_dirs = [x for x in day_dirs if x[0]!='.']
+	day_dirs.sort(key=lambda x: int(x))
+	hour_index = 0
+	minute_index=0
 
 	allFeatures = []
 	coms = []
 	orns = []
 
-	for dayDir in dayDirs:
-		hourDirs = os.listdir('depth/'+dayDir)
-		hourDirs = [x for x in hourDirs if x[0]!='.']
-		hourDirs.sort(key=lambda x: int(x))
+	play_speed = 1
+	new_date_entered = False
 
+	# for day_index in day_dirs:
+	day_index = 0
+	while day_index < len(day_dirs):
+		
+		if new_date_entered:
+			try:
+				day_index = day_dirs.index(day_new)
+			except:
+				print "Day not found"
+				day_index = 0
+		# print "New day:", day_index
 
-		for hourDir in hourDirs: # Hours
-			minuteDirs = os.listdir('depth/'+dayDir+'/'+hourDir)
-			minuteDirs = [x for x in minuteDirs if x[0]!='.']
-			minuteDirs.sort(key=lambda x: int(x))
-			for minuteDir in minuteDirs: # Minutes
+		dayDir = day_dirs[day_index]
 
-				if minuteDir[0] == '.': # Prevent from reading hidden files
+		hour_dirs = os.listdir('depth/'+dayDir)
+		hour_dirs = [x for x in hour_dirs if x[0]!='.']
+		hour_dirs.sort(key=lambda x: int(x))
+
+		'''Hours'''
+		''' Check for new Hours index '''
+		if not new_date_entered:
+			if play_speed >= 0  and ret != keys_frame_left:
+				hour_index = 0
+			else:
+				hour_index = len(hour_dirs)-1
+		else:
+			try:
+				hour_index = hour_dirs.index(hour_new)
+			except:
+				print "Hour was not found"
+				hour_index = 0
+
+		while hour_index < len(hour_dirs):
+			# print "New hour:", hour_index
+			hourDir = hour_dirs[hour_index]
+
+			minute_dirs = os.listdir('depth/'+dayDir+'/'+hourDir)
+			minute_dirs = [x for x in minute_dirs if x[0]!='.']
+			minute_dirs.sort(key=lambda x: int(x))
+
+			'''Minutes'''
+			''' Check for new minute index '''
+			if not new_date_entered:
+				if play_speed >= 0  and ret != keys_frame_left:
+					minute_index = 0
+				else:
+					minute_index = len(minute_dirs)-1
+			else:
+				try:
+					minute_index = minute_dirs.index(minute_new)
+				except:
+					print "Minute was not found"
+					minute_index = 0
+
+			''' Loop through this minute '''
+			while minute_index < len(minute_dirs):
+				# print "New min:", minute_index
+				minute_dir = minute_dirs[minute_index]
+
+				if minute_dir[0] == '.': # Prevent from reading hidden files
 					continue
 
-				depthFiles = []
+				depth_files = []
 				skelFiles = []
 
 				# For each available device:
-				devices = os.listdir('depth/'+dayDir+'/'+hourDir+'/'+minuteDir)
+				devices = os.listdir('depth/'+dayDir+'/'+hourDir+'/'+minute_dir)
 				devices = [x for x in devices if x[0]!='.' and x.find('tmp')<0]
 				devices.sort()
 
 				for deviceID in ['device_1']:
-					if not os.path.isdir('depth/'+dayDir+'/'+hourDir+'/'+minuteDir+'/'+deviceID):
+					if not os.path.isdir('depth/'+dayDir+'/'+hourDir+'/'+minute_dir+'/'+deviceID):
 						continue
 
 					''' Sort files '''
 					if get_depth:
-						depthTmp = os.listdir('depth/'+dayDir+'/'+hourDir+'/'+minuteDir+'/'+deviceID)
+						depthTmp = os.listdir('depth/'+dayDir+'/'+hourDir+'/'+minute_dir+'/'+deviceID)
 						tmpSort = [int(x.split('_')[-3])*100 + int(formatFileString(x.split('_')[-2])) for x in depthTmp]
 						depthTmp = np.array(depthTmp)[np.argsort(tmpSort)].tolist()
-						depthFiles.append([x for x in depthTmp if x.find('.png')>=0])
+						depth_files.append([x for x in depthTmp if x.find('.png')>=0])
 					if get_skeleton:
-						skelTmp = os.listdir('skel/'+dayDir+'/'+hourDir+'/'+minuteDir+'/'+deviceID)
+						skelTmp = os.listdir('skel/'+dayDir+'/'+hourDir+'/'+minute_dir+'/'+deviceID)
 						tmpSort = [int(x.split('_')[-4])*100 + int(formatFileString(x.split('_')[-3])) for x in skelTmp]
 						skelTmp = np.array(skelTmp)[np.argsort(tmpSort)].tolist()
 						skelFiles.append([x for x in skelTmp if x.find('.dat')>=0])
 
-				if len(depthFiles) == 0:
+				if len(depth_files) == 0:
 					continue
-				for dev, depthFile in multiCameraTimeline(depthFiles):
-					if deviceID == 'device_2':
-						dev = 1
-					else:
-						dev = 0
+				# for dev, depthFile in multiCameraTimeline(depth_files):
+				if deviceID == 'device_2':
+					dev = 1
+				else:
+					dev = 0
+
+
+				if play_speed >= 0 and ret != keys_frame_left:
+					frameID = 0
+				else:
+					frameID = len(depth_files[dev])-1
+
+				while frameID < len(depth_files[dev]):
+
+					depthFile = depth_files[dev][frameID]
 					# try:
 					if 1:
-						print depthFile
-						# import pdb
-
 						''' Load Depth '''
 						if get_depth:
-							depthIm = sm.imread('depth/'+dayDir+'/'+hourDir+'/'+minuteDir+'/'+devices[dev]+'/'+depthFile)
+							depthIm = sm.imread('depth/'+dayDir+'/'+hourDir+'/'+minute_dir+'/'+devices[dev]+'/'+depthFile)
 							depthIm = np.array(depthIm, dtype=np.uint16)
 						''' Load Color '''
 						if get_color:
 							colorFile = 'color_'+depthFile[6:-4]+'.jpg'
 							# pdb.set_trace()
-							colorIm = sm.imread('color/'+dayDir+'/'+hourDir+'/'+minuteDir+'/'+devices[dev]+'/'+colorFile)
+							colorIm = sm.imread('color/'+dayDir+'/'+hourDir+'/'+minute_dir+'/'+devices[dev]+'/'+colorFile)
 							# colorIm_g = colorIm.mean(-1, dtype=np.uint8)
 							colorIm_g = skimage.img_as_ubyte(skimage.color.rgb2gray(colorIm))
 							# colorIm_lab = skimage.color.rgb2lab(colorIm).astype(np.uint8)
 						# ''' Load Mask '''
 						# if get_mask:
-						# 	maskIm = sm.imread('depth/'+dayDir+'/'+hourDir+'/'+minuteDir+'/'+devices[dev]+'/'+depthFile[:-4]+"_mask.jpg") > 100
+						# 	maskIm = sm.imread('depth/'+dayDir+'/'+hourDir+'/'+minute_dir+'/'+devices[dev]+'/'+depthFile[:-4]+"_mask.jpg") > 100
 						# 	depthIm = depthIm*(1-maskIm)+maskIm*5000
 
 						''' Load Skeleton Data '''
 						if get_skeleton:
 							skelFile = 'skel_'+depthFile[6:-4]+'_.dat'
-							if os.path.isfile('skel/'+dayDir+'/'+hourDir+'/'+minuteDir+'/'+devices[dev]+'/'+skelFile):
-								with open('skel/'+dayDir+'/'+hourDir+'/'+minuteDir+'/'+devices[dev]+'/'+skelFile, 'rb') as inFile:
+							if os.path.isfile('skel/'+dayDir+'/'+hourDir+'/'+minute_dir+'/'+devices[dev]+'/'+skelFile):
+								with open('skel/'+dayDir+'/'+hourDir+'/'+minute_dir+'/'+devices[dev]+'/'+skelFile, 'rb') as inFile:
 									users = pickle.load(inFile)				
 							else:
 								print "No user file:", skelFile
-
 							coms = [users[x]['com'] for x in users.keys() if users[x]['com'][2] > 0.0]
-
 							jointCount = 0
 							for i in users.keys():
 								user = users[i]
-								# if user['jointPositions'][user['jointPositions'].keys()[0]] != -1:
-									# print user['jointPositionsConfidence']
-									# jointCount = 1
 
 						timestamp = depthFile[:-4].split('_')[1:] # Day, hour, minute, second, millisecond, Frame number in this second
 						depthIm = np.minimum(depthIm.astype(np.float), 5000)
@@ -188,12 +253,16 @@ def main(get_depth, get_color, get_skeleton, get_mask, calculate_features, visua
 
 						''' Visualization '''
 						if visualize:
+							tmpSecond = depthFile.split("_")[-3]
+							if len(tmpSecond) == 0:
+								tmpSecond = '0'+tmpSecond
 							if get_depth:
 								# " Dev#"+str(dev)
-								cv2.putText(depthIm, "Day "+dayDir+" Time "+hourDir+":"+minuteDir+":"+depthFile.split("_")[-3], (5,220), cv2.FONT_HERSHEY_DUPLEX, 0.6, 5000)					
+								cv2.putText(depthIm, "Day "+dayDir+" Time "+hourDir+":"+minute_dir+":"+tmpSecond, (5,220), cv2.FONT_HERSHEY_DUPLEX, 0.6, 5000)					
+								cv2.putText(depthIm, "Play speed: "+str(play_speed)+"x", (5,15), cv2.FONT_HERSHEY_DUPLEX, 0.6, 5000)					
 								cv2.imshow("Depth", depthIm/5000.)
 							if get_color:
-								# cv2.putText(colorIm, "Day "+dayDir+" Time "+hourDir+":"+minuteDir+" Dev#"+str(dev), (10,220), cv2.FONT_HERSHEY_DUPLEX, 0.6, 5000)					
+								# cv2.putText(colorIm, "Day "+dayDir+" Time "+hourDir+":"+minute_dir+" Dev#"+str(dev), (10,220), cv2.FONT_HERSHEY_DUPLEX, 0.6, 5000)					
 								cv2.imshow("I_orig", colorIm)
 								if get_mask:
 									# cv2.imshow("I", colorIm*foregroundMask[:,:,np.newaxis])
@@ -241,28 +310,96 @@ def main(get_depth, get_color, get_skeleton, get_mask, calculate_features, visua
 
 								# ss = mlab.points3d(pts[:,0], pts[:,1], pts[:,2])
 
+
+						''' Playback control: Look at keyboard input '''
 						ret = cv2.waitKey(10)
 
+						new_date_entered = False
 						if ret > 0:
-							break
+							# print ret
+
+							if ret == keys_ESC:
+								break
+							elif ret == keys_space:
+								print "Enter the following into the command line"
+								tmp = raw_input("Enter date: ")
+								day_new = tmp
+								tmp = raw_input("Enter hour: ")
+								hour_new = tmp
+								tmp = raw_input("Enter minute: ")
+								minute_new = tmp
+
+								print "New date:", day_new, hour_new, minute_new
+
+								new_date_entered = True
+								break
+
+							elif ret == keys_down_arrow:
+								play_speed = 0
+							elif ret == keys_left_arrow:
+								play_speed -= 1
+							elif ret == keys_right_arrow:
+								play_speed += 1
+							elif ret == keys_i:
+									embed()
+							elif ret == keys_frame_left:
+								frameID -= 1
+							elif ret == keys_frame_right:
+								frameID += 1
+							elif ret == keys_help:
+								display_help()
+							
+						frameID += play_speed
+						# print frameID
 
 					if save_anonomized and get_mask:
-						saveDir = 'color_masked/'+dayDir+'/'+hourDir+'/'+minuteDir+'/'+devices[dev]+'/'
-						createDirectory(saveDir)
-						sm.imsave(saveDir+'colorM_'+depthFile[6:-4]+'.jpg', colorIm*(1-foregroundMask))
+						save_dir = 'color_masked/'+dayDir+'/'+hourDir+'/'+minute_dir+'/'+devices[dev]+'/'
+						createDirectory(save_dir)
+						sm.imsave(save_dir+'colorM_'+depthFile[6:-4]+'.jpg', colorIm*(1-foregroundMask))
 					# except:
 						# print "Erroneous frame"
 						# if visualize:
 						# 	cv2.imshow("D", depthIm.astype(np.float)/5000)
 						# 	ret = cv2.waitKey(10)
 
-				if ret > 0:
+
+					# End seconds
+					if ret == keys_ESC or new_date_entered:
+						break
+					if frameID >= len(depth_files[dev]):
+						minute_index += 1
+					elif frameID < 0:
+						minute_index -= 1
+						break
+			
+				# End hours
+				if ret == keys_ESC or new_date_entered:
 					break
-			if ret > 0:
+
+				if minute_index >= len(minute_dirs):
+					hour_index += 1
+				elif minute_index < 0:
+					hour_index -= 1
+					break
+
+			# End days
+			if ret == keys_ESC:
 				break
-		if ret > 0:
-			# embed()
+			if new_date_entered:
+				break
+
+			if hour_index >= len(hour_dirs):
+				day_index += 1
+			elif hour_index < 0:
+				day_index -= 1
+
+			if day_index < 0:
+				day_index = 0
+
+
+		if ret == keys_ESC or day_index > len(day_dirs):
 			break
+
 
 	np.save("/media/Data/r40_cX_", allFeatures)
 	embed()
@@ -272,6 +409,23 @@ if 0:
 	T = np.array([-0.8531195226064485, -0.08215320378328564, 0.5152066878990207, 761.2299809410998, 0.3177589268248827, 0.7014041249433673, 0.6380137286418792, 1427.5420972165339, -0.4137829679564377, 0.7080134918351199, -0.5722766383564786, -3399.696025885259, 0.0, 0.0, 0.0, 1.0])
 	T = T.reshape([4,4])
 	coms12 = np.array([np.dot(np.asarray(T), np.array([x[0], x[1], x[2], 1])) for x in coms1])
+
+def display_help():
+	print ""
+	print "Playback commands: enter these in the image viewer"
+	print "--------------------"
+	print "h 				help menu"										
+	print "i				interupt with debugger"
+	print "a 				previous frame"
+	print "s 				next frame"
+	print "spacebar 			pick new time/date [enter in terminal]"								
+	print "left arrow key			rewind faster"
+	print "right arrow key			fast forward faster"
+	print "down arrow key			pause"
+	print "escape key			exit"								
+
+
+
 
 if __name__=="__main__":
 
@@ -287,6 +441,9 @@ if __name__=="__main__":
 
 	if opt.bgSubtraction or opt.save:
 		opt.mask = True
+
+	if opt.viz:
+		display_help()
 
 	if len(args) > 0:
 		print "Wrong input argument"
