@@ -6,7 +6,6 @@ import os
 import optparse
 from time import time
 import cPickle as pickle
-import cv2
 import numpy as np
 import scipy.misc as sm
 import scipy.ndimage as nd
@@ -14,12 +13,15 @@ import skimage
 from skimage import feature, color
 
 from pyKinectTools.utils.Utils import createDirectory
+from pyKinectTools.utils.VideoViewer import VideoViewer
 from pyKinectTools.utils.DepthUtils import world2depth, depthIm2XYZ
 from pyKinectTools.utils.MultiCameraUtils import multiCameraTimeline, formatFileString
 from pyKinectTools.utils.FeatureUtils import saveFeatures, loadFeatures, learnICADict, learnNMFDict, displayComponents
 from pyKinectTools.algs.HistogramOfOpticalFlow import getFlow, hof, splitIm
 from pyKinectTools.algs.BackgroundSubtraction import AdaptiveMixtureOfGaussians, fillImage, extractPeople
 from pyKinectTools.algs.FeatureExtraction import calculateBasicPose, plotUsers, computeUserFeatures, computeFeaturesWithSkels
+
+vv = VideoViewer()
 
 ''' 3D visualization '''
 if 0:
@@ -34,7 +36,17 @@ import cProfile
 
 np.seterr(all='ignore')
 
-''' Keyboard keys '''
+''' Keyboard keys (using Video Viewer)'''
+keys_ESC = 27
+keys_left_arrow = 314
+keys_right_arrow = 316
+keys_down_arrow = 317
+keys_space = 32
+keys_i = 105
+keys_help = 104
+keys_frame_left = 314
+keys_frame_right = 316
+''' Using OpenCV
 keys_ESC = 1048603
 keys_right_arrow = 1113939
 keys_left_arrow = 1113937 
@@ -44,6 +56,7 @@ keys_i = 1048681
 keys_help = 1048680
 keys_frame_left = 1048673
 keys_frame_right = 1048691
+'''
 
 # -------------------------MAIN------------------------------------------
 # @profile
@@ -55,8 +68,8 @@ def main(get_depth, get_color, get_skeleton, get_mask, calculate_features, visua
 	backgroundCount = 20
 	bgPercentage = .05
 	prevDepthIm = None
-	prevDepthIms = []
-	prevColorIms = []
+	# prevDepthIms = []
+	# prevColorIms = []
 
 	day_dirs = os.listdir('depth/')
 	day_dirs = [x for x in day_dirs if x[0]!='.']
@@ -70,6 +83,9 @@ def main(get_depth, get_color, get_skeleton, get_mask, calculate_features, visua
 
 	play_speed = 1
 	new_date_entered = False
+	framerate = 0
+	frame_prev = 0
+	frame_prev_time = time()
 
 	# for day_index in day_dirs:
 	day_index = 0
@@ -167,13 +183,13 @@ def main(get_depth, get_color, get_skeleton, get_mask, calculate_features, visua
 
 
 				if play_speed >= 0 and ret != keys_frame_left:
-					frameID = 0
+					frame_id = 0
 				else:
-					frameID = len(depth_files[dev])-1
+					frame_id = len(depth_files[dev])-1
 
-				while frameID < len(depth_files[dev]):
+				while frame_id < len(depth_files[dev]):
 
-					depthFile = depth_files[dev][frameID]
+					depthFile = depth_files[dev][frame_id]
 					# try:
 					if 1:
 						''' Load Depth '''
@@ -230,7 +246,7 @@ def main(get_depth, get_color, get_skeleton, get_mask, calculate_features, visua
 							foregroundMask, userBoundingBoxes, userLabels = extractPeople(depthIm, foregroundMask, minPersonPixThresh=1500, gradientFilter=True, gradThresh=100)
 						
 						''' Calculate user features '''
-						if calculate_features:
+						if calculate_features and get_color:
 							''' Color Optical Flow '''
 							flow = getFlow(prevColorIm, colorIm_g)
 							prevColorIm = colorIm_g.copy()
@@ -257,31 +273,31 @@ def main(get_depth, get_color, get_skeleton, get_mask, calculate_features, visua
 							if len(tmpSecond) == 0:
 								tmpSecond = '0'+tmpSecond
 							if get_depth:
-								# " Dev#"+str(dev)
-								cv2.putText(depthIm, "Day "+dayDir+" Time "+hourDir+":"+minute_dir+":"+tmpSecond, (5,220), cv2.FONT_HERSHEY_DUPLEX, 0.6, 5000)					
-								cv2.putText(depthIm, "Play speed: "+str(play_speed)+"x", (5,15), cv2.FONT_HERSHEY_DUPLEX, 0.6, 5000)					
-								cv2.imshow("Depth", depthIm/5000.)
+								vv.imshow("Depth", depthIm/5000.)								
+								vv.putText("Depth", "Day "+dayDir+" Time "+hourDir+":"+minute_dir+":"+tmpSecond, (5,220), size=15)					
+								vv.putText("Depth", "Play speed: "+str(play_speed)+"x", (5,15), size=15)													
+								vv.putText("Depth", str(int(framerate))+" fps", (275,15), size=15)													
+								
 							if get_color:
-								# cv2.putText(colorIm, "Day "+dayDir+" Time "+hourDir+":"+minute_dir+" Dev#"+str(dev), (10,220), cv2.FONT_HERSHEY_DUPLEX, 0.6, 5000)					
-								cv2.imshow("I_orig", colorIm)
+								vv.putText(colorIm, "Day "+dayDir+" Time "+hourDir+":"+minute_dir+" Dev#"+str(dev), (10,220))					
+								vv.imshow("I_orig", colorIm)
 								if get_mask:
-									# cv2.imshow("I", colorIm*foregroundMask[:,:,np.newaxis])
-									cv2.imshow("I_masked", colorIm + (255-colorIm)*(((foregroundMask)[:,:,np.newaxis])))
+									# vv.imshow("I", colorIm*foregroundMask[:,:,np.newaxis])
+									vv.imshow("I_masked", colorIm + (255-colorIm)*(((foregroundMask)[:,:,np.newaxis])))
 							if get_mask:
-								cv2.imshow("Mask", foregroundMask.astype(np.float)/float(foregroundMask.max()))
-								# cv2.imshow("BG Model", backgroundModel.astype(np.float)/float(backgroundModel.max()))
+								vv.imshow("Mask", foregroundMask.astype(np.float)/float(foregroundMask.max()))
+								# vv.imshow("BG Model", backgroundModel.astype(np.float)/float(backgroundModel.max()))
 
 
 							''' Multi-camera map '''
 							if len(coms) > 0:
 								mapRez = [200,200]
 								mapIm = np.zeros(mapRez)
-								# embed()
 								coms_np = np.array(coms)
 								xs = np.minimum(np.maximum(mapRez[0]+((coms_np[:,2]+500)/3000.*mapRez[0]).astype(np.int), 0),mapRez[0]-1)
 								ys = np.minimum(np.maximum(((coms_np[:,0]+500)/1500.*mapRez[0]).astype(np.int), 0), mapRez[1]-1)
 								mapIm[xs, ys] = 255
-								cv2.imshow("Map", mapIm)
+								vv.imshow("Map", mapIm)
 								# scatter(coms_np[:,0], -coms_np[:,2])
 
 
@@ -305,18 +321,20 @@ def main(get_depth, get_color, get_skeleton, get_mask, calculate_features, visua
 								# ss = mlab.points3d(pts[::interval,0], pts[::interval,1], pts[::interval,2], color=col, scale_factor=5)
 								# ss = mlab.points3d(pts[:,0], pts[:,1], pts[:,2], color=(1,1,1), scale_factor=5)
 
-								# from IPython import embed
-								# embed()
-
 								# ss = mlab.points3d(pts[:,0], pts[:,1], pts[:,2])
 
 
 						''' Playback control: Look at keyboard input '''
-						ret = cv2.waitKey(10)
+						ret = vv.waitKey()
+
+						if frame_id - frame_prev > 0:
+							framerate = (frame_id - frame_prev) / (time() - frame_prev_time)
+						frame_prev = frame_id
+						frame_prev_time = time()
 
 						new_date_entered = False
 						if ret > 0:
-							# print ret
+							print "Ret is",ret
 
 							if ret == keys_ESC:
 								break
@@ -343,14 +361,14 @@ def main(get_depth, get_color, get_skeleton, get_mask, calculate_features, visua
 							elif ret == keys_i:
 									embed()
 							elif ret == keys_frame_left:
-								frameID -= 1
+								frame_id -= 1
 							elif ret == keys_frame_right:
-								frameID += 1
+								frame_id += 1
 							elif ret == keys_help:
 								display_help()
 							
-						frameID += play_speed
-						# print frameID
+						frame_id += play_speed
+						# print frame_id
 
 					if save_anonomized and get_mask:
 						save_dir = 'color_masked/'+dayDir+'/'+hourDir+'/'+minute_dir+'/'+devices[dev]+'/'
@@ -359,16 +377,16 @@ def main(get_depth, get_color, get_skeleton, get_mask, calculate_features, visua
 					# except:
 						# print "Erroneous frame"
 						# if visualize:
-						# 	cv2.imshow("D", depthIm.astype(np.float)/5000)
-						# 	ret = cv2.waitKey(10)
+						# 	vv.imshow("D", depthIm.astype(np.float)/5000)
+						# 	ret = vv.waitKey(10)
 
 
 					# End seconds
 					if ret == keys_ESC or new_date_entered:
 						break
-					if frameID >= len(depth_files[dev]):
+					if frame_id >= len(depth_files[dev]):
 						minute_index += 1
-					elif frameID < 0:
+					elif frame_id < 0:
 						minute_index -= 1
 						break
 			
