@@ -9,7 +9,7 @@ import cv2
 
 
 def getFlow(imPrev, imNew):
-    flow = np.zeros([imPrev.shape[0],imPrev.shape[1],2])
+    # flow = np.zeros([imPrev.shape[0],imPrev.shape[1],2])
     flow = cv2.calcOpticalFlowFarneback(imPrev, imNew, flow=None, pyr_scale=.5, levels=3, winsize=9, iterations=3, poly_n=5, poly_sigma=1.1, flags=cv2.OPTFLOW_FARNEBACK_GAUSSIAN)
     return flow
 
@@ -124,45 +124,14 @@ def splitHog(im, blocks=[4,3], visualise=False):
     else:
         return hogs
 
-# ''' #Broken!'''
-# def splitHog(hog, imageSize=[96,72], NewBlocks=[4,3], orientations=9), pixels_per_cell=(8, 8),
-#         cells_per_block=(3, 3)):
-
-#     sy, sx = imageSize
-#     cx, cy = pixels_per_cell
-#     bx, by = cells_per_block
-
-#     n_cellsx = int(np.floor(sx // cx))  # number of cells in x
-#     n_cellsy = int(np.floor(sy // cy))  # number of cells in y
-
-#     n_blocksx = (n_cellsx - bx) + 1
-#     n_blocksy = (n_cellsy - by) + 1    
-
-#     hog = hog.reshape([n_blocksy, n_blocksx, by, bx, orientations])
-
-#     orientation_histogram = np.zeros((n_cellsy, n_cellsx, orientations))
-#     for x in range(n_blocksx):
-#             for y in range(n_blocksy):
-#                 block = hog[y, x, :]
-#                 orientation_histogram[y:y + by, x:x + bx, :] = block
-
-
-#     newHog = np.empty([newBlocks[0]*newBlocks[1], n_blocksy, n_blocksx, by, bx, orientations])
-#     for x in range(n_blocksx)
-#         for y in range(n_blocksy):
-#             block = orientation_histogram[y:y + by, x:x + bx, :]
-#             newHog[i, y, x, :, :, :] = block
-
-#     n_pixPerNewBlockX,n_pixPerNewBlockY = imagesSize / np.array(newBlocks)
-#     newHogs = np.empty([n_blocksy, n_blocksx, by, bx, orientations, blocks[0]*blocks[1]])
-
-
 
 def hof(flow, orientations=9, pixels_per_cell=(8, 8),
-        cells_per_block=(3, 3), visualise=False, normalise=False):
-    ''' Key difference between this and HOG is that flow is MxNx2 instead of MxN'''
+        cells_per_block=(3, 3), visualise=False, normalise=False, motion_threshold=1.):
 
     """Extract Histogram of Optical Flow (HOF) for a given image.
+
+    Key difference between this and HOG is that flow is MxNx2 instead of MxN
+
 
     Compute a Histogram of Optical Flow (HOF) by
 
@@ -187,6 +156,7 @@ def hof(flow, orientations=9, pixels_per_cell=(8, 8),
     normalise : bool, optional
         Apply power law compression to normalise the image before
         processing.
+    static_threshold : threshold for no motion
 
     Returns
     -------
@@ -218,7 +188,7 @@ def hof(flow, orientations=9, pixels_per_cell=(8, 8),
     """
 
     if flow.ndim < 3:
-        raise ValueError("Currently requires dense flow in both directions")
+        raise ValueError("Requires dense flow in both directions")
 
     if normalise:
         flow = sqrt(flow)
@@ -241,8 +211,12 @@ def hof(flow, orientations=9, pixels_per_cell=(8, 8),
 
     gx = np.zeros(flow.shape[:2])
     gy = np.zeros(flow.shape[:2])
-    gx[:, :-1] = np.diff(flow[:,:,1], n=1, axis=1)
-    gy[:-1, :] = np.diff(flow[:,:,0], n=1, axis=0)
+    # gx[:, :-1] = np.diff(flow[:,:,1], n=1, axis=1)
+    # gy[:-1, :] = np.diff(flow[:,:,0], n=1, axis=0)
+
+    gx = flow[:,:,1]
+    gy = flow[:,:,0]
+
 
 
     """ 
@@ -262,6 +236,7 @@ def hof(flow, orientations=9, pixels_per_cell=(8, 8),
     """
 
     magnitude = sqrt(gx**2 + gy**2)
+    motion_threshold
     orientation = arctan2(gy, gx) * (180 / pi) % 180
 
     sy, sx = flow.shape[:2]
@@ -274,7 +249,7 @@ def hof(flow, orientations=9, pixels_per_cell=(8, 8),
     # compute orientations integral images
     orientation_histogram = np.zeros((n_cellsy, n_cellsx, orientations))
     subsample = np.index_exp[cy / 2:cy * n_cellsy:cy, cx / 2:cx * n_cellsx:cx]
-    for i in range(orientations):
+    for i in range(orientations-1):
         #create new integral image for this orientation
         # isolate orientations in this range
 
@@ -283,11 +258,17 @@ def hof(flow, orientations=9, pixels_per_cell=(8, 8),
         temp_ori = np.where(orientation >= 180 / orientations * i,
                             temp_ori, -1)
         # select magnitudes for those orientations
-        cond2 = temp_ori > -1
+        cond2 = (temp_ori > -1) * (magnitude > motion_threshold)
         temp_mag = np.where(cond2, magnitude, 0)
 
         temp_filt = uniform_filter(temp_mag, size=(cy, cx))
         orientation_histogram[:, :, i] = temp_filt[subsample]
+
+    ''' Calculate the no-motion bin '''
+    temp_mag = np.where(magnitude <= motion_threshold, magnitude, 0)
+
+    temp_filt = uniform_filter(temp_mag, size=(cy, cx))
+    orientation_histogram[:, :, -1] = temp_filt[subsample]
 
     # now for each cell, compute the histogram
     hof_image = None
@@ -299,7 +280,7 @@ def hof(flow, orientations=9, pixels_per_cell=(8, 8),
         hof_image = np.zeros((sy, sx), dtype=float)
         for x in range(n_cellsx):
             for y in range(n_cellsy):
-                for o in range(orientations):
+                for o in range(orientations-1):
                     centre = tuple([y * cy + cy // 2, x * cx + cx // 2])
                     dx = radius * cos(float(o) / orientations * np.pi)
                     dy = radius * sin(float(o) / orientations * np.pi)
