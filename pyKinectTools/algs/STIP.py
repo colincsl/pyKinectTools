@@ -2,7 +2,7 @@ import numpy as np
 import scipy.misc
 import os, sys
 import scipy.ndimage as nd
-from scikits.learn import neighbors
+from sklearn import neighbors
 
 
 ## Gabor filter

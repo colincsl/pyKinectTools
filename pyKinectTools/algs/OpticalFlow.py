@@ -9,6 +9,10 @@ import skimage.transform
 im0 = imread('color_304_21_38_46_6097.jpg').mean(-1).astype(np.uint8)
 im1 = imread('color_304_21_38_46_6480.jpg').mean(-1)
 
+im0 = imread('/media/Data/icu_test_current/color/12/16/56/device_1/color_12_16_56_54_11_66.jpg').mean(-1).astype(np.uint8)
+im1 = imread('/media/Data/icu_test_current/color/12/16/56/device_1/color_12_16_56_54_12_71.jpg').mean(-1)
+
+
 
 '''
 Farneback technique for dense optical flow
@@ -166,8 +170,8 @@ def OpticalFlow(im0, im1, levels=3, pyramid_scale=2., iterations=1, smoothness_s
 	# im1 = imnorm(im1)
 	# im0 = skimage.transform.image_as_float(im0)
 
-	im0_pyr_generator = skimage.transform.pyramid_gaussian(im0, sigma=1.0, downscale=pyramid_scale)
-	im1_pyr_generator = skimage.transform.pyramid_gaussian(im1, sigma=1.0, downscale=pyramid_scale)	
+	# im0_pyr_generator = skimage.transform.pyramid_gaussian(im0, sigma=1.0, downscale=pyramid_scale)
+	# im1_pyr_generator = skimage.transform.pyramid_gaussian(im1, sigma=1.0, downscale=pyramid_scale)	
 	im0_pyr = []
 	im1_pyr = []
 	shape_ = im0.shape

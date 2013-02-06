@@ -252,7 +252,7 @@ for i in headRegions:
 	head += regions==i
 	classifyBody[regions==i] = 1
 
-headPos = 
+# headPos = 
 headPtsXYZ = posMat[(head>0)]
 
 

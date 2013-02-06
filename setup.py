@@ -11,12 +11,16 @@ Colin Lea
 from distutils.core import setup
 from distutils.extension import Extension
 from Cython.Distutils import build_ext
-import numpy as np      
+import numpy as np
 
-ext_modules = [Extension("pyKinectTools.algs.NeighborSuperpixels", ["pyKinectTools/algs/NeighborSuperpixels.pyx"]),
-			Extension("pyKinectTools.algs.dijkstrasGraph", ["pyKinectTools/algs/dijkstras.pyx"])
+ext_modules = [
+				Extension("pyKinectTools_algs_Dijkstras", ["pyKinectTools/algs/dijkstras.pyx"],),
 				]
-# Extension("pyKinectTools.algs.Dijkstras", ["pyKinectTools/algs/dijkstras_New.pyx"])
+# _Dijkstras
+# Extension("pyKinectTools.NeighborSuperpixels", ["pyKinectTools/algs/NeighborSuperpixels.pyx"])				
+# Extension("pyKinectTools.algs.Dijkstras", ["pyKinectTools/algs/dijkstras_new.pyx"],)
+# Extension("pyKinectTools.algs.NeighborSuperpixels", ["pyKinectTools/algs/NeighborSuperpixels.pyx"])				
+# Extension("pyKinectTools.algs.dijkstrasGraph", ["pyKinectTools/algs/dijkstras.pyx"])				
 
 for e in ext_modules:
 	e.pyrex_directives = {
@@ -26,20 +30,21 @@ for e in ext_modules:
 						}
 	e.extra_compile_args = ["-w"]
 
-
+print ext_modules
 setup(
 	author = 'Colin Lea',
 	author_email = 'colincsl@gmail.com',
+	description = '',
 	license = "FreeBSD",
 	version= "0.1",
 	name = 'pyKinectTools',
 	cmdclass = {'build_ext': build_ext},
 	include_dirs = [np.get_include()],
-	ext_modules = ext_modules,
 	packages= [	"pyKinectTools",
-				"pyKinectTools.algs",
-				"pyKinectTools.utils",
-				"pyKinectTools.data"
-			]
+				#"pyKinectTools.algs",
+				#"pyKinectTools.utils",
+				#"pyKinectTools.data",
+				],	
+	ext_modules = ext_modules
 )
 

@@ -170,10 +170,9 @@ class VideoViewer:
 			vv.processEvents()
 			keys = [x['keyEvent'] for x in self.open_windows if x['keyEvent'] is not None]
 			for i in self.open_windows:
-				i['keyEvent'] = None	
-
-		''' Wait until key pressed '''					
+				i['keyEvent'] = None
 		else:
+			''' Wait until key pressed '''
 			while(time.time()-start_time < np.inf):
 				vv.processEvents()
 				keys = [x['keyEvent'] for x in self.open_windows if x['keyEvent'] is not None]

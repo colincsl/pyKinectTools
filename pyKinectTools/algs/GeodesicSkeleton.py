@@ -1,14 +1,12 @@
+depthMat = np.load('/home/clea/Desktop/TOF_person.npy')
+iters = 1
+centroid = []
+use_centroid = False
 import numpy as np
 import scipy.ndimage as nd
-import sys
-# import gc
-
-# from pyKinectTools.algs.dijkstras import dijkstrasGraph
-from pyKinectTools.algs.Dijkstras import dijkstrasGraphNew as dgn
+import pyKinectTools.algs.Dijkstras as dgn
 
 def generateKeypoints(depthMat, iters=1, centroid=[], use_centroid=False):
-
-	# gc.disable()
 
 	objSize = depthMat.shape
 
@@ -19,15 +17,20 @@ def generateKeypoints(depthMat, iters=1, centroid=[], use_centroid=False):
 		depthMatDiscrete = np.ascontiguousarray(np.array((1-(depthMat[:,:,2]-depthMatMin)/(depthMatMax-depthMatMin))*32000, dtype=np.uint16))
 	else:
 		depthMatMin = depthMat[depthMat>0].min()# + 100
-		depthMatMax = depthMat.max()
-		depthMatDiscrete = np.ascontiguousarray(np.array((1-(depthMat-depthMatMin)/(depthMatMax-depthMatMin))*32000, dtype=np.uint16))
+		depthMatMax = depthMat[depthMat>0].max()
+		# depthMatDiscrete = np.ascontiguousarray(np.array((1-(depthMat-depthMatMin)/(depthMatMax-depthMatMin))*32000, dtype=np.uint16))
+		depthMatDiscrete = np.ascontiguousarray(np.array(((depthMat.astype(np.float)-depthMatMin)/(depthMatMax-depthMatMin).astype(np.float))*32000, dtype=np.uint16))
 
-	mask = np.all(depthMat != 0, 2)
+	# mask = np.all(depthMat != 0, 2)
+	mask = depthMat > 0
 	depthMatDiscrete *= mask
 
 	# Get starting position
 	if centroid == []:
-		com = np.array(nd.center_of_mass(depthMat[:,:,2]), dtype=int)
+		if len(objSize) == 3:
+			com = np.array(nd.center_of_mass(depthMat[:,:,2]), dtype=int)
+		else:
+			com = np.array(nd.center_of_mass(depthMat), dtype=int)
 		startingPos = np.array([com[0], com[1]], dtype=np.int16)
 	else:
 		startingPos = np.array(centroid, dtype=np.int16)
@@ -54,7 +57,8 @@ def generateKeypoints(depthMat, iters=1, centroid=[], use_centroid=False):
 			distsMat[j[0], j[1]] = 0
 
 		# Dijkstras!
-		trail = dgn.graphDijkstras(distsMat, visitMat, depthMatDiscrete, startingPos)
+		trail = dgn.graph_dijkstras(distsMat, visitMat, depthMatDiscrete.astype(np.uint16), startingPos)
+
 		distsMat *= mask * (distsMat<32000)
 
 
@@ -85,8 +89,14 @@ def generateKeypoints(depthMat, iters=1, centroid=[], use_centroid=False):
 	for i in extrema:
 		distsMat[i[0]-3:i[0]+4, i[1]-3:i[1]+4] = distsMat.max()
 
-	# gc.enable()
+
 
 	return extrema, allTrails, distsMat
 
 
+
+
+def drawTrail(im, trail):
+	for i,j in trail:
+		im[i,j] = 255
+	return im
