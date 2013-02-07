@@ -1,41 +1,37 @@
 pyKinectTools
+Author: Colin Lea
 
-Colin Lea
-2012
+These instructions are sparse and likely to change. If you would like to use this code the best thing is to email me (colincsl@gmail.com). I am happy to help
 
 ---Dependencies---
-Numpy
-Scipy (inc. ndimage)
-scikits-learn
-from vision import features # pyvision library
+numpy, scipy, scikit-learn, scikit-image, visvis, opencv
 
 ---Installation instructions---
 
----Tools---
+** Python data libraries:
+If you use a python virtual environment:
+pip install numpy scipy matplotlib ipython scikit-learn scikit-image pyside visvis
 
+** OpenCV
+(Only used for Optical Flow in Histogram of Oriented Optical Flow -- I'm trying to get rid of this dependence!)
+If on OSX/Ubuntu(12.04+)/Windows see: https://docs.google.com/document/d/1TsPRI1g_iXQmsCs1VPkLm-9M0T1n724H-wAo7QSNpMY/edit
+Otherwise build from source
 
-Background subtraction
-Simple person tracker
-Feature extraction
-
-Geodesic extrema
-
-Superpixels (+wrapper)
-Graph Algorithms
+---Algorithms---
+Background subtraction: Adaptive Mixture of Gaussian, Static median/mean model
+Feature extraction: Histogram of Oriented Optical Flow, Cuboids, Geodesic Extrema
+Simple person tracking
+Basic graph Algorithms
 Belief Propagation (tree-based)
-
-Iterative Closest point
-
+Iterative Closest Point
+Laplacian Eigenmaps manifolds
 PCA-based gesture recognition
+Superpixels wrapper [deprecated -- use the one in skimage instead]
+Others...
 
-Space-time interest point detector
+Recording with Kinect:
+Data capture program
+Video/Skeleton data player (w/ user controller)
 
-Laplacian Eigenmaps
-
-depth image utilities (xyz2depth,..)
-stream depth images
-skeleton utis
-HOG visualization (uses pyVision)
+Depth image utilities (e.g. converting from depth->pointcloud)
 chalearn annotated dataset reader
-Profiler template
-cython template
