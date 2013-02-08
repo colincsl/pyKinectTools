@@ -138,6 +138,10 @@ base_names = [f for f in base_names if f[0]!='.']
 base_names = np.unique(base_names)
 name = base_names[0]
 
+
+''' Initialize feature vectors '''
+dataset_features = {}
+
 ''' Play data '''
 for name in base_names:
 	''' Get filenames '''
@@ -149,8 +153,8 @@ for name in base_names:
 	colorIms = read_MSR_color_ims(color_file)
 	skels_world, skels_im = read_MSR_skeletons(skeleton_file)
 
+	dataset_features[name] = {'hog':[], 'hog':[], 'skel_image':[], 'skel_world':[]}
 	framecount = np.minimum(depthIms.shape[0], colorIms.shape[0])
-
 	grayIm_prev = None
 
 	''' View all data'''
@@ -158,6 +162,7 @@ for name in base_names:
 		depth = depthIms[frame]
 		mask = maskIms[frame]
 		color = colorIms[frame]
+		# Skeleton in world (w) and image (i) coordinates
 		skel_w = skels_world[frame]
 		skel_i = world2depth(skel_w, rez=[240,320])
 
@@ -179,11 +184,16 @@ for name in base_names:
 
 			cv2.imshow("HOF", hofIm/float(hofIm.max()))
 
-
+		''' Add features '''
+		dataset_features[name]['hog'] += hogData
+		dataset_features[name]['hof'] += hofData
+		dataset_features[name]['skel_image'] += skel_i
+		dataset_features[name]['skel_world'] += skel_w
 
 		''' Plot skeletons on color image'''
 		color = display_MSR_skeletons(color, skel_i)
 
+		''' Visualization '''
 		cv2.imshow("Depth", depth/float(depth.max()))
 		cv2.imshow("HOG", hogIm/float(hogIm.max()))
 		cv2.imshow("RGB", color)
@@ -197,7 +207,11 @@ for name in base_names:
 	if ret >= 0:
 		break
 
+with open('MSR_Features_hog-hof-skel.dat', 'wb') as outfile:
+    pickle.dump(dataset_features, outfile, protocol=pickle.HIGHEST_PROTOCOL)
 
+from IPython import embed
+embed()
 
 # if 0:
 # 	''' Move MSR data '''
