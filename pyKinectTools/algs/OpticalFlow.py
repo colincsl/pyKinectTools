@@ -6,16 +6,16 @@ import scipy.misc as sm
 import skimage
 import skimage.transform
 
-im0 = imread('color_304_21_38_46_6097.jpg').mean(-1).astype(np.uint8)
-im1 = imread('color_304_21_38_46_6480.jpg').mean(-1)
+im0 = imread('/Users/colin/Data/icu_test/319/11/29/device_1/color/color_319_11_29_43_3366.jpg').mean(-1).astype(np.uint8)
+im1 = imread('/Users/colin/Data/icu_test/319/11/29/device_1/color/color_319_11_29_43_4262.jpg').mean(-1)
 
 
 '''
 Farneback technique for dense optical flow
 
-Based on the paper "Two-Frame Motion Estimation Based on Polynomial Expansion"
+Based on the paper "Two-Frame Motion Estimation Based on Polynomial Expansion" and excerpts from Farneback's thesis.
 
-
+Some code also (rougly) adapted from his matlab implementation:
 http://lsvn.lysator.liu.se/svnroot/spatial_domain_toolbox/trunk/
 
 Displacement Estimation
@@ -60,178 +60,6 @@ r =
 (x,y) A (x,y)' + b'(x,y)' = r1 + r2*x + r3*y + r4*x^2 + r5*y^2 +r6*x*y
 
 '''
-
-def DisplacementEstimation(displacement, A0, b0, A1, b1, neighbors=9):
-	'''
-	---Steps---
-	1) Find average A and delta b for each index
-	2) 
-
-	x is the pixel index
-	x_new is the new estimated pixel index
-	x_new = x + displacement(x)
-
-	8-parameter motion model:
-	displacement = S*p
-	S = [1, x, y, 0, 0, 0, x^2, xy;
-		 0, 0, 0, 1, x, y, xy, y^2]
-	p = (A0, A1, a3, a4, a5, a6, a7, a8)'
-	'''
-
-	dims = displacement.shape
-	neigh = np.floor(np.sqrt(neighbors)/2).astype(np.int)
-
-	''' Find indices based on disparity '''
-	tmpInds = np.mgrid[:dims[0], :dims[1]]
-	x_new = np.array([tmpInds[0].ravel() + displacement[:,:,1].ravel(), 
-					tmpInds[1].ravel() + displacement[:,:,0].ravel()]).astype(np.int).T
-
-	x_new[:,0] = np.maximum(np.minimum(x_new[:,0], dims[0]-1), 0)
-	x_new[:,1] = np.maximum(np.minimum(x_new[:,1], dims[1]-1), 0)
-
-	''' Pre-cache S matrix '''
-	S = np.empty([2,8, neighbors], dtype=np.float)
-	x, y = np.mgrid[-neigh:neigh+1, -neigh:neigh+1]
-	i=0
-	for xi, yi in zip(x.ravel(), y.ravel()):
-		S[:,:,i] = np.array([[1, xi, yi, 0, 0, 0, xi**2, xi*yi],
-							[0, 0, 0, 1, xi, yi, xi*yi, yi**2]])
-		i += 1
-
-	''' Pre-cache G, h '''
-	G = np.zeros([dims[0], dims[1], 8, 8])
-	h = np.zeros([dims[0], dims[1], 8])
-	# A = 0.5 * (A0.reshape([dims[0]*dims[1], 2,2])+A1[x_new[:,0],x_new[:,1]])
-	A = 0.5 * (A0+A1).reshape([dims[0]*dims[1], 2, 2])
-
-	for i in range(dims[0]):
-		for j in range(dims[1]):
-			ind = i*dims[1] + j
-			del_b = 0.5*(b0[i,j]-b1[i,j]) + np.dot(A[ind], displacement[x_new[ind,0],x_new[ind,1]])
-
-			# displacement[i,j] = .5 * np.linalg.solve(A,del_b)
-
-			Si = 0
-			for xi, yi in zip(x.ravel(), y.ravel()):
-				tmp = np.dot(S[:,:,Si].T, A[ind].T)
-				G[i,j] += np.dot(tmp, tmp.T)
-				h[i,j] += np.dot(tmp, del_b.T)
-				Si += 1
-			
-	'''Spatial averaging component-wise'''
-	G_avg = G / float(neighbors)
-	h_avg = h / float(neighbors)
-
-	''' Calculate disparity '''
-	for i in range(dims[0]):
-		for j in range(dims[1]):
-
-			try:
-				displacement[i,j] = np.dot(S[:,:,0], np.linalg.solve(G_avg[i,j],h_avg[i,j]))
-				# print np.linalg.solve(G_avg[i,j],h_avg[i,j])
-			except:
-				print 'Error in disparity'
-				displacement[i,j] = np.array([0,0])
-
-	return displacement
-
-
-def imnorm(im):
-	return (im - im.min()) / (im.max() - im.min())
-
-def OpticalFlow(im0, im1, levels=3, pyramid_scale=2., iterations=1, smoothness_sigma=1.1):
-	'''
-	---Parameters---
-	im0 : first image frame
-	im1 : second image frame
-	levels : number of layers in the pyramid
-	pyramid_scale : ratio of the size of layer N and N-1 in the pyramid
-	smoothness_sigma : the value of the smoothing kernel
-
-	---Steps---
-	0) Intialize displacement/flow with zero vectors
-	1) Create smoothed (N layer) pyramid
-	For each pyramid (top to bottom):
-		2) Apply polynomial expansion to each layer of each image
-		3) Estimate displacement
-		4) Feed updated displacement to next layer
-
-	See figure 7.10 in Farneback's PhD thesis for an overview.
-	'''
-
-	''' 
-	Step 1: Get image pyramids
-	'''
-	# im0 = imnorm(im0)
-	# im1 = imnorm(im1)
-	# im0 = skimage.transform.image_as_float(im0)
-
-	im0_pyr_generator = skimage.transform.pyramid_gaussian(im0, sigma=1.0, downscale=pyramid_scale)
-	im1_pyr_generator = skimage.transform.pyramid_gaussian(im1, sigma=1.0, downscale=pyramid_scale)	
-	im0_pyr = []
-	im1_pyr = []
-	shape_ = im0.shape
-	''' Use scipy.misc.imresize instead!?  error in skimage.resize?? '''
-	for i in range(levels):
-		# tmp0 = im0_pyr_generator.next()
-		# tmp1 = im1_pyr_generator.next()
-		# im0_pyr.append((tmp0))
-		# im1_pyr.append((tmp1))
-
-		shape_ = [shape_[0]/2, shape_[1]/2]
-		t = sm.imresize(im0, shape_, interp='nearest')
-		t1 = sm.imresize(im1, shape_, interp='nearest')
-		t = nd.gaussian_filter(t,2)
-		t1 = nd.gaussian_filter(t1,2)
-		im0_pyr.append(t)
-		im1_pyr.append(t1)		
-
-	''' 
-	Go through pyramid top to bottom
-	'''
-	''' Step 0: Intitialize displacement '''
-	displacement = np.zeros([im0_pyr[-1].shape[0], im0_pyr[-1].shape[1], 2], dtype=np.float)
-
-	
-	for i in range(levels-1, -1, -1):
-		''' Step 4) Feed updated displacement to next layer'''
-		displacement = np.dstack([sm.imresize(displacement[:,:,0], im0_pyr[i].shape),
-								sm.imresize(displacement[:,:,1], im0_pyr[i].shape)]).astype(np.float)		
-		for k in range(iterations):
-			''' Step 2) Apply polynomial expansion to each layer'''
-			A0, b0, c0 = PolynomialExpansion(im0_pyr[i], spatial_size=25, sigma=.05)
-			A1, b1, c1 = PolynomialExpansion(im1_pyr[i], spatial_size=25, sigma=.05)
-			''' Step 3) Estimate displacement'''
-			displacement = DisplacementEstimation(displacement, A0, b0, A1, b1)
-
-		figure(i)
-		imshow(displacement[:,:,0])
-
-
-	return displacement		    
-
-
-if 0:
-	figure(0)
-	imshow(A0[:,:,0,0]); clim([-11, 11])
-	figure('0b')
-	imshow(A1[:,:,0,0]); clim([-11, 11])
-	figure('A combined')
-	imshow(A.reshape([dims[0], dims[1],2,2])[:,:,0,0]); clim([-11, 11])
-
-	figure(1)
-	imshow(A0[:,:,0,1])
-
-	figure(4)
-	imshow(b0[:,:,0])
-	figure(5)
-	imshow(b0[:,:,1])
-
-	figure(6)
-	imshow(c0)
-
-
-
 
 def PolynomialExpansion(im, spatial_size=9, sigma=0.15):
 	'''
@@ -319,5 +147,230 @@ def PolynomialExpansion(im, spatial_size=9, sigma=0.15):
 	A[:,:,1,0] = conv_results[:,:,5] / 2
 
 	return A, b, c
+
+
+
+# del_b = np.empty([dims[0], dims[1], 2])
+# for i in range(dims[0]):
+# 	for j in range(dims[1]):
+# 		ind = i*dims[1] + j
+# 		del_b[i,j] = 0.5*(b0[i,j]-b1[i,j]) + np.dot(A[ind], displacement[x_new[ind,0],x_new[ind,1]])
+# b = del_b
+
+# ''' Constant model '''
+# if 1:
+# 	A = A.reshape([dims[0],dims[1],2,2])
+# 	b = b.reshape([dims[0],dims[1],-1])
+# 	Q = np.zeros([dims[0], dims[1], 5])
+# 	Q[:,:,0] = A[:,:,0,0]**2 + A[:,:,0,1]**2
+# 	Q[:,:,1] = A[:,:,1,1]**2 + A[:,:,0,1]**2
+# 	Q[:,:,2] = (A[:,:,0,0]+A[:,:,1,1]) * A[:,:,0,1]
+# 	Q[:,:,3] = A[:,:,0,0]*b[:,:,1] + +A[:,:,0,1]*b[:,:,2]
+# 	Q[:,:,4] = A[:,:,0,1]*b[:,:,1] + +A[:,:,1,1]*b[:,:,2]
+
+
+
+def DisplacementEstimation(displacement, A0, b0, A1, b1, neighbors=9):
+	'''
+	---Steps---
+	1) Find average A and delta b for each index
+	2) 
+
+	x is the pixel index
+	x_new is the new estimated pixel index
+	x_new = x + displacement(x)
+
+	8-parameter motion model:
+	displacement = S*p
+	S = [1, x, y, 0, 0, 0, x^2, xy;
+		 0, 0, 0, 1, x, y, xy, y^2]
+	p = (A0, A1, a3, a4, a5, a6, a7, a8)'
+	'''
+
+	dims = displacement.shape
+	neigh = np.floor(np.sqrt(neighbors)/2).astype(np.int)
+
+	''' Find indices based on disparity '''
+	tmpInds = np.mgrid[:dims[0], :dims[1]]
+	x_new = np.array([tmpInds[0].ravel() + displacement[:,:,1].ravel(), 
+					tmpInds[1].ravel() + displacement[:,:,0].ravel()]).astype(np.int).T
+
+	x_new[:,0] = np.maximum(np.minimum(x_new[:,0], dims[0]-1), 0)
+	x_new[:,1] = np.maximum(np.minimum(x_new[:,1], dims[1]-1), 0)
+
+	''' Pre-cache S matrix '''
+	S = np.empty([2,8, neighbors], dtype=np.float)
+	x, y = np.mgrid[-neigh:neigh+1, -neigh:neigh+1]
+	i=0
+	for xi, yi in zip(x.ravel(), y.ravel()):
+		S[:,:,i] = np.array([[1, xi, yi, 0, 0, 0, xi**2, xi*yi],
+							[0, 0, 0, 1, xi, yi, xi*yi, yi**2]])
+		i += 1
+
+	''' Pre-cache G, h '''
+	G = np.zeros([dims[0], dims[1], 8, 8])
+	h = np.zeros([dims[0], dims[1], 8])
+	e = np.empty([dims[0], dims[1]])
+	e_tmp = np.empty([dims[0], dims[1]])
+	# A = 0.5 * (A0.reshape([dims[0]*dims[1], 2,2])+A1[x_new[:,0],x_new[:,1]])
+	A = 0.5 * (A0+A1[x_new[:,0],x_new[:,1]].reshape([dims[0],dims[1], 2,2]))
+	# A = 0.5 * (A0+A1).reshape([dims[0]*dims[1], 2, 2])
+	
+	G = np.zeros([dims[0], dims[1], 2, 2])
+	h = np.zeros([dims[0], dims[1], 2])
+	delb = np.zeros([dims[0], dims[1], 2])
+	if 1:
+
+		for i in range(1, dims[0]-1):
+			for j in range(1, dims[1]-1):
+				ind = i*dims[1] + j
+				del_b = 0.5*(b0[i,j]-b1[i,j])# + np.dot(A[i,j], displacement[x_new[ind,0],x_new[ind,1]])
+				delb[i,j] = del_b
+
+				# displacement[i,j] = .5 * np.linalg.solve(A,del_b)
+
+				G[i,j] = np.dot(A[i,j].T, A[i,j])
+				h[i,j] = np.dot(A[i,j].T, del_b.T)
+				e_tmp[i,j] = np.dot(del_b, del_b.T)
+
+				Si = 0
+				# for xi, yi in zip(x.ravel(), y.ravel()):
+					# tmp = np.dot(S[:,:,Si].T, A[i+xi,j+yi].T)
+					# G[i,j] += np.dot(tmp, tmp.T)
+					# h[i,j] += np.dot(tmp, del_b.T)
+					# Si += 1
+		
+		'''Spatial averaging component-wise'''
+		# G_avg = G / float(neighbors)
+		# h_avg = h / float(neighbors)
+		G_avg = nd.uniform_filter(G)
+		h_avg = nd.uniform_filter(h)
+
+		''' Calculate disparity '''
+		for i in range(dims[0]):
+			for j in range(dims[1]):
+
+				# if 1:
+				try:
+					displacement[i,j] = np.linalg.solve(G_avg[i,j],h_avg[i,j])
+					e[i,j] = e_tmp[i,j] - np.dot(displacement[i,j], h_avg[i,j])
+					# displacement[i,j] = np.dot(S[:,:,4], np.linalg.solve(G_avg[i,j],h_avg[i,j]))
+				except:
+					print 'Error in disparity'
+					print G_avg[i,j], h_avg[i,j]
+					displacement[i,j] = np.array([0,0])
+
+	return displacement, e, delb
+
+
+def imnorm(im):
+	return (im - im.min()) / (im.max() - im.min())
+
+def OpticalFlow(im0, im1, levels=3, pyramid_scale=2., neighbors=9, iterations=1, smoothness_sigma=1.1):
+	'''
+	---Parameters---
+	im0 : first image frame
+	im1 : second image frame
+	levels : number of layers in the pyramid
+	pyramid_scale : ratio of the size of layer N and N-1 in the pyramid
+	smoothness_sigma : the value of the smoothing kernel
+
+	---Steps---
+	0) Intialize displacement/flow with zero vectors
+	1) Create smoothed (N layer) pyramid
+	For each pyramid (top to bottom):
+		2) Apply polynomial expansion to each layer of each image
+		3) Estimate displacement
+		4) Feed updated displacement to next layer
+
+	See figure 7.10 in Farneback's PhD thesis for an overview.
+	'''
+
+	''' 
+	Step 1: Get image pyramids
+	'''
+	neighbors = 9
+	sigma = .15
+	# im0 = imnorm(im0)
+	# im1 = imnorm(im1)
+	# im0 = skimage.transform.image_as_float(im0)
+
+	# im0_pyr_generator = skimage.transform.pyramid_gaussian(im0, sigma=1.0, downscale=pyramid_scale)
+	# im1_pyr_generator = skimage.transform.pyramid_gaussian(im1, sigma=1.0, downscale=pyramid_scale)	
+	im0_pyr = []
+	im1_pyr = []
+	shape_ = im0.shape
+	''' Use scipy.misc.imresize instead!?  error in skimage.resize?? '''
+	for i in range(levels):
+		# tmp0 = im0_pyr_generator.next()
+		# tmp1 = im1_pyr_generator.next()
+		# im0_pyr.append((tmp0))
+		# im1_pyr.append((tmp1))
+
+		t = sm.imresize(im0, shape_, interp='nearest')
+		t1 = sm.imresize(im1, shape_, interp='nearest')
+		t = nd.gaussian_filter(t,2)
+		t1 = nd.gaussian_filter(t1,2)
+		im0_pyr.append(t)
+		im1_pyr.append(t1)
+
+		shape_ = [shape_[0]/2, shape_[1]/2]
+
+	''' 
+	Go through pyramid top to bottom
+	'''
+	''' Step 0: Intitialize displacement '''
+
+	displacement = np.zeros([im0_pyr[-1].shape[0], im0_pyr[-1].shape[1], 2], dtype=np.float)
+
+	
+	for i in range(levels-1, -1, -1):
+		''' Step 4) Feed updated displacement to next layer'''
+		displacement = np.dstack([sm.imresize(displacement[:,:,0], im0_pyr[i].shape),
+								  sm.imresize(displacement[:,:,1], im0_pyr[i].shape)]).astype(np.float)		
+		for k in range(iterations):
+			''' Step 2) Apply polynomial expansion to each layer'''
+			A0, b0, c0 = PolynomialExpansion(im0_pyr[i], spatial_size=neighbors, sigma=sigma)
+			A1, b1, c1 = PolynomialExpansion(im1_pyr[i], spatial_size=neighbors, sigma=sigma)
+			''' Step 3) Estimate displacement'''
+			print 's', i
+			displacement, err, delb = DisplacementEstimation(displacement, A0, b0, A1, b1, neighbors=neighbors)
+
+		figure(i)
+		imshow(displacement[:,:,0])
+
+
+	return displacement		    
+ 
+
+if 0:
+	A0, b0, c0 = PolynomialExpansion(im0_pyr[i], spatial_size=9, sigma=.15)
+	A1, b1, c1 = PolynomialExpansion(im1_pyr[i], spatial_size=9, sigma=.15)
+
+	figure('A0')
+	imshow(A0[:,:,0,0]); clim([-11, 11])
+	figure('A1')
+	imshow(A1[:,:,0,0]); clim([-3, 7])
+	figure('A combined')
+	imshow(A.reshape([dims[0], dims[1],2,2])[:,:,0,0]); clim([-11, 11])
+
+	figure(1)
+	imshow(A0[:,:,0,1])
+
+	figure(4)
+	imshow(b0[:,:,0])
+	figure(5)
+	imshow(b0[:,:,1])
+
+	figure(6)
+	imshow(c0)
+
+	m = np.abs(displacement[:,:,0]) < 100
+	figure("x");imshow(displacement[:,:,0]*m)
+	figure("y");imshow(displacement[:,:,1]*m)
+	figure('flow_x'); imshow(flow[:,:,0])
+	figure('flow_y'); imshow(flow[:,:,1])
+
+
 
 

@@ -9,8 +9,7 @@ import cv2
 
 
 def getFlow(imPrev, imNew):
-    # flow = np.zeros([imPrev.shape[0],imPrev.shape[1],2])
-    flow = cv2.calcOpticalFlowFarneback(imPrev, imNew, flow=None, pyr_scale=.5, levels=3, winsize=9, iterations=3, poly_n=5, poly_sigma=1.1, flags=cv2.OPTFLOW_FARNEBACK_GAUSSIAN)
+    flow = cv2.calcOpticalFlowFarneback(imPrev, imNew, flow=None, pyr_scale=.5, levels=3, winsize=9, iterations=1, poly_n=3, poly_sigma=1.1, flags=cv2.OPTFLOW_FARNEBACK_GAUSSIAN)
     return flow
 
 def getDepthFlow(imPrev, imNew):
@@ -236,7 +235,6 @@ def hof(flow, orientations=9, pixels_per_cell=(8, 8),
     """
 
     magnitude = sqrt(gx**2 + gy**2)
-    motion_threshold
     orientation = arctan2(gy, gx) * (180 / pi) % 180
 
     sy, sx = flow.shape[:2]
