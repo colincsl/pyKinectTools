@@ -1,3 +1,0 @@
-[console_scripts]
-cython = Cython.Compiler.Main:setuptools_main
-

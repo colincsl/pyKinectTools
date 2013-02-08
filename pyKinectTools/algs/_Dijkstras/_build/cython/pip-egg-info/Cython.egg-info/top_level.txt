@@ -1,5 +1,0 @@
-pyximport/pyxbuild
-Cython
-pyximport/pyximport
-pyximport/__init__
-cython

@@ -1,45 +1,41 @@
 ''' Build with: python dijkstras_setup.py build_ext --inplace '''
 
-import sys
 import numpy as np
 import cython
 cimport cython
-cimport numpy as np
+cimport numpy as cnp
+cnp.import_array()
 
-from python_ref cimport Py_INCREF, Py_DECREF
+# from python_ref cimport Py_INCREF, Py_DECREF
 
 cdef extern from "math.h":
 	int abs(int x)
 
-ctypedef np.uint16_t UINT16
-ctypedef np.int16_t INT16
-ctypedef np.uint8_t UINT8
+ctypedef cnp.uint16_t UINT16
+ctypedef cnp.int16_t INT16
+ctypedef cnp.uint8_t UINT8
 
-np.import_array()
 
 cdef inline int int_max(int a, int b): return a if a >= b else b
 cdef inline int int_min(int a, int b): return a if a <= b else b
-cdef inline void ind2dim(int ind, int current[2], int rezX, int rezY): 
-	current[0] = int(ind/rezX)
-	current[1] = ind-rezX*((ind/rezX))
+cdef inline void ind2dim(int ind, int current[2], int width, int height): 
+	current[0] = int(ind/float(width))
+	current[1] = ind - width*current[0]
 	return
-	# return [(ind/rezX), ind-rezX*((ind/rezX))]
-cdef inline int dim2ind(int i, int j, int rezX, int rezY): 
-	return (i*rezX+j)
-	# return (j*rezX+i)
+cdef inline int dim2ind(int i, int j, int width, int height): 
+	return (i*width+j)
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
 @cython.infer_types(True)
 # @cython.profile(True)
-# cpdef inline np.ndarray[INT16, ndim=2] graphDijkstras(np.ndarray[INT16, ndim=2] distsMat, np.ndarray[UINT8, ndim=2] visitMat, np.ndarray[INT16, ndim=2] depthMat, np.ndarray[INT16, ndim=1] current_):
-cpdef inline list graphDijkstras(np.ndarray[UINT16, ndim=2, mode="c"] distsMat, np.ndarray[UINT8, ndim=2, mode="c"] visitMat, np.ndarray[UINT16, ndim=2, mode="c"] depthMat, np.ndarray[INT16, ndim=1, mode="c"] current_):
+cpdef inline list graph_dijkstras(cnp.ndarray[UINT16, ndim=2, mode="c"] distsMat, cnp.ndarray[UINT8, ndim=2, mode="c"] visitMat, cnp.ndarray[UINT16, ndim=2, mode="c"] depthMat, cnp.ndarray[INT16, ndim=1, mode="c"] current_):
 	'''
 	Inputs:
-		distsMat
+		distsMat (uint16)
 		visitMat
-		dists2
-		current_
+		depthMat
+		current_ : Starting point
 	Outputs:
 	'''
 	cdef int i, j, tmpX, tmpY
@@ -53,24 +49,13 @@ cpdef inline list graphDijkstras(np.ndarray[UINT16, ndim=2, mode="c"] distsMat, 
 	current[1] = current_[1]
 
 	cdef int TOUCHED=1, VISITED=254, OUTOFBOUNDS=255, MAXVALUE=32000
-	# cdef int TOUCHED=1, MAXVALUE=32000
-	# cdef UINT8 *VISITED=254, *OUTOFBOUNDS=255
 	cdef int neighborsVisited
 	cdef int foundTouched
-
-	# if distsMat.flags.aligned == True:
-	# 	print "yes"
-	# else:
-	# 	print "no"
-
-
-	# Py_INCREF(distsMat)
-	# Py_INCREF(visitMat)
-	# Py_INCREF(depthMat)
 
 	# cdef UINT16* distsMat_c = &distsMat[0,0]
 	# cdef UINT8* visitMat_c = &visitMat[0,0]
 	# cdef UINT16* depthMat_c = &depthMat[0,0]
+
 
 	cdef UINT16 distsMat_c[307200]
 	for y in xrange(height):
@@ -111,6 +96,7 @@ cpdef inline list graphDijkstras(np.ndarray[UINT16, ndim=2, mode="c"] distsMat, 
 
 	''' --- Main --- '''
 	while(1):
+
 		currentCost = distsMat_c[currentInd]
 		ind2dim(currentInd, current, width, height)
 		visitMat_c[currentInd] = VISITED
@@ -123,6 +109,7 @@ cpdef inline list graphDijkstras(np.ndarray[UINT16, ndim=2, mode="c"] distsMat, 
 			for j in range(-1,2):
 				if not (i == 0 and j == 0):
 					tmpInd = dim2ind(current[0]+i, current[1]+j, width, height)
+					print i,j
 					if visitMat_c[tmpInd] < VISITED:
 
 						gradient = abs(depthMat_c[tmpInd]-depthMat_c[currentInd])
@@ -228,12 +215,6 @@ cpdef inline list graphDijkstras(np.ndarray[UINT16, ndim=2, mode="c"] distsMat, 
 		# trailOut[i] = [trail[i][0],trail[i][1]]
 		trailOut.append([trail[i][0],trail[i][1]])
 
-		# py_incref
-		# py_decref
-	# del distsMat
-	# del visitMat
-	# del depthMat
-
 	# distsMat.data = <char*>distsMat_c
 	# visitMat.data = <char*>visitMat_c
 	# depthMat.data = <char*>depthMat_c
@@ -242,13 +223,6 @@ cpdef inline list graphDijkstras(np.ndarray[UINT16, ndim=2, mode="c"] distsMat, 
 	# visitMat = np.PyArray_SimpleNewFromData(2, [height, width], np.NPY_UINT8, <void*> visitMat_c)
 	# depthMat = np.PyArray_SimpleNewFromData(2, [height, width], np.NPY_UINT16, <void*> depthMat_c)
 
-	# cdef int x
-
-	# print "refs:", sys.getrefcount(distsMat)
-	# x = Py_DECREF(distsMat)
-	# print x
-	# Py_DECREF(visitMat)
-	# Py_DECREF(depthMat)
 
 	# for i in xrange(height*width):
 	for y in xrange(height):

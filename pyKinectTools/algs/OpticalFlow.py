@@ -9,6 +9,10 @@ import skimage.transform
 im0 = imread('/Users/colin/Data/icu_test/319/11/29/device_1/color/color_319_11_29_43_3366.jpg').mean(-1).astype(np.uint8)
 im1 = imread('/Users/colin/Data/icu_test/319/11/29/device_1/color/color_319_11_29_43_4262.jpg').mean(-1)
 
+im0 = imread('/media/Data/icu_test_current/color/12/16/56/device_1/color_12_16_56_54_11_66.jpg').mean(-1).astype(np.uint8)
+im1 = imread('/media/Data/icu_test_current/color/12/16/56/device_1/color_12_16_56_54_12_71.jpg').mean(-1)
+
+
 
 '''
 Farneback technique for dense optical flow

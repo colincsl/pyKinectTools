@@ -1,5 +1,5 @@
 import sys
-from scikits.learn import svm
+from sklearn import svm
 # from sklearn import svm
 import scipy.ndimage as nd
 import scipy.io
