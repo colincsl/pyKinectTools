@@ -1,7 +1,7 @@
 import os, scipy
 import scipy.ndimage as nd
 from pyKinectTools.utils.DepthUtils import posImage2XYZ
-from pyKinectTools.algs.BackgroundSubtraction import extractPeople, removeNoise
+from pyKinectTools.algs.BackgroundSubtraction import extract_people, removeNoise
 dataDir = '/Users/colin/data/ICU_7May2012_Wide_jpg/diffDraw1/'
 dataDir = '/Users/colin/data/ICU_7May2012_Close_jpg/diffDraw1/'
 dataDir = '/Users/colin/data/ICU_7May2012_Close_jpg/d1c/'
@@ -33,7 +33,7 @@ im = imgs[9]
 objectNum = 0
 posMatFull = posImage2XYZ(im, 500, 2000)
 # posMatFull = posImage2XYZ(im, 500, 2000) 
-imLabels, objSlices, objInds = extractPeople(posMatFull[:,:,2], 10000, True)
+imLabels, objSlices, objInds = extract_people(posMatFull[:,:,2], 10000, True)
 posMat = posMatFull[objSlices[objectNum]]
 for i in range(3):
 	posMat[:,:,i] *= (imLabels[objSlices[objectNum]]==objInds[objectNum])

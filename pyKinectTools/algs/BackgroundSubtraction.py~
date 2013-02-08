@@ -24,7 +24,7 @@ def constrain(img, mini=-1, maxi=-1): #500, 4000
 
 	return img
 
-def extractPeople_old(img):
+def extract_people_old(img):
 	from scipy.spatial import distance
 	from sklearn.cluster import DBSCAN
 	import cv2
@@ -98,10 +98,10 @@ def extractPeople_old(img):
 	return d1A, goodObjs
 
 # @Deprecated
-def extractPeople_2(im):
-	return extractPeople(im)
+def extract_people_2(im):
+	return extract_people(im)
 
-def extractPeople(im, minPersonPixThresh=7000, gradientFilter=True):
+def extract_people(im, minPersonPixThresh=7000, gradientFilter=True):
 	# im *= im < im.max()
 	# shape_ = im.shape
 	# im_ = im[1:shape_[0], 1:shape_[1]]

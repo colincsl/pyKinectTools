@@ -25,8 +25,8 @@ for i_time in range(0,len(imgs),5):
 	''' Object features '''
 	tSpan = 5
 	#T_new
-	labeledImg, slices, sliceIndices = extractPeople(imgs[i_time])
-	labeledImg2, slices2, sliceIndices2 = extractPeople(imgs[i_time-tSpan])
+	labeledImg, slices, sliceIndices = extract_people(imgs[i_time])
+	labeledImg2, slices2, sliceIndices2 = extract_people(imgs[i_time-tSpan])
 	t1 = time.time()
 	S_interests = []
 	if len(sliceIndices)>0 and len(sliceIndices2)>0:

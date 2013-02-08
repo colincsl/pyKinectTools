@@ -149,8 +149,8 @@ while 1:
 	diff *= (depthRaw!=0)*(depthRaw>1000)
 	diffDraw = depthRaw8*(np.abs(diff) > 200)
 
-	# imLabels, objectSlices, labelInds = extractPeople(diffDraw, minPersonPixThresh=5000, gradientFilter=False)
-	imLabels, objectSlices, labelInds = extractPeople(diffDraw, minPersonPixThresh=5000, gradientFilter=True)
+	# imLabels, objectSlices, labelInds = extract_people(diffDraw, minPersonPixThresh=5000, gradientFilter=False)
+	imLabels, objectSlices, labelInds = extract_people(diffDraw, minPersonPixThresh=5000, gradientFilter=True)
 
 	'''------------ Tracking ------------'''
 	if len(labelInds) > 0:

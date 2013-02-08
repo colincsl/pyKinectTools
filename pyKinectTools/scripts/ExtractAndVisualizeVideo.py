@@ -18,7 +18,7 @@ from pyKinectTools.utils.DepthUtils import world2depth, depthIm2XYZ
 from pyKinectTools.utils.MultiCameraUtils import multiCameraTimeline, formatFileString
 from pyKinectTools.utils.FeatureUtils import saveFeatures, loadFeatures, learnICADict, learnNMFDict, displayComponents
 from pyKinectTools.algs.HistogramOfOpticalFlow import getFlow, hof, splitIm
-from pyKinectTools.algs.BackgroundSubtraction import AdaptiveMixtureOfGaussians, fillImage, extractPeople
+from pyKinectTools.algs.BackgroundSubtraction import AdaptiveMixtureOfGaussians, fillImage, extract_people
 from pyKinectTools.algs.FeatureExtraction import calculateBasicPose, plotUsers, computeUserFeatures, computeFeaturesWithSkels
 
 vv = VideoViewer()
@@ -243,7 +243,7 @@ def main(get_depth, get_color, get_skeleton, get_mask, calculate_features, visua
 						if get_skeleton:
 							ret = plotUsers(depthIm, users, device=devices[dev], vis=True)
 						if get_mask:
-							foregroundMask, userBoundingBoxes, userLabels = extractPeople(depthIm, foregroundMask, minPersonPixThresh=1500, gradientFilter=True, gradThresh=100)
+							foregroundMask, userBoundingBoxes, userLabels = extract_people(depthIm, foregroundMask, minPersonPixThresh=1500, gradientFilter=True, gradThresh=100)
 						
 						''' Calculate user features '''
 						if calculate_features and get_color:

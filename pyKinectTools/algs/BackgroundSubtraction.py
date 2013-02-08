@@ -29,7 +29,7 @@ def constrain(img, mini=-1, maxi=-1): #500, 4000
 
 	return img
 
-def extractPeople_clusterMethod(img):
+def extract_people_clusterMethod(img):
 	from scipy.spatial import distance
 	from sklearn.cluster import DBSCAN
 	import cv2
@@ -102,8 +102,20 @@ def extractPeople_clusterMethod(img):
 
 	return d1A, goodObjs
 
-def extractPeople(im, mask, minPersonPixThresh=500, gradThresh=100, gradientFilter=True):
+def extract_people(im, mask, minPersonPixThresh=500, gradThresh=100, gradientFilter=True):
+	'''
+	---Paramaters---
+	im : 
+	mask : 
+	minPersonPixThresh : 
+	gradThresh : 
+	gradientFilter : 
 
+	---Returns---
+	mask :
+	userBoundingBoxes :
+	userLabels :
+	'''
 	if not gradientFilter:
 		grad_bin = mask
 	else:

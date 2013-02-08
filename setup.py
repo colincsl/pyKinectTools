@@ -41,9 +41,9 @@ setup(
 	cmdclass = {'build_ext': build_ext},
 	include_dirs = [np.get_include()],
 	packages= [	"pyKinectTools",
-				#"pyKinectTools.algs",
-				#"pyKinectTools.utils",
-				#"pyKinectTools.data",
+				"pyKinectTools.algs",
+				"pyKinectTools.utils",
+				"pyKinectTools.dataset_readers",
 				],	
 	ext_modules = ext_modules
 )

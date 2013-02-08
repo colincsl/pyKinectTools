@@ -1,7 +1,7 @@
 import os, scipy
 import scipy.ndimage as nd
 from pyKinectTools.utils.DepthUtils import posImage2XYZ
-from pyKinectTools.algs.BackgroundSubtraction import extractPeople, removeNoise
+from pyKinectTools.algs.BackgroundSubtraction import extract_people, removeNoise
 from pyKinectTools.algs.GeodesicSkeleton import *
 from pyKinectTools.algs.PictorialStructures import *
 from pyKinectTools.algs.STIP import *
@@ -39,7 +39,7 @@ im = imgs[t]
 objectNum = 0
 # posMatFull = posImage2XYZ(im, 500, 1250)
 posMatFull = posImage2XYZ(im, 500, 2000)
-imLabels, objSlices, objInds = extractPeople(posMatFull[:,:,2], 10000, True)
+imLabels, objSlices, objInds = extract_people(posMatFull[:,:,2], 10000, True)
 if len(objInds)!=0:
 	t += 1
 assert len(objInds)!=0, "Error: No objects"

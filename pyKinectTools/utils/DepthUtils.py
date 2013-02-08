@@ -7,15 +7,14 @@ y increases upwards
 z decreases as things get farther away
 '''
 
-# Depth camera parameters
+''' Depth camera parameters '''
 fx_d = 1.0 / 5.9421434211923247e+02;
 fy_d = 1.0 / 5.9104053696870778e+02;
 cx_d = 3.3930780975300314e+02;
 cy_d = 2.4273913761751615e+02;
 
-# rez=[640,480]
 def depth2world(x_):
-
+    ''' Convert depth coordinates to world coordinates standard Kinect calibration '''
     assert type(x_) == np.ndarray, "Wrong type into depth2world"
 
     if x_.shape[0]==76800 or (x_[:,0].max() < 240 and x_[:,1].max() < 320):
@@ -34,18 +33,29 @@ def depth2world(x_):
     zo = -d
     return np.array([xo, yo, zo]).T    
 
-def world2depth(x_, rez=[640, 480]):
+def world2depth(x_, rez=[480, 640]):
+    ''' 
+    Convert world coordinates to depth coordinates using the standard Kinect calibration 
+    ---Parameters---
+    x_ : numpy array (Nx3)
+    rez : resolution of depth image
+    '''
     assert type(x_) == np.ndarray, "world2depth input must be a numpy array"
+
     y = np.array(x_[:,1])     
     x = np.array(x_[:,0])
+    ''' Make sure z coordinates are positive and greater than 0'''
     z = np.abs(np.array(x_[:,2]))
     z = np.maximum(1, z)
 
     xo = (( x / (z * fx_d)) + cx_d).astype(np.int)
     yo = ((-y / (z * fy_d)) + cy_d).astype(np.int)
 
-    do = np.array(z, dtype=np.int)
-    return np.array([yo, xo, do])
+    if rez != [480,640]:
+        yo *= rez[0] / 480.
+        xo *= rez[1] / 640.        
+
+    return np.array([xo, yo, z], dtype=np.int).T
 
 
 def depthIm2XYZ(depthMap):

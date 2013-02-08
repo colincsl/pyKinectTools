@@ -137,7 +137,7 @@
 # 				# diffDraw1 = d1c*(diff > 50)*(diff < 225)			
 # 				diff = np.array(m1, dtype=int16) - np.array(d1c, dtype=int16)
 # 				diffDraw1 = d1c*(diff > 20)			
-# 				out1, objects1, labelInds1 = extractPeople_2(diffDraw1)
+# 				out1, objects1, labelInds1 = extract_people_2(diffDraw1)
 # 				if len(labelInds1) > 0:
 # 					d1, com1, vecs1, touched1 = featureExt1.run(d1, out1, objects1, labelInds1)
 # 					ornCompare = orientationComparison(vecs1)

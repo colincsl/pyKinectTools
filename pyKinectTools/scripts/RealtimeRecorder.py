@@ -158,7 +158,7 @@ def main(deviceID, record, baseDir, frameDifferencePercent, getSkel, anonomize, 
 							cv2.imshow("BG Model", backgroundModel/backgroundModel.max())
 							foregroundMask = bgSubtraction.getForeground(thresh=100)
 							''' Find people '''
-							foregroundMask, _, _ = extractPeople(depthRaw8, foregroundMask, minPersonPixThresh=5000, gradientFilter=True, gradThresh=15)
+							foregroundMask, _, _ = extract_people(depthRaw8, foregroundMask, minPersonPixThresh=5000, gradientFilter=True, gradThresh=15)
 						else: 
 							foregroundMask = None
 

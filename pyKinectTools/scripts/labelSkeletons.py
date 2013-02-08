@@ -2,7 +2,7 @@ import os, scipy, time
 import scipy.ndimage as nd
 from pyKinectTools.utils.DepthUtils import posImage2XYZ
 from pyKinectTools.algs.PictorialStructures import *
-from pyKinectTools.algs.BackgroundSubtraction import extractPeople, removeNoise
+from pyKinectTools.algs.BackgroundSubtraction import extract_people, removeNoise
 dataDir = '/Users/colin/data/ICU_7May2012_Close_jpg/diffDraw1/'
 # dataDir = '/Users/colin/data/ICU_7May2012_Close_jpg/d1c/'
 
@@ -74,7 +74,7 @@ bodyPos = []
 im = imgs[t]
 objectNum = 0
 posMatFull = posImage2XYZ(im, 500, 2000)
-imLabels, objSlices, objInds = extractPeople(posMatFull[:,:,2], 10000, True)
+imLabels, objSlices, objInds = extract_people(posMatFull[:,:,2], 10000, True)
 if len(objInds)==0:
 	print"No humans"
 	bodyPos = -1

@@ -91,7 +91,7 @@ for jjj in range(10):
 			diff = np.array(m1, dtype=int16) - np.array(depthRaw8, dtype=int16)
 			diff *= (depthRaw!=0)*(depthRaw<2000)
 			diffDraw = depthRaw8*(diff > 1)
-			out1, objects1, labelInds1 = extractPeople(diffDraw)
+			out1, objects1, labelInds1 = extract_people(diffDraw)
 			if len(labelInds1) > 0:
 				depthRaw, com1, vecs1, touched = featureExt1.run(depthRaw, out1, objects1, labelInds1)
 				ornCompare = orientationComparison(vecs1)
@@ -202,7 +202,7 @@ if 0:
 			diff *= (depthRaw!=0)*(depthRaw<2000)
 			diffDraw = depthRaw8*(np.abs(diff) > 10)
 			diffDraw *= nd.binary_erosion(diffDraw, iterations=2)
-			out1, objects1, labelInds1 = extractPeople(diffDraw, 10000, True)
+			out1, objects1, labelInds1 = extract_people(diffDraw, 10000, True)
 
 			mask = np.zeros_like(out1, dtype=np.bool)
 			for j in labelInds1:
@@ -237,8 +237,8 @@ if 0:
 	# 		depthStackInd2 = 0
 
 	
-	# out1, objects1 = extractPeople(diffDraw)
-	# out2, objs2 = extractPeople(diffDraw2)
+	# out1, objects1 = extract_people(diffDraw)
+	# out2, objs2 = extract_people(diffDraw2)
 
 
 
@@ -680,10 +680,10 @@ if 0:
 		# diffDraw2 = constrain(diff2, 500, 6000)
 		
 		# # pool = Pool(processes = 4)
-		# # res1 = pool.map_async(extractPeople, (diffDraw,)
-		# # results = pool.map_async(extractPeople, [diffDraw, diffDraw2])
-		# # out1, objects1 = extractPeople(diffDraw)
-		# # out2, objs2 = extractPeople(diffDraw2)
+		# # res1 = pool.map_async(extract_people, (diffDraw,)
+		# # results = pool.map_async(extract_people, [diffDraw, diffDraw2])
+		# # out1, objects1 = extract_people(diffDraw)
+		# # out2, objs2 = extract_people(diffDraw2)
 		# pool.close()
 		# pool.join()
 		# # x = res1.get()

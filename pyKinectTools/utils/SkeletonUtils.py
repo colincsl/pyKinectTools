@@ -1,25 +1,25 @@
 from pylab import *
 import numpy as np
-import cv
+import cv2
 import time
 
 #ENUMS
 colors = 'kkkkkkrgkbkkrgkbkcmkycmkykkkkkk'
-S_HEAD 		=1
-S_NECK		=2
-S_TORSO		=3
-S_L_SHOULDER	=6
-S_L_ELBOW	=7
-S_L_HAND		=9
-S_R_SHOULDER	=12
-S_R_ELBOW	=13
-S_R_HAND		=15
-S_L_HIP		=17
-S_L_KNEE		=18
-S_L_FOOT		=20
-S_R_HIP		=21
-S_R_KNEE		=22
-S_R_FOOT		=24
+S_HEAD      =1
+S_NECK      =2
+S_TORSO     =3
+S_L_SHOULDER    =6
+S_L_ELBOW   =7
+S_L_HAND        =9
+S_R_SHOULDER    =12
+S_R_ELBOW   =13
+S_R_HAND        =15
+S_L_HIP     =17
+S_L_KNEE        =18
+S_L_FOOT        =20
+S_R_HIP     =21
+S_R_KNEE        =22
+S_R_FOOT        =24
 # SKELETON = [S_HEAD, S_NECK, S_TORSO, S_L_SHOULDER, S_L_ELBOW, S_L_HAND, S_R_SHOULDER, S_R_ELBOW, S_R_HAND,  S_L_HIP, S_L_KNEE, S_L_FOOT, S_R_HIP, S_R_KNEE, S_R_FOOT]
 # SKELETON = [S_HEAD, S_L_SHOULDER, S_L_ELBOW, S_L_HAND, S_R_SHOULDER, S_R_ELBOW, S_R_HAND, S_L_KNEE, S_L_FOOT, S_R_KNEE, S_R_FOOT] # removed neck, torso, hip
 SKELETON = [S_HEAD, S_L_SHOULDER, S_L_ELBOW, S_L_HAND, S_R_SHOULDER, S_R_ELBOW, S_R_HAND, S_L_FOOT, S_R_FOOT] # removed neck, torso, hip, knee
@@ -29,20 +29,20 @@ SKELETON = [S_HEAD, S_L_SHOULDER, S_L_ELBOW, S_L_HAND, S_R_SHOULDER, S_R_ELBOW, 
 P_HEAD          = S_NECK
 P_NECK          = S_TORSO
 P_TORSO         = S_TORSO
-P_L_SHOULDER	= S_NECK
+P_L_SHOULDER    = S_NECK
 P_L_ELBOW       = S_L_SHOULDER
-# P_L_HAND		= S_L_SHOULDER#S_L_ELBOW # displacement from shoulder is better metric! (6% gain)
-P_L_HAND		= S_L_ELBOW # displacement from shoulder is better metric! (6% gain)
-P_R_SHOULDER	= S_NECK
+# P_L_HAND      = S_L_SHOULDER#S_L_ELBOW # displacement from shoulder is better metric! (6% gain)
+P_L_HAND        = S_L_ELBOW # displacement from shoulder is better metric! (6% gain)
+P_R_SHOULDER    = S_NECK
 P_R_ELBOW       = S_R_SHOULDER
-# P_R_HAND		= S_R_SHOULDER#S_R_ELBOW
-P_R_HAND		= S_R_ELBOW # displacement from shoulder is better metric! (6% gain)
+# P_R_HAND      = S_R_SHOULDER#S_R_ELBOW
+P_R_HAND        = S_R_ELBOW # displacement from shoulder is better metric! (6% gain)
 P_L_HIP         = S_TORSO
-P_L_KNEE		= S_L_HIP
-P_L_FOOT		= S_L_KNEE
+P_L_KNEE        = S_L_HIP
+P_L_FOOT        = S_L_KNEE
 P_R_HIP         = S_TORSO
-P_R_KNEE		= S_R_HIP
-P_R_FOOT		= S_R_KNEE
+P_R_KNEE        = S_R_HIP
+P_R_FOOT        = S_R_KNEE
 # PARENTS = [P_HEAD, P_NECK, P_TORSO, P_L_SHOULDER, P_L_ELBOW, P_L_HAND, P_R_SHOULDER, P_R_ELBOW, P_R_HAND,  P_L_HIP, P_L_KNEE, P_L_FOOT, P_R_HIP, P_R_KNEE, P_R_FOOT]
 # PARENTS = [P_HEAD, P_L_SHOULDER, P_L_ELBOW, P_L_HAND, P_R_SHOULDER, P_R_ELBOW, P_R_HAND, P_L_KNEE, P_L_FOOT, P_R_KNEE, P_R_FOOT] # removed neck, torso
 PARENTS = [P_HEAD, P_L_SHOULDER, P_L_ELBOW, P_L_HAND, P_R_SHOULDER, P_R_ELBOW, P_R_HAND, P_L_FOOT, P_R_FOOT] # removed neck, torso, hip
@@ -51,6 +51,26 @@ PARENTS = [P_HEAD, P_L_SHOULDER, P_L_ELBOW, P_L_HAND, P_R_SHOULDER, P_R_ELBOW, P
 
 
 # ----------------------------------------------------------------
+
+from skimage.draw import circle, line
+def display_MSR_skeletons(img, skel):
+    for j in skel:
+        cv2.circle(img, (j[0], j[1]), 5, (100,0,0))
+
+    cv2.circle(img, (skel[3,0], skel[3,1]), 15, (100,0,0))
+    connections = [
+                    [3, 2],[2,1],[1,0], #Head to torso
+                    [2, 4],[4,5],[5,6],[6,7], # Left arm
+                    [2, 8],[8,9],[9,10],[10,11], # Right arm
+                    [0,12],[12,13],[13,14],[14,15], #Left foot
+                    [0,16],[16,17],[17,18],[18,19]
+                    ]
+    for c in connections:
+        cv2.line(img, (skel[c[0],0], skel[c[0],1]), (skel[c[1],0], skel[c[1],1]), [100], 2)
+
+    return img
+
+
 
 def readUserData(file):
     raw = open(file)
@@ -272,6 +292,7 @@ def getAllSkeletons(folder, normalizeOrientation=0, count=55):
 def displaySkeleton_CV(img, skels):
     for i in skels:
         try:
+            # joints = skels[i]['jointsPos']
             joints = skels[i]['jointsPos']
             # print i
             # pdb.set_trace()
