@@ -6,3 +6,4 @@ algs/dijkstras/build/*
 .ropeproject/
 *.DS_Store
 CopyDepth2Homewood.sh
+MANIFEST
