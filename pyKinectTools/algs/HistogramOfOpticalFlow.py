@@ -1,6 +1,7 @@
 import numpy as np
 from scipy import sqrt, pi, arctan2, cos, sin
 from scipy.ndimage import uniform_filter
+from skimage.feature import hog
 import cv2
 
 ''' Taken with modifications from Scikit-Image version of HOG '''
@@ -103,7 +104,6 @@ def splitIm(im, blocks=[4,3]):
     newIms = np.dstack(newIms)
     return newIms    
 
-from skimage import feature
 def splitHog(im, blocks=[4,3], visualise=False):
     ims = splitIm(im, blocks)
 
@@ -111,11 +111,11 @@ def splitHog(im, blocks=[4,3], visualise=False):
     hogIms = []
     for i in range(ims.shape[2]):
         if visualise:
-            hogArray, hogIm = feature.hog(colorIm_g, visualise=True)
+            hogArray, hogIm = hog(colorIm_g, visualise=True)
             hogs.append(hogArray)
             hogIms.append(hogArray)
         else:
-            hogArray = feature.hog(colorIm_g, visualise=False)
+            hogArray = hog(colorIm_g, visualise=False)
             hogs.append(hogArray)
     
     if visualise:
