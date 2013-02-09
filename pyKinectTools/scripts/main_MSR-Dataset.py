@@ -1,4 +1,4 @@
-import cv, cv2
+import cv2
 import numpy as np
 import scipy.misc as sm
 import os, time

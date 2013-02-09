@@ -1,4 +1,4 @@
-import cv, cv2
+import cv2
 import numpy as np
 import scipy.misc as sm
 
@@ -47,7 +47,7 @@ def read_MSR_color_ims(color_file, resize=True):
 	'''
 
 	colorCapture = cv2.VideoCapture(color_file)
-	framecount = int(colorCapture.get(cv.CV_CAP_PROP_FRAME_COUNT))
+	framecount = int(colorCapture.get(cv2.cv.CV_CAP_PROP_FRAME_COUNT))
 	if resize:
 		colorIms = np.empty([framecount, 240, 320, 3], dtype=np.uint8)
 		rows, cols, depth = [240,320,3]
