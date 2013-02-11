@@ -36,9 +36,13 @@ def compute_features(name, vis=False, person_rez=[144,72]):
 	color_file = name + "rgb.avi"
 	skeleton_file = name + "skeleton.txt"
 	''' Read data from each video/sequence '''
-	depthIms, maskIms = read_MSR_depth_ims(depth_file)
-	colorIms = read_MSR_color_ims(color_file)
-	skels_world, skels_im = read_MSR_skeletons(skeleton_file)
+	try:
+		depthIms, maskIms = read_MSR_depth_ims(depth_file)
+		colorIms = read_MSR_color_ims(color_file)
+		skels_world, skels_im = read_MSR_skeletons(skeleton_file)
+	except:
+		print "Error reading data"
+		return -1
 
 	dataset_features = {'hog':[], 'hof':[], 'skel_image':[], 'skel_world':[]}
 	framecount = np.minimum(depthIms.shape[0], colorIms.shape[0])
@@ -127,9 +131,10 @@ def main_calculate_features():
 	try:
 		from joblib import Parallel, delayed
 		print "Computing with multiple threads"
-		data = Parallel(n_jobs=3)( delayed(compute_features)(n) for n in base_names )
+		data = Parallel(n_jobs=-1)( delayed(compute_features)(n) for n in base_names )
 		for n,i in zip(base_names, range(len(base_names))):
-			dataset_features[n] = data[i]
+			if data[i] != -1:
+				dataset_features[n] = data[i]
 	except:
 		print "Computing with single thread"
 		for n in base_names:
