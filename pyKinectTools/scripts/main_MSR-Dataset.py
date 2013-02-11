@@ -44,7 +44,7 @@ def compute_features(name, vis=False, person_rez=[144,72]):
 		print "Error reading data"
 		return -1
 
-	print depthIms.shape
+	print depthIms.shape, colorIms.shape
 	framecount = np.minimum(depthIms.shape[0], colorIms.shape[0])
 	dataset_features = {'framecount':framecount, 'hog':[], 'hof':[], 'skel_image':[], 'skel_world':[]}
 	grayIm_prev = None
