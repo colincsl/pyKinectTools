@@ -226,7 +226,6 @@ def main(deviceID, record, baseDir, frameDifferencePercent, getSkel, anonomize, 
 												maskName = None
 
 											''' Create folders if they doesn't exist '''
-											print depthDir
 											createDirectory(depthDir)
 											createDirectory(colorDir)
 											if getSkel:
