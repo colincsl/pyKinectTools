@@ -160,7 +160,7 @@ class RealTimeDevice:
         def stop(self):
             self.ctx.shutdown()
 
-        @profile
+        # @profile
         def update(self):
             # ret = self.ctx.wait_any_update_all()
             ret = self.ctx.wait_and_update_all()
