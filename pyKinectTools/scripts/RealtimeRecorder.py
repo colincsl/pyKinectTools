@@ -10,8 +10,8 @@ import cPickle as pickle
 
 # from multiprocessing import Pool, Process, Queue
 
-# DIR = '/Users/colin/Data/icu_test/'
-DIR = '/home/clea/Data/WICU_12Feb2012/'
+DIR = '/Users/colin/Data/icu_test/'
+# DIR = '/home/clea/Data/WICU_12Feb2012/'
 # DIR = '/media/Data/icu_test_color/'
 
 # DIR = '/media/Data/CV_class/'
@@ -20,6 +20,7 @@ DIR = '/home/clea/Data/WICU_12Feb2012/'
 # @profile
 def save_frame(depthName=None, depth=None, colorName=None, color=None, userName=None, users=None, maskName=None, mask=None):
 
+	print depthName
 	''' Depth '''
 	if depthName is not None:
 		im = Image.fromarray(depth.astype(np.int32), 'I')
@@ -34,7 +35,7 @@ def save_frame(depthName=None, depth=None, colorName=None, color=None, userName=
 	'''Color'''
 	if colorName is not None:
 		color = sm.imresize(color, [240,320,3], 'nearest')
-		# sm.imsave(colorName, color)
+		sm.imsave(colorName, color)
 
 	'''User'''
 	if userName is not None:
@@ -61,13 +62,12 @@ def main(deviceID, record, baseDir, frameDifferencePercent, getSkel, anonomize, 
 		min_fps
 		'''
 
-
 		'''------------ Setup Kinect ------------'''
 		''' Physical Kinect '''
 		depthDevice = RealTimeDevice(device=deviceID, getDepth=True, getColor=True, getSkel=getSkel)
 		depthDevice.start()
 
-		maxFramerate = 30	
+		maxFramerate = 30
 		minFramerate = min_fps
 		recentMotionTime = time.clock()
 		imgStoreCount = 100
@@ -282,7 +282,7 @@ if __name__ == "__main__":
 	parser = optparse.OptionParser(usage="Usage: python %prog [devID] [view toggle] [frameDifferencePercent]")
 	parser.add_option('-d', '--device', dest='dev', type='int', default=1, help='Device# (eg 1,2,3)')
 	parser.add_option('-v', '--view', dest='viz', action="store_true", default=False, help='View video while recording')	
-	parser.add_option('-f', '--framediff', type='int', dest='frameDiffPercent', default=4, help='Frame Difference percent for dynamic framerate capture')
+	parser.add_option('-f', '--framediff', type='int', dest='frameDiffPercent', default=3, help='Frame Difference percent for dynamic framerate capture')
 	parser.add_option('-s', '--skel', action="store_true", dest='skel', default=False, help='Turn on skeleton capture')
 	parser.add_option('-a', '--anonomize', dest='anonomize', action="store_true", default=False, help='Turn on anonomization')
 	parser.add_option('-i', '--dir', dest='dir', default=DIR, help='Save directory')
