@@ -18,7 +18,65 @@ from IPython import embed
 
 
 
-# def compute_skeletal_gradients()
+def visualize_data(name):
+	'''
+	'''
+
+	depth_file = name + "depth.bin"
+	color_file = name + "rgb.avi"
+	skeleton_file = name + "skeleton.txt"
+	''' Read data from each video/sequence '''
+	try:
+		depthIms, maskIms = read_MSR_depth_ims(depth_file)
+		colorIms = read_MSR_color_ims(color_file)
+		skels_world, skels_im = read_MSR_skeletons(skeleton_file)
+	except:
+		print "Error reading data"
+		return -1
+
+	framecount = np.minimum(depthIms.shape[0], colorIms.shape[0])
+
+	''' View all data'''
+	for frame in xrange(framecount):
+		depth = depthIms[frame]
+		mask = maskIms[frame] > 0
+		color = colorIms[frame]
+		# color = np.dstack([color[:,:,2],color[:,:,1],color[:,:,0]])
+		''' Skeleton in world (w) and image (i) coordinates '''
+		skel_w = skels_world[frame]
+		skel_i = world2depth(skel_w, rez=[240,320])
+
+		''' Calculate hogs '''
+		grayIm = (rgb2gray(color) * 255).astype(np.uint8)
+		person_mask, bounding_boxes, labels = extract_people(grayIm, mask>0)
+		rez = grayIm[bounding_boxes[0]].shape
+
+		''' Plot skeletons on color image'''
+		# color = color*(mask[:,:,None]==0)
+		# from pylab import *
+		# embed()
+
+		# blurIm = (grayIm*mask).astype(np.float)
+		# blurIm = color*mask[:,:,None]
+		# blurIm = cv2.GaussianBlur(color, (15,15), 10)
+		# blurIm = cv2.GaussianBlur(mask[:,:,None]*color, (9,9), 5)
+		# blurIm = cv2.blur(mask[:,:,None]*color, (5,5))
+		# cv2.imshow("b", blurIm/float(blurIm.max()))
+
+		''' Visualization '''
+		# color = display_MSR_skeletons(color, skel_i, color=(0,200,0))
+		# blurIm = display_MSR_skeletons(blurIm, skel_i, color=(0,200,0))
+		cv2.imshow("Depth", depth/float(depth.max()))
+		cv2.imshow("RGB", color)
+		# cv2.imshow("RGB_blur", color*(mask[:,:,None]==0) + blurIm*(mask[:,:,None]>0))
+		
+		# cv2.imshow("RGB masked", color*(mask[:,:,None]>0))
+
+		ret = cv2.waitKey(10)
+
+		if ret >= 0:
+			break
+
 
 
 def compute_features(name, vis=False, person_rez=[144,72]):
@@ -134,6 +192,7 @@ def main_calculate_features():
 	''' Compute features '''
 	start_time = time.time()
 	try:
+		x=s
 		from joblib import Parallel, delayed
 		print "Computing with multiple threads"
 		data = Parallel(n_jobs=-1)( delayed(compute_features)(n) for n in base_names )
@@ -143,7 +202,8 @@ def main_calculate_features():
 	except:
 		print "Computing with single thread"
 		for n in base_names:
-			dataset_features = compute_features(n, vis=False)
+			# dataset_features = compute_features(n, vis=True)
+			visualize_data(n)
 	print 'Total time:', time.time() - start_time			
 
 
@@ -287,11 +347,12 @@ def cross_validate_bow(filename):
 '''
 
 if __name__=="__main__":
+
 	if 1:
 		main_calculate_features()
-	elif 0:
+	if 0:
 		create_dictionaries()
-	else:
+	if 0:
 		create_back_of_words()
 
 

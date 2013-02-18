@@ -1,13 +1,22 @@
-depthMat = np.load('/home/clea/Desktop/TOF_person.npy')
-iters = 1
-centroid = []
-use_centroid = False
 import numpy as np
 import scipy.ndimage as nd
 import pyKinectTools.algs.Dijkstras as dgn
 
-def generateKeypoints(depthMat, iters=1, centroid=[], use_centroid=False):
+# depthMat = np.load('/home/clea/Desktop/TOF_person.npy')
+# iters = 1
+# centroid = []
+# use_centroid = False
 
+
+def generateKeypoints(depthMat, iters=1, draw_trails=False, centroid=[], use_centroid=False):
+	'''
+	---Parameters---
+	depth image
+	---Returns---
+	extrema : set of (u,v) points
+	allTrails :
+	distance_map :
+	'''
 	objSize = depthMat.shape
 
 	# Get discrete form of position/depth matrix
@@ -44,23 +53,21 @@ def generateKeypoints(depthMat, iters=1, centroid=[], use_centroid=False):
 	# Run dijkstras
 	for i in xrange(iters):
 
-		distsMat = np.zeros([objSize[0],objSize[1]], dtype=np.uint16)+32000	
+		distance_map = np.zeros([objSize[0],objSize[1]], dtype=np.uint16)+32000	
 		# Set starting point as zero weight
-		distsMat[startingPos[0], startingPos[1]] = 0
+		distance_map[startingPos[0], startingPos[1]] = 0
 
 		# Set which pixels are in/out of bounds
-		visitMat = np.zeros_like(distsMat, dtype=np.uint8)
-		visitMat[-mask] = 255
+		visited_map = np.zeros_like(distance_map, dtype=np.uint8)
+		visited_map[-mask] = 255
 
 		# Set previous trails as zero distance
 		for j in combinedTrail:
-			distsMat[j[0], j[1]] = 0
+			distance_map[j[0], j[1]] = 0
 
 		# Dijkstras!
-		trail = dgn.graph_dijkstras(distsMat, visitMat, depthMatDiscrete.astype(np.uint16), startingPos)
-
-		distsMat *= mask * (distsMat<32000)
-
+		trail = dgn.graph_dijkstras(distance_map, visited_map, depthMatDiscrete.astype(np.uint16), startingPos)
+		distance_map *= mask * (distance_map<32000)
 
 		# Add/merge trails		
 		allTrails.append(trail)
@@ -79,19 +86,20 @@ def generateKeypoints(depthMat, iters=1, centroid=[], use_centroid=False):
 		# print startingPos
 
 	# Create a union of all trails
-	if allTrails != []:
-		for trails_i in allTrails:
-			for i in trails_i:
-				if i[0] > 0 and i[1] > 0:
-					distsMat[i[0], i[1]] = distsMat.max()
+	if draw_trails:
+		if allTrails != []:
+			for trails_i in allTrails:
+				for i in trails_i:
+					if i[0] > 0 and i[1] > 0:
+						distance_map[i[0], i[1]] = distance_map.max()
 
-	# Show trail on image
-	for i in extrema:
-		distsMat[i[0]-3:i[0]+4, i[1]-3:i[1]+4] = distsMat.max()
+		# Show trail on image
+		for i in extrema:
+			distance_map[i[0]-3:i[0]+4, i[1]-3:i[1]+4] = distance_map.max()
 
 
 
-	return extrema, allTrails, distsMat
+	return extrema, allTrails, distance_map
 
 
 

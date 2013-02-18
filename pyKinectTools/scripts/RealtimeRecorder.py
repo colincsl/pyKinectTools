@@ -10,7 +10,7 @@ import cPickle as pickle
 
 # from multiprocessing import Pool, Process, Queue
 
-DIR = '/Users/colin/Data/icu_test/'
+DIR = '/Users/colin/Data/icu_test/0/'
 # DIR = '/home/clea/Data/WICU_12Feb2012/'
 # DIR = '/media/Data/icu_test_color/'
 
