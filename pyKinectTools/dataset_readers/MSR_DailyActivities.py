@@ -60,7 +60,7 @@ def read_MSR_color_ims(color_file, resize=True):
 			break
 
 		if resize:
-			color = sm.imresize(color, [rows, cols, 3], interp='nearest')
+			color = cv2.resize(color, (cols,rows))
 
 		colorIms[f] = color
 

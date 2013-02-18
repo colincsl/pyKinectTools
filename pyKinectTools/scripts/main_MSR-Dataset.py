@@ -44,7 +44,7 @@ def compute_features(name, vis=False, person_rez=[144,72]):
 		print "Error reading data"
 		return -1
 
-	print depthIms.shape, colorIms.shape
+	#print depthIms.shape, colorIms.shape
 	framecount = np.minimum(depthIms.shape[0], colorIms.shape[0])
 	dataset_features = {'framecount':framecount, 'hog':[], 'hof':[], 'skel_image':[], 'skel_world':[]}
 	grayIm_prev = None
@@ -65,10 +65,12 @@ def compute_features(name, vis=False, person_rez=[144,72]):
 		person_mask, bounding_boxes, labels = extract_people(grayIm, mask>0)
 		rez = grayIm[bounding_boxes[0]].shape
 
-		hog_input_im = sm.imresize(grayIm[bounding_boxes[0]], person_rez)
+		#hog_input_im = sm.imresize(grayIm[bounding_boxes[0]], person_rez)
+		hog_input_im = cv2.resize(grayIm[bounding_boxes[0]], (person_rez[1], person_rez[0]))
 		hogData, hogImBox = hog(hog_input_im, orientations=4, visualise=True)
 		
-		hogIm[bounding_boxes[0]] = sm.imresize(hogImBox, [rez[0],rez[1]])
+		#hogIm[bounding_boxes[0]] = sm.imresize(hogImBox, [rez[0],rez[1]])
+		hogIm[bounding_boxes[0]] = cv2.resize(hogImBox, (rez[1],rez[0]))
 		# hogIm[bounding_boxes[0]] = hogImBox
 		hogIm *= person_mask
 
@@ -82,11 +84,13 @@ def compute_features(name, vis=False, person_rez=[144,72]):
 			rez = flow.shape
 			bounding_boxes = (bounding_boxes[0][0], bounding_boxes[0][1], slice(0,2))
 
-			hof_input_im = np.dstack([sm.imresize(flow[0], [person_rez[0],person_rez[1]]),
-										sm.imresize(flow[1], [person_rez[0],person_rez[1]])])
+			#hof_input_im = np.dstack([sm.imresize(flow[0], [person_rez[0],person_rez[1]]),
+			#							sm.imresize(flow[1], [person_rez[0],person_rez[1]])])i
+			hof_input_im = np.dstack([cv2.resize(flow[0], (person_rez[1],person_rez[0])), cv2.resize(flow[1], (person_rez[1], person_rez[0]))])
 
 			hofData, hofImBox = hof(hof_input_im, orientations=5, visualise=True)
-			hofIm[bounding_boxes[:2]] = sm.imresize(hofImBox, [rez[0],rez[1]])
+			#hofIm[bounding_boxes[:2]] = sm.imresize(hofImBox, [rez[0],rez[1]])
+			hofIm[bounding_boxes[:2]] = cv2.resize(hogImBox, (rez[1],rez[0]))
 			hofIm *= person_mask
 		grayIm_prev = np.copy(grayIm)
 

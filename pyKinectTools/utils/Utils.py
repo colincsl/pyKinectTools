@@ -7,4 +7,4 @@ def createDirectory(new_dir):
 			try:
 					os.mkdir("/".join(new_dir.split('/')[0:p])) 
 			except:
-					print "error making dir"
+					print "error making dir", 

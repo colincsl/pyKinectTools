@@ -1,4 +1,4 @@
-from pylab import *
+#from pylab import *
 import numpy as np
 import cv2
 import cv2.cv as cv
@@ -347,8 +347,9 @@ def displaySkeleton_CV(img, skels):
 
 # jointsN = skelSetsTrain[0][0]['jointsCentered']
 
-from mpl_toolkits.mplot3d import Axes3D
+
 def displaySkeleton_3D(img, skels):
+    from mpl_toolkits.mplot3d import Axes3D
     fig = figure(7)
     ax = fig.add_subplot(111, projection='3d')
     tmp = [x for x in SKELETON]
