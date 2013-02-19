@@ -56,7 +56,9 @@ PARENTS = [P_HEAD, P_L_SHOULDER, P_L_ELBOW, P_L_HAND, P_R_SHOULDER, P_R_ELBOW, P
 from skimage.draw import circle, line
 def display_MSR_skeletons(img, skel, color=(200,0,0)):
     for j in skel:
-        cv2.circle(img, (j[0], j[1]), 5, color)
+        # Remove zero nodes
+        if not (j[0] == 0 and j[1] == 0):
+            cv2.circle(img, (j[0], j[1]), 5, color)
 
     cv2.circle(img, (skel[3,0], skel[3,1]), 15, color)
     connections = [
@@ -66,8 +68,12 @@ def display_MSR_skeletons(img, skel, color=(200,0,0)):
                     [0,12],[12,13],[13,14],[14,15], #Left foot
                     [0,16],[16,17],[17,18],[18,19]
                     ]
+
+
     for c in connections:
-        cv2.line(img, (skel[c[0],0], skel[c[0],1]), (skel[c[1],0], skel[c[1],1]), color, 2)
+        # Remove zero nodes
+        if not ( (skel[c[0],0]==0 and skel[c[0],1]==0) or (skel[c[1],0]==0 and skel[c[1],1]==0)):
+            cv2.line(img, (skel[c[0],0], skel[c[0],1]), (skel[c[1],0], skel[c[1],1]), color, 2)
 
     return img
 
