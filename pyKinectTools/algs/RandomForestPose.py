@@ -183,61 +183,63 @@ def main_learn():
 	'''
 
 	offsets_1, offsets_2 = create_rf_offsets()
-
-	name = 'a01_s01_e02_'
-	# name = 'a01_s02_e02_'
-	depth_file = name + "depth.bin"
-	color_file = name + "rgb.avi"
-	skeleton_file = name + "skeleton.txt"
-	''' Read data from each video/sequence '''
-	try:
-		depthIms, maskIms = read_MSR_depth_ims(depth_file)
-		depthIms *= maskIms
-		colorIms = read_MSR_color_ims(color_file)
-		skels_world, skels_im = read_MSR_skeletons(skeleton_file)
-	except:
-		print "Error reading data"
-		return
-
 	all_features = []
 	all_labels = []
-	# for i in xrange(len(depthIms)):
-	for i in xrange(0, len(depthIms), 5):
-		# try:
-		if 1:
-			''' Get frame data '''
-			im_depth = depthIms[i]
-			skel_pos = world2depth(skels_world[i], rez=[240,320])
 
-			''' Compute features and labels '''
-			# im_labels = get_per_pixel_joints(im_depth, skel_pos)
-			im_labels = get_per_pixel_joints_circular(im_depth, skel_pos, radius=10)
-			im_labels[(im_depth>0)*(im_labels==255)] = 25
-			mask = (im_labels<255)
-			pixel_loc = np.nonzero(mask)
-			pixel_labels = im_labels[pixel_loc]	
-			# im_depth[im_depth==0] = 2000
-			features = calculate_rf_features(im_depth, offsets_1, offsets_2)
-			# features = calculate_rf_features(im_depth, offsets_1, offsets_2, mask=mask)
+	# names = ['a01_s01_e02_']
+	names = ['a01_s01_e01_', 'a01_s02_e01_', 'a01_s03_e01_', 'a01_s04_e01_',
+			'a01_s05_e01_', 'a01_s06_e01_', 'a01_s07_e01_',
+			'a01_s08_e01_', 'a01_s09_e01_', 'a01_s10_e01_']
 
-			print i, len(pixel_loc[0]), "Pixels"
-			all_features += [features]
-			all_labels += [pixel_labels]
+	for name in names:
+		depth_file = name + "depth.bin"
+		color_file = name + "rgb.avi"
+		skeleton_file = name + "skeleton.txt"
+		''' Read data from each video/sequence '''
+		try:
+			depthIms, maskIms = read_MSR_depth_ims(depth_file)
+			depthIms *= maskIms
+			colorIms = read_MSR_color_ims(color_file)
+			skels_world, skels_im = read_MSR_skeletons(skeleton_file)
+		except:
+			print "Error reading data"
+			return
 
-			# from pylab import *
-			# embed()
-			''' Visualize '''
-			if 0:
-				im_labels = np.repeat(im_labels[:,:,None], 3, -1)
-				im_labels = display_MSR_skeletons(im_labels, skel_pos, (20,))
-				cv2.imshow("feature_space", im_labels/im_labels.max().astype(np.float))
-				ret = cv2.waitKey(10)
-				if ret > 0: break
-		# except:
-			# print "Frame failed:", i
-			# break
+		# for i in xrange(len(depthIms)):
+		for i in xrange(0, len(depthIms), 10):
+			# try:
+			if 1:
+				''' Get frame data '''
+				im_depth = depthIms[i]
+				skel_pos = world2depth(skels_world[i], rez=[240,320])
 
+				''' Compute features and labels '''
+				# im_labels = get_per_pixel_joints(im_depth, skel_pos)
+				im_labels = get_per_pixel_joints_circular(im_depth, skel_pos, radius=10)
+				im_labels[(im_depth>0)*(im_labels==255)] = 25
+				mask = (im_labels<255)
+				pixel_loc = np.nonzero(mask)
+				pixel_labels = im_labels[pixel_loc]	
+				# im_depth[im_depth==0] = 2000
+				features = calculate_rf_features(im_depth, offsets_1, offsets_2)
+				# features = calculate_rf_features(im_depth, offsets_1, offsets_2, mask=mask)
 
+				print i, len(pixel_loc[0]), "Pixels"
+				all_features += [features]
+				all_labels += [pixel_labels]
+
+				# from pylab import *
+				# embed()
+				''' Visualize '''
+				if 0:
+					im_labels = np.repeat(im_labels[:,:,None], 3, -1)
+					im_labels = display_MSR_skeletons(im_labels, skel_pos, (20,))
+					cv2.imshow("feature_space", im_labels/im_labels.max().astype(np.float))
+					ret = cv2.waitKey(10)
+					if ret > 0: break
+			# except:
+				# print "Frame failed:", i
+				# break
 	
 	all_features = np.vstack(all_features)
 	all_labels = np.hstack(all_labels)
@@ -256,7 +258,7 @@ def main_learn():
 
 	save_data("../Saved_Params/"+str(time.time())+"_forests.dat", {'rf':rf, 'offsets':[offsets_1, offsets_2]})
 
-	embed()
+	# embed()
 
 
 
@@ -286,7 +288,6 @@ def main_infer(rf_name=None):
 	# offsets_1, offsets_2 = create_rf_offsets(feature_count=60)
 
 	name = 'a01_s01_e02_'
-	# name = 'a01_s02_e02_'
 	depth_file = name + "depth.bin"
 	color_file = name + "rgb.avi"
 	skeleton_file = name + "skeleton.txt"
@@ -304,7 +305,7 @@ def main_infer(rf_name=None):
 	all_pred_ims = []
 	# for i in xrange(len(depthIms)):
 	# for i in xrange(20):
-	for i in xrange(0, len(depthIms), 10):
+	for i in xrange(5, len(depthIms), 10):
 		# try:
 		if 1:
 			print i
@@ -353,7 +354,7 @@ def main_infer(rf_name=None):
 			all_pred_ims += [im_predict]
 
 			''' Visualize '''
-			if 0:				
+			if 1:				
 				# imshow((im_predict * (im_predict < 255)) / float(max_))				
 				# cv2.imshow("distances", (im_depth-im_depth.min()) / float(im_depth.max()-im_depth.min()))
 				cv2.imshow("prediction", im_predict/im_predict.max().astype(np.float))
