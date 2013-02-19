@@ -2,10 +2,47 @@ import numpy as np
 import scipy.ndimage as nd
 import pyKinectTools.algs.Dijkstras as dgn
 
-# depthMat = np.load('/home/clea/Desktop/TOF_person.npy')
-# iters = 1
-# centroid = []
-# use_centroid = False
+
+def distance_map(im_depth, centroid):
+	'''
+	---Parameters---
+	im_depth : 
+	centroid : 
+	---Returns---
+	distance_map
+	'''
+	objSize = im_depth.shape
+	max_value = 32000
+	mask = im_depth > 0
+
+	# Get discrete form of position/depth matrix
+	depth_min = im_depth[mask].min()
+	depth_max = im_depth[mask].max()
+	depth_diff = depth_max - depth_min
+	scale_to = 10000. / depth_diff	
+
+	# Scale depth image
+	im_depth_scaled = np.ascontiguousarray(np.array( (im_depth-depth_min)*scale_to, dtype=np.uint16))
+	im_depth_scaled *= mask
+
+	# Scale part of depth image
+	# im_depth_scaled = np.array(im_depth, copy=True)
+	# im_depth_scaled[mask] = np.ascontiguousarray(np.array( (im_depth[mask]-depth_min)*scale_to, dtype=np.uint16))
+
+	# Initialize all but starting point as max
+	distance_map = np.zeros([objSize[0],objSize[1]], dtype=np.uint16)+max_value	
+	distance_map[centroid[0], centroid[1]] = 0
+
+	# Set which pixels are in/out of bounds
+	visited_map = np.zeros_like(distance_map, dtype=np.uint8)
+	visited_map[-mask] = 255
+
+	centroid = np.array(centroid, dtype=np.int16)
+	dgn.distance_map(distance_map, visited_map, im_depth_scaled.astype(np.uint16), centroid)
+
+	return distance_map.copy()
+
+
 
 
 def generateKeypoints(depthMat, iters=1, draw_trails=False, centroid=[], use_centroid=False):
@@ -21,16 +58,15 @@ def generateKeypoints(depthMat, iters=1, draw_trails=False, centroid=[], use_cen
 
 	# Get discrete form of position/depth matrix
 	if len(objSize) == 3:
-		depthMatMin = depthMat[depthMat[:,:,2]>0, 2].min()
-		depthMatMax = depthMat[:,:,2].max()
-		depthMatDiscrete = np.ascontiguousarray(np.array((1-(depthMat[:,:,2]-depthMatMin)/(depthMatMax-depthMatMin))*32000, dtype=np.uint16))
+		depth_min = depthMat[depthMat[:,:,2]>0, 2].min()
+		depth_max = depthMat[:,:,2].max()
+		depthMatDiscrete = np.ascontiguousarray(np.array((1-(depthMat[:,:,2]-depth_min)/(depth_max-depth_min))*32000, dtype=np.uint16))
 	else:
-		depthMatMin = depthMat[depthMat>0].min()# + 100
-		depthMatMax = depthMat[depthMat>0].max()
-		# depthMatDiscrete = np.ascontiguousarray(np.array((1-(depthMat-depthMatMin)/(depthMatMax-depthMatMin))*32000, dtype=np.uint16))
-		depthMatDiscrete = np.ascontiguousarray(np.array(((depthMat.astype(np.float)-depthMatMin)/(depthMatMax-depthMatMin).astype(np.float))*32000, dtype=np.uint16))
+		depth_min = depthMat[depthMat>0].min()# + 100
+		depth_max = depthMat[depthMat>0].max()
+		# depthMatDiscrete = np.ascontiguousarray(np.array((1-(depthMat-depth_min)/(depth_max-depth_min))*32000, dtype=np.uint16))
+		depthMatDiscrete = np.ascontiguousarray(np.array(((depthMat.astype(np.float)-depth_min)/(depth_max-depth_min).astype(np.float))*32000, dtype=np.uint16))
 
-	# mask = np.all(depthMat != 0, 2)
 	mask = depthMat > 0
 	depthMatDiscrete *= mask
 

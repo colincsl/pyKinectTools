@@ -192,7 +192,6 @@ def main_calculate_features():
 	''' Compute features '''
 	start_time = time.time()
 	try:
-		x=s
 		from joblib import Parallel, delayed
 		print "Computing with multiple threads"
 		data = Parallel(n_jobs=-1)( delayed(compute_features)(n) for n in base_names )

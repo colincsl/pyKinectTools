@@ -25,10 +25,10 @@ cdef inline void ind2dim(int ind, int current[2], int width, int height):
 cdef inline int dim2ind(int i, int j, int width, int height): 
 	return (i*width+j)
 
+# @cython.profile(True)
 @cython.boundscheck(False)
 @cython.wraparound(False)
 @cython.infer_types(True)
-# @cython.profile(True)
 cpdef inline list graph_dijkstras(cnp.ndarray[UINT16, ndim=2, mode="c"] distsMat, cnp.ndarray[UINT8, ndim=2, mode="c"] visitMat, cnp.ndarray[UINT16, ndim=2, mode="c"] depthMat, cnp.ndarray[INT16, ndim=1, mode="c"] current_):
 	'''
 	Inputs:
@@ -196,3 +196,111 @@ cpdef inline list graph_dijkstras(cnp.ndarray[UINT16, ndim=2, mode="c"] distsMat
 
 
 	return trailOut
+
+
+
+
+
+# @cython.profile(True)
+@cython.boundscheck(False)
+@cython.wraparound(False)
+@cython.infer_types(True)
+cpdef inline distance_map(cnp.ndarray[UINT16, ndim=2, mode="c"] distsMat, cnp.ndarray[UINT8, ndim=2, mode="c"] visitMat, cnp.ndarray[UINT16, ndim=2, mode="c"] depthMat, cnp.ndarray[INT16, ndim=1, mode="c"] current_):
+	'''
+	Inputs:
+		distsMat (uint16)
+		visitMat
+		depthMat
+		current_ : Starting point
+	Outputs:
+	'''
+
+	cdef int i, j, tmpX, tmpY
+	cdef int minGradient, argGradient, gradient
+	cdef int height = distsMat.shape[0]
+	cdef int width = distsMat.shape[1]
+
+	cdef int currentInd, tmpInd, currentCost
+	cdef int current[2]
+	current[0] = current_[0]
+	current[1] = current_[1]
+
+	cdef int TOUCHED=1, VISITED=254, OUTOFBOUNDS=255, MAXVALUE=32000
+	cdef int neighborsVisited
+	cdef int foundTouched
+
+	currentInd = dim2ind(current[0], current[1], width, height)
+
+	''' Set border to OUTOFBOUNDS '''
+	visitMat[0, :] = OUTOFBOUNDS	
+	visitMat[height-1:,] = OUTOFBOUNDS
+	visitMat[:,0] = OUTOFBOUNDS	
+	visitMat[:,width-1] = OUTOFBOUNDS
+
+
+	# print "A"
+	''' --- Main --- '''
+	''' Part 1: Get cost to each node from centroid '''
+	while(1):
+
+		if current[0] < 0 or current[0] > height or current[1] < 0 or current[1] > width:
+			break
+
+		currentCost = distsMat[current[0], current[1]]
+		visitMat[current[0],current[1]] = VISITED
+
+		# print current[0], current[1]
+		''' Update neighbors '''
+		minGradient = MAXVALUE
+		argGradient = -1
+		neighborsVisited = 0
+		for i in range(-1,2):
+			for j in range(-1,2):
+				if not (i == 0 and j == 0):
+					tmpInd = dim2ind(current[0]+i, current[1]+j, width, height)
+					''' Only look at nodes that havent' been visited (that are in bounds) '''
+					if visitMat[current[0]+i, current[1]+j] < VISITED:
+						gradient = abs( depthMat[current[0]+i,current[1]+j] - depthMat[current[0],current[1]] )
+
+						distsMat[current[0]+i, current[1]+j] = int_min(distsMat[current[0]+i,current[1]+j], currentCost + gradient + 1)
+						visitMat[current[0]+i, current[1]+j] = int_max(visitMat[current[0]+i,current[1]+j], TOUCHED)
+
+						if visitMat[current[0]+i, current[1]+j] < VISITED:
+							if gradient < minGradient:
+								minGradient = gradient
+								argGradient = tmpInd
+
+						''' Mark if previously visited or if out of bounds '''
+						if visitMat[current[0]+i, current[1]+j] >= VISITED:
+							neighborsVisited += 1
+
+		''' If all neighbors have been visited, shift to new touched spot '''
+		if neighborsVisited < 8 and argGradient >= 0:
+			''' This means not all neighbors have been touched '''
+			currentInd = argGradient
+			ind2dim(currentInd, current, width, height)
+		else:
+			''' If all neighbors have been touched... '''
+			tmpX = 0
+			foundTouched = 0
+			while (tmpX < width-1 and foundTouched==0):
+				tmpY = 0
+				while (tmpY  < height-1 and foundTouched==0):
+					tmpInd = dim2ind(tmpY, tmpX, width, height)
+
+					if visitMat[tmpY, tmpX] == TOUCHED:
+						currentInd = tmpInd
+						ind2dim(currentInd, current, width, height)
+						foundTouched = 1
+						break
+					tmpY += 1
+				tmpX += 1
+
+			'''If no more open spots'''
+			if foundTouched == 0:
+				break
+
+
+	# print "End"
+
+	return
