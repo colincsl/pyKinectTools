@@ -181,7 +181,7 @@ def get_per_pixel_joints_circular(im_depth, skel_pos, radius=5):
 def main_learn():
 	'''
 	'''
-	
+
 	offsets_1, offsets_2 = create_rf_offsets()
 
 	name = 'a01_s01_e02_'
@@ -197,7 +197,7 @@ def main_learn():
 		skels_world, skels_im = read_MSR_skeletons(skeleton_file)
 	except:
 		print "Error reading data"
-
+		return
 
 	all_features = []
 	all_labels = []
@@ -227,7 +227,7 @@ def main_learn():
 			# from pylab import *
 			# embed()
 			''' Visualize '''
-			if 1:
+			if 0:
 				im_labels = np.repeat(im_labels[:,:,None], 3, -1)
 				im_labels = display_MSR_skeletons(im_labels, skel_pos, (20,))
 				cv2.imshow("feature_space", im_labels/im_labels.max().astype(np.float))
@@ -353,7 +353,7 @@ def main_infer(rf_name=None):
 			all_pred_ims += [im_predict]
 
 			''' Visualize '''
-			if 1:				
+			if 0:				
 				# imshow((im_predict * (im_predict < 255)) / float(max_))				
 				# cv2.imshow("distances", (im_depth-im_depth.min()) / float(im_depth.max()-im_depth.min()))
 				cv2.imshow("prediction", im_predict/im_predict.max().astype(np.float))
