@@ -90,7 +90,7 @@ cpdef inline list graph_dijkstras(cnp.ndarray[UINT16, ndim=2, mode="c"] distsMat
 					tmpInd = dim2ind(current[0]+i, current[1]+j, width, height)
 					''' Only look at nodes that havent' been visited (that are in bounds) '''
 					if visitMat_c[current[0]+i, current[1]+j] < VISITED:
-						gradient = abs( depthMat_c[current[0]+i,current[1]+j] - depthMat_c[current[0],current[1]] )
+						gradient = abs( depthMat_c[current[0]+i,current[1]+j] - depthMat_c[current[0],current[1]] ) + 1
 
 						distsMat_c[current[0]+i, current[1]+j] = int_min(distsMat_c[current[0]+i,current[1]+j], currentCost + gradient + 1)
 						visitMat_c[current[0]+i, current[1]+j] = int_max(visitMat_c[current[0]+i,current[1]+j], TOUCHED)

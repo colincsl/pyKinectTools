@@ -3,7 +3,7 @@ import scipy.ndimage as nd
 import pyKinectTools.algs.Dijkstras as dgn
 
 
-def distance_map(im_depth, centroid):
+def distance_map(im, centroid, scale=1.0, edge_thresh=100):
 	'''
 	---Parameters---
 	im_depth : 
@@ -11,15 +11,20 @@ def distance_map(im_depth, centroid):
 	---Returns---
 	distance_map
 	'''
+	im_depth = im.copy()
 	objSize = im_depth.shape
 	max_value = 32000
 	mask = im_depth > 0
+
+	gradients = np.gradient(im_depth)
+	mag = np.sqrt(gradients[0]**2+gradients[1]**2)
+	im_depth[mag>edge_thresh] = 0
 
 	# Get discrete form of position/depth matrix
 	depth_min = im_depth[mask].min()
 	depth_max = im_depth[mask].max()
 	depth_diff = depth_max - depth_min
-	scale_to = 10000. / depth_diff	
+	scale_to = scale / depth_diff	
 
 	# Scale depth image
 	im_depth_scaled = np.ascontiguousarray(np.array( (im_depth-depth_min)*scale_to, dtype=np.uint16))

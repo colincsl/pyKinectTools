@@ -35,15 +35,19 @@ from pyKinectTools.utils.SkeletonUtils import display_MSR_skeletons
 from pyKinectTools.utils.DepthUtils import world2depth
 from pyKinectTools.dataset_readers.MSR_DailyActivities import read_MSR_depth_ims, read_MSR_color_ims, read_MSR_skeletons, read_MSR_labels
 from pyKinectTools.algs.BackgroundSubtraction import extract_people
+from pyKinectTools.algs.MeanShift import mean_shift
 from pyKinectTools.algs.GeodesicSkeleton import generateKeypoints, distance_map
 from pyKinectTools.utils.VideoViewer import VideoViewer
 
 from IPython import embed
+from pylab import *
 # vv = VideoViewer()
 
 
 N_MSR_JOINTS = 20
-SKEL_JOINTS = [0, 2, 3, 4, 5, 6, 8, 9, 10, 13, 15, 17, 19]
+MSR_JOINTS = range(N_MSR_JOINTS)
+# SKEL_JOINTS = [0, 2, 3, 4, 5, 7, 8, 9, 11, 13, 15, 17, 19]
+SKEL_JOINTS = [0, 1, 2, 3, 4, 5, 7, 8, 9, 11, 13, 15, 17, 19]
 # SKEL_JOINTS = [0, 2, 3, 4, 5, 6, 8, 9, 10, 12, 13, 15, 16, 17, 19]
 N_SKEL_JOINTS = len(SKEL_JOINTS)
 
@@ -70,7 +74,7 @@ def calculate_rf_features(im, offsets_1, offsets_2, mask=None):
 	'''
 
 	if mask is None:
-		mask = np.ones_like(im)
+		mask = 1
 
 	# Get u,v positions for each pixel location
 	pixels = np.nonzero((im*mask) > 0)
@@ -90,6 +94,7 @@ def calculate_rf_features(im, offsets_1, offsets_2, mask=None):
 	For each index get the feature offsets
 			f(u) = depth(u + offset_1/depth(u)) - depth(u + offset_2/depth(u))
 	'''
+	im[im==0] = 20000
 	for i in xrange(n_features):
 		# Find offsets for whole image
 		dx = pixels + offsets_1[i]/(depths[:,None]/1000.)
@@ -111,71 +116,84 @@ def calculate_rf_features(im, offsets_1, offsets_2, mask=None):
 		diffy = im[dy[:,0],dy[:,1]]
 
 		diff = diffx-diffy
-		diff[out_of_bounds_y] = 2000
-		diff[out_of_bounds_x] = 2000
-		# output[:,i] = np.abs(diff)
+		diff[out_of_bounds_y] = 20000
+		diff[out_of_bounds_x] = 20000
 		output[:,i] = diff
 
+	im[im==20000] = 0
 	return output
 
-def get_per_pixel_joints(im_depth, skel_pos):
+def get_per_pixel_joints(im_depth, skel_pos, alg='geodesic', radius=5):
 	'''
 	Find the closest joint to each pixel using geodesic distances.
-
+	---Paramaters---
 	im_depth : should be masked depth image
 	skel_pos : 
+	alg : 'geodesic' or 'circular'
+	radius : [only for circular]
 	'''
 	height, width = im_depth.shape
 	distance_ims = []
+	distance_ims = np.empty([height, width, N_SKEL_JOINTS])
 	# Only look at major joints
-	for i in SKEL_JOINTS:	
+	for i, j in zip(SKEL_JOINTS, range(N_SKEL_JOINTS)):
 		pos = skel_pos[i]
-		''' It's a little faster if you only look at the body'''
-		_, bounding_box, n_boxes = extract_people(im_depth, im_depth > 0)
-		bounding_box = bounding_box[0]
-		corner = bounding_box[0]
-		bb_dims = [bounding_box[0].stop-bounding_box[0].start, bounding_box[1].stop-bounding_box[1].start]
-		x = np.maximum(np.minimum(pos[1]-bounding_box[0].start, bb_dims[0]-1), 0)
-		y = np.maximum(np.minimum(pos[0]-bounding_box[1].start, bb_dims[1]-1), 0)		
-		im_dist = distance_map(im_depth[bounding_box], centroid=[x,y])
 
-		''' Without bounding box '''
-		# x = np.maximum(np.minimum(pos[1], height-1), 0)
-		# y = np.maximum(np.minimum(pos[0], width-1), 0)
-		# im_dist = distance_map(im_depth, centroid=[x,y])
-		
-		distance_ims += [im_dist.copy()]
+		if alg == 'geodesic':
+			# Get bounding box -- this is faster than whole image
+			# _, bounding_box, n_boxes = extract_people(im_depth, im_depth > 0)
+			# bounding_box = bounding_box[0]
+			# corner = bounding_box[0]
+			# bb_dims = [bounding_box[0].stop-bounding_box[0].start, bounding_box[1].stop-bounding_box[1].start]
+			# Get distance map
+			# x = np.maximum(np.minimum(pos[1]-bounding_box[0].start, bb_dims[0]-1), 0)
+			# y = np.maximum(np.minimum(pos[0]-bounding_box[1].start, bb_dims[1]-1), 0)		
+			# print 'a'
+			# im_dist = distance_map(im_depth[bounding_box], centroid=[x,y]).copy()
 
-	closest_pos = np.argmin(distance_ims, 0).astype(np.uint8)
-	#Change all background pixels
-	closest_pos[im_depth==0] = 255
+			x = np.maximum(np.minimum(pos[1], height-1), 0)
+			y = np.maximum(np.minimum(pos[0], width-1), 0)		
+			im_dist = distance_map(im_depth, centroid=[x,y], scale=30.0)
 
-	return closest_pos
+			distance_ims[:,:,j] = im_dist.copy()
+			# print 'c'
 
-def get_per_pixel_joints_circular(im_depth, skel_pos, radius=5):
-	'''
-	Find the closest joint to each pixel using geodesic distances.
+			if 0:
+				from skimage.draw import circle
+				radius = 5
+				x = np.maximum(np.minimum(pos[1], height-1-radius), radius)
+				y = np.maximum(np.minimum(pos[0], width-1-radius), radius)
+				# print x,y
+				pts = circle(x,y, radius)
+				# print pts[0]
+				max_ = distance_ims[distance_ims[:,:,j]!=32000, j].max()
+				distance_ims[distance_ims[:,:,j]==32000,j] = max_+100
+				distance_ims[pts[0],pts[1],j] = max_+100
+				figure(j)
+				imshow(distance_ims[:,:,j])
 
-	im_depth : should be masked depth image
-	skel_pos : 
-	'''
+		elif alg == 'circular':
+			x = np.maximum(np.minimum(pos[1], height-1-radius), radius)
+			y = np.maximum(np.minimum(pos[0], width-1-radius), radius)
+			pts = draw.circle(x,y, radius)
+			closest_pos[pts] = i
+
+		else:
+			print "No algorithm type in 'get_per_pixel_joints'"
+
+
+	if alg == 'geodesic':
+		closest_pos = np.argmin(distance_ims, -1).astype(np.uint8)
+		# closest_pos[bounding_box] = np.argmin(distance_ims, 0).astype(np.uint8)
+	elif alg == 'circular':
+		closest_pos = np.zeros_like(im_depth)
 	
-	height, width = im_depth.shape
-	closest_pos = np.zeros_like(im_depth, dtype=np.uint8)+255
-	# Only look at major joints
-	for i in SKEL_JOINTS:	
-		pos = skel_pos[i]
-		x = np.maximum(np.minimum(pos[1], height-1-radius), radius)
-
-		''' --- NOTE THIS 10 PX OFFSET IN THE MSR DATASET !!! --- '''
-		y = np.maximum(np.minimum(pos[0]-10, width-1-radius), radius)
-
-		pts = draw.circle(x,y, radius)
-		closest_pos[pts] = i
-
-	closest_pos[im_depth==0] = 255
-
-	return closest_pos	
+	#Change all background pixels
+	closest_pos[im_depth==0] = N_SKEL_JOINTS+1
+	# figure(100)
+	# imshow(closest_pos)
+	# embed()
+	return closest_pos
 
 
 def main_learn():
@@ -186,10 +204,12 @@ def main_learn():
 	all_features = []
 	all_labels = []
 
-	# names = ['a01_s01_e02_']
-	names = ['a01_s01_e01_', 'a01_s02_e01_', 'a01_s03_e01_', 'a01_s04_e01_',
-			'a01_s05_e01_', 'a01_s06_e01_', 'a01_s07_e01_',
-			'a01_s08_e01_', 'a01_s09_e01_', 'a01_s10_e01_']
+	# names = ['a01_s01_e02_', 'a01_s02_e02_']
+	# names = ['a01_s01_e02_', 'a01_s02_e02_', 'a01_s03_e02_', 'a01_s04_e02_']
+
+	names = ['a01_s01_e02_', 'a01_s02_e01_', 'a01_s03_e01_', 'a01_s04_e01_',
+			'a01_s05_e02_', 'a01_s06_e02_', 'a01_s07_e02_',
+			'a01_s08_e02_', 'a01_s09_e02_', 'a01_s10_e02_']
 
 	for name in names:
 		depth_file = name + "depth.bin"
@@ -200,46 +220,52 @@ def main_learn():
 			depthIms, maskIms = read_MSR_depth_ims(depth_file)
 			depthIms *= maskIms
 			colorIms = read_MSR_color_ims(color_file)
-			skels_world, skels_im = read_MSR_skeletons(skeleton_file)
+			skels_world, _ = read_MSR_skeletons(skeleton_file)
 		except:
 			print "Error reading data"
-			return
+			continue
 
 		# for i in xrange(len(depthIms)):
-		for i in xrange(0, len(depthIms), 10):
+		for i in xrange(0, len(depthIms), 20):
 			# try:
 			if 1:
 				''' Get frame data '''
 				im_depth = depthIms[i]
 				skel_pos = world2depth(skels_world[i], rez=[240,320])
-
+				''' --- NOTE THIS 10 PX OFFSET IN THE MSR DATASET !!! --- '''
+				skel_pos[:,0] -= 10
+				# embed()
 				''' Compute features and labels '''
-				# im_labels = get_per_pixel_joints(im_depth, skel_pos)
-				im_labels = get_per_pixel_joints_circular(im_depth, skel_pos, radius=10)
+				im_labels = get_per_pixel_joints(im_depth, skel_pos, 'geodesic')
+				# im_labels = get_per_pixel_joints(im_depth, skel_pos, 'circular', radius=10)
 				im_labels[(im_depth>0)*(im_labels==255)] = 25
-				mask = (im_labels<255)
+				mask = (im_labels<N_SKEL_JOINTS+1)
 				pixel_loc = np.nonzero(mask)
 				pixel_labels = im_labels[pixel_loc]	
 				# im_depth[im_depth==0] = 2000
-				features = calculate_rf_features(im_depth, offsets_1, offsets_2)
-				# features = calculate_rf_features(im_depth, offsets_1, offsets_2, mask=mask)
+				# features = calculate_rf_features(im_depth, offsets_1, offsets_2)
+				features = calculate_rf_features(im_depth, offsets_1, offsets_2, mask=mask)
 
 				print i, len(pixel_loc[0]), "Pixels"
 				all_features += [features]
 				all_labels += [pixel_labels]
 
-				# from pylab import *
 				# embed()
 				''' Visualize '''
 				if 0:
 					im_labels = np.repeat(im_labels[:,:,None], 3, -1)
-					im_labels = display_MSR_skeletons(im_labels, skel_pos, (20,))
+					im_labels = display_MSR_skeletons(im_labels, skel_pos, (20,), skel_type='Low')
+					cv2.putText(im_labels, "Blue=Truth", (10, 210), cv2.FONT_HERSHEY_DUPLEX, .5, (int(im_labels.max()/2), 0, 0))
+					cv2.putText(im_labels, "Green=Predict", (10, 230), cv2.FONT_HERSHEY_DUPLEX, .5, (0, int(im_labels.max()/2), 0))					
 					cv2.imshow("feature_space", im_labels/im_labels.max().astype(np.float))
 					ret = cv2.waitKey(10)
 					if ret > 0: break
+
+					# embed()
 			# except:
 				# print "Frame failed:", i
 				# break
+		del depthIms, maskIms, colorIms, skels_world
 	
 	all_features = np.vstack(all_features)
 	all_labels = np.hstack(all_labels)
@@ -251,7 +277,7 @@ def main_learn():
 	  					oob_score=False,\
 	  					n_jobs=-1, 
 	  					random_state=None, 
-	  					verbose=0,\
+	  					verbose=1,\
 	  					min_samples_leaf=1)
 
 	rf.fit(all_features, all_labels)
@@ -285,9 +311,10 @@ def main_infer(rf_name=None):
 	data =  pickle.load(open(rf_name))
 	rf = data['rf']
 	offsets_1, offsets_2 = data['offsets']
-	# offsets_1, offsets_2 = create_rf_offsets(feature_count=60)
 
-	name = 'a01_s01_e02_'
+	# name = 'a01_s02_e02_'
+	name = 'a01_s07_e02_'
+	# name = 'a02_s01_e02_'
 	depth_file = name + "depth.bin"
 	color_file = name + "rgb.avi"
 	skeleton_file = name + "skeleton.txt"
@@ -304,40 +331,40 @@ def main_infer(rf_name=None):
 	# all_pred = []
 	all_pred_ims = []
 	# for i in xrange(len(depthIms)):
-	# for i in xrange(20):
-	for i in xrange(5, len(depthIms), 10):
+	for i in xrange(2, len(depthIms), 10):
 		# try:
 		if 1:
 			print i
 			''' Get frame data '''
 			im_depth = depthIms[i]
 			skel_pos = world2depth(skels_world[i], rez=[240,320])
+			''' --- NOTE THIS 10 PX OFFSET IN THE MSR DATASET !!! --- '''
+			skel_pos[:,0] -= 10
 
 			''' Compute features and labels '''
 			features = calculate_rf_features(im_depth, offsets_1, offsets_2)
-			# im_labels = get_per_pixel_joints(im_depth, skel_pos)
 			pixel_loc = np.nonzero(im_depth>0)
-			# pixel_labels = im_labels[pixel_loc]	
+			# im_labels = get_per_pixel_joints(im_depth, skel_pos)
+			# pixel_labels = im_labels[pixel_loc]
 
 			pred = rf.predict(features)
-			im_predict = np.ones_like(im_depth)+25
+			im_predict = np.ones_like(im_depth)+N_SKEL_JOINTS+1
 			im_predict[pixel_loc] = pred
-			# im_mean = quickshift(im_predict, ratio=1., convert2lab=False)
-			# im_mean *= im_depth > 0
 
 			pos_pred = []
 			from sklearn.cluster import MeanShift
 			for i in xrange(N_SKEL_JOINTS):
 				inds = np.nonzero(im_predict==i)
 				if len(inds[0])>0:
-					ms = MeanShift()
-					ms=MeanShift(bandwidth=50.0, bin_seeding=True, cluster_all=False)
-					ms.fit(np.array(inds).T)
-					pos_tmp = [ms.cluster_centers_[0].astype(np.int16)]
+
+					cluster_centers, cluster_counts = mean_shift(np.array(inds).T, 50, n_seeds=10, max_iterations=100)
+					max_cluster = np.argmax(cluster_counts)
+					pos_tmp = [cluster_centers[max_cluster].astype(np.int16)]
 					pos_pred += [[pos_tmp[0][1], pos_tmp[0][0]]]
 				else:
 					pos_pred += [[-1]]
 
+				# embed()
 			# pos_pred = np.vstack(pos_pred)
 			skel_pos_pred = np.zeros([N_MSR_JOINTS,2], dtype=np.int16)
 			for i in xrange(len(SKEL_JOINTS)):
@@ -347,16 +374,19 @@ def main_infer(rf_name=None):
 			# Overlay skeletons
 			if 1:
 				im_predict = np.repeat(im_predict[:,:,None], 3, -1)
-				im_predict = display_MSR_skeletons(im_predict, skel_pos, (20,))
-				im_predict = display_MSR_skeletons(im_predict, skel_pos_pred, (0,20,0))
+				im_predict = display_MSR_skeletons(im_predict, skel_pos, (20,), 'Upperbody')
+				im_predict = display_MSR_skeletons(im_predict, skel_pos_pred, (0,20,0), 'Upperbody')
 				max_ = (im_predict * (im_predict < 255)).max()
 
 			all_pred_ims += [im_predict]
 
 			''' Visualize '''
-			if 1:				
+			if 1:
+				# embed()
 				# imshow((im_predict * (im_predict < 255)) / float(max_))				
-				# cv2.imshow("distances", (im_depth-im_depth.min()) / float(im_depth.max()-im_depth.min()))
+				cv2.imshow("distances", (im_depth-im_depth.min()) / float(im_depth.max()-im_depth.min()))
+				cv2.putText(im_predict, "Blue=Truth", (10, 210), cv2.FONT_HERSHEY_DUPLEX, .5, (int(im_predict.max()/2), 0, 0))
+				cv2.putText(im_predict, "Green=Predict", (10, 230), cv2.FONT_HERSHEY_DUPLEX, .5, (0, int(im_predict.max()/2), 0))
 				cv2.imshow("prediction", im_predict/im_predict.max().astype(np.float))
 				# cv2.imshow("meanshift", im_mean/im_mean.max().astype(np.float))
 				ret = cv2.waitKey(10)
