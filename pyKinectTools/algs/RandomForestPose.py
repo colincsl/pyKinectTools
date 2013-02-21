@@ -204,12 +204,12 @@ def main_learn():
 	all_features = []
 	all_labels = []
 
-	names = ['a01_s01_e02_', 'a01_s02_e02_']
+	# names = ['a01_s01_e02_', 'a01_s02_e02_']
 	# names = ['a01_s01_e02_', 'a01_s02_e02_', 'a01_s03_e02_', 'a01_s04_e02_']
 
-	# names = ['a01_s01_e02_', 'a01_s02_e01_', 'a01_s03_e01_', 'a01_s04_e01_',
-	# 		'a01_s05_e02_', 'a01_s06_e02_', 'a01_s07_e02_',
-	# 		'a01_s08_e02_', 'a01_s09_e02_', 'a01_s10_e02_']
+	names = ['a01_s01_e02_', 'a01_s02_e01_', 'a01_s03_e01_', 'a01_s04_e01_',
+			'a01_s05_e02_', 'a01_s06_e02_', 'a01_s07_e02_',
+			'a01_s08_e02_', 'a01_s09_e02_', 'a01_s10_e02_']
 
 	for name in names:
 		depth_file = name + "depth.bin"
@@ -312,8 +312,8 @@ def main_infer(rf_name=None):
 	rf = data['rf']
 	offsets_1, offsets_2 = data['offsets']
 
-	# name = 'a01_s02_e02_'
-	name = 'a01_s07_e02_'
+	name = 'a01_s02_e02_'
+	# name = 'a01_s07_e02_'
 	# name = 'a02_s01_e02_'
 	depth_file = name + "depth.bin"
 	color_file = name + "rgb.avi"
@@ -331,7 +331,7 @@ def main_infer(rf_name=None):
 	# all_pred = []
 	all_pred_ims = []
 	# for i in xrange(len(depthIms)):
-	for i in xrange(2, len(depthIms), 10):
+	for i in xrange(2, len(depthIms), 3):
 		# try:
 		if 1:
 			print i
