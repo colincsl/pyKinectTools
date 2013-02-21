@@ -40,7 +40,7 @@ from pyKinectTools.algs.GeodesicSkeleton import generateKeypoints, distance_map
 from pyKinectTools.utils.VideoViewer import VideoViewer
 
 from IPython import embed
-from pylab import *
+# from pylab import *
 # vv = VideoViewer()
 
 
