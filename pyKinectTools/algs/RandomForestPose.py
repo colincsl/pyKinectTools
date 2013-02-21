@@ -204,12 +204,12 @@ def main_learn():
 	all_features = []
 	all_labels = []
 
-	# names = ['a01_s01_e02_', 'a01_s02_e02_']
+	names = ['a01_s01_e02_', 'a01_s02_e02_']
 	# names = ['a01_s01_e02_', 'a01_s02_e02_', 'a01_s03_e02_', 'a01_s04_e02_']
 
-	names = ['a01_s01_e02_', 'a01_s02_e01_', 'a01_s03_e01_', 'a01_s04_e01_',
-			'a01_s05_e02_', 'a01_s06_e02_', 'a01_s07_e02_',
-			'a01_s08_e02_', 'a01_s09_e02_', 'a01_s10_e02_']
+	# names = ['a01_s01_e02_', 'a01_s02_e01_', 'a01_s03_e01_', 'a01_s04_e01_',
+	# 		'a01_s05_e02_', 'a01_s06_e02_', 'a01_s07_e02_',
+	# 		'a01_s08_e02_', 'a01_s09_e02_', 'a01_s10_e02_']
 
 	for name in names:
 		depth_file = name + "depth.bin"
