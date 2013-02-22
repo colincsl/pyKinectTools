@@ -30,6 +30,7 @@ import scipy.misc as sm
 import cv2
 # from skimage.segmentation import quickshift
 from sklearn.ensemble import RandomForestClassifier as RFClassifier
+#from sklearn.ensemble import ExtraTreesClassifier as RFClassifier
 from skimage import draw
 from pyKinectTools.utils.SkeletonUtils import display_MSR_skeletons
 from pyKinectTools.utils.DepthUtils import world2depth
@@ -54,9 +55,10 @@ N_SKEL_JOINTS = len(SKEL_JOINTS)
 
 ''' ---------------- Learning ---------------- '''
 
-def create_rf_offsets(offset_max=250, feature_count=500, seed=0):
+def create_rf_offsets(offset_max=250, feature_count=100, seed=0):
 	'''
 	Defaults are the max offset variability and feature count shown in [PAMI].
+	feature_count should be 500
 
 	From [PAMI] Sec 3.1, the second offsets list is 0 with probability 0.5
 	'''
@@ -196,6 +198,90 @@ def get_per_pixel_joints(im_depth, skel_pos, alg='geodesic', radius=5):
 	return closest_pos
 
 
+
+def create_MSR_filenames(actions, subjects, positions):
+	'''
+	---Parameters---
+	actions : list of numbers 1-16
+	subjects: list of numbers 1-10
+	positions: list of numbers netween 1-2 (1=sitting, 2=standing)
+
+	---Returns---
+	list of filenames
+	'''
+
+	import itertools as it
+	filenames = []
+	indicies = [i for i in it.product(actions, subjects, positions)]
+	for i in indicies:
+		filenames += ["a{0:02d}_s{1:02d}_e{2:02d}_".format(i[0],i[1],i[2])]
+	
+	return filenames
+
+
+def learn_frame(name, offsets_1, offsets_2):
+	'''
+	'''
+	depth_file = name + "depth.bin"
+	color_file = name + "rgb.avi"
+	skeleton_file = name + "skeleton.txt"
+	''' Read data from each video/sequence '''
+	try:
+		depthIms, maskIms = read_MSR_depth_ims(depth_file)
+		depthIms *= maskIms
+		colorIms = read_MSR_color_ims(color_file)
+		skels_world, _ = read_MSR_skeletons(skeleton_file)
+	except:
+		print "Error getting frame features"
+		return -1,-1
+
+	all_features = []
+	all_labels = []
+	for i in xrange(0, len(depthIms), 25):
+		try:
+			''' Get frame data '''
+			im_depth = depthIms[i]
+			skel_pos = world2depth(skels_world[i], rez=[240,320])
+			''' --- NOTE THIS 10 PX OFFSET IN THE MSR DATASET !!! --- '''
+			skel_pos[:,0] -= 10
+			
+			''' Compute features and labels '''
+			im_labels = get_per_pixel_joints(im_depth, skel_pos, 'geodesic')
+			im_labels[(im_depth>0)*(im_labels==255)] = 25
+			mask = (im_labels<N_SKEL_JOINTS+1)
+			pixel_loc = np.nonzero(mask)
+			pixel_labels = im_labels[pixel_loc]	
+			features = calculate_rf_features(im_depth, offsets_1, offsets_2, mask=mask)
+
+			#print i, len(pixel_loc[0]), "Pixels"
+			all_features += [features]
+			all_labels += [pixel_labels]
+
+			''' Visualize '''
+			if 0:
+				im_labels = np.repeat(im_labels[:,:,None], 3, -1)
+				im_labels = display_MSR_skeletons(im_labels, skel_pos, (20,), skel_type='Low')
+				cv2.putText(im_labels, "Blue=Truth", (10, 210), cv2.FONT_HERSHEY_DUPLEX, .5, (int(im_labels.max()/2), 0, 0))
+				cv2.putText(im_labels, "Green=Predict", (10, 230), cv2.FONT_HERSHEY_DUPLEX, .5, (0, int(im_labels.max()/2), 0))					
+				cv2.imshow("feature_space", im_labels/im_labels.max().astype(np.float))
+				ret = cv2.waitKey(10)
+				if ret > 0: break
+
+		except:
+			print "Error computing frame feature"
+			pass
+
+	del depthIms, maskIms, colorIms, skels_world
+	print name, "Done"
+	return np.concatenate(all_features), np.concatenate(all_labels)
+
+# There is in issue extracting all the features at once
+def chunks(l, n):
+    ''' Yield successive n-sized chunks from l. '''
+    for i in xrange(0, len(l), n):
+        yield l[i:i+n]
+
+
 def main_learn():
 	'''
 	'''
@@ -204,73 +290,41 @@ def main_learn():
 	all_features = []
 	all_labels = []
 
-	# names = ['a01_s01_e02_', 'a01_s02_e02_']
-	# names = ['a01_s01_e02_', 'a01_s02_e02_', 'a01_s03_e02_', 'a01_s04_e02_']
+	names = create_MSR_filenames(np.arange(5)+1, np.arange(1)+1, [2])
 
-	names = ['a01_s01_e02_', 'a01_s02_e01_', 'a01_s03_e01_', 'a01_s04_e01_',
-			'a01_s05_e02_', 'a01_s06_e02_', 'a01_s07_e02_',
-			'a01_s08_e02_', 'a01_s09_e02_', 'a01_s10_e02_']
+	# Parallelize feature collection
+	try:
+		from joblib import Parallel, delayed
+		for n_set in chunks(names, 5):
+			print "Computing with multiple threads. Current feature count:", len(all_features)
+			'''
+			all_data = learn_frame(n_set[0], offsets_1, offsets_2)
+			#embed()
+			if all_features == []:
+				all_features = all_data[0]
+				all_labels = all_data[1]
+			else:
+				all_features = np.vstack([all_features, all_data[0]])
+				all_labels = np.hstack([all_labels, all_data[1]])
+			'''
 
-	for name in names:
-		depth_file = name + "depth.bin"
-		color_file = name + "rgb.avi"
-		skeleton_file = name + "skeleton.txt"
-		''' Read data from each video/sequence '''
-		try:
-			depthIms, maskIms = read_MSR_depth_ims(depth_file)
-			depthIms *= maskIms
-			colorIms = read_MSR_color_ims(color_file)
-			skels_world, _ = read_MSR_skeletons(skeleton_file)
-		except:
-			print "Error reading data"
-			continue
+			all_data = Parallel(n_jobs=-1, verbose=True, pre_dispatch=2)( delayed(learn_frame)(n, offsets_1, offsets_2) for n in n_set )
+			#embed()
+			all_features += [f[0] for f in all_data if f[0] is not -1]
+			all_labels += [f[1] for f in all_data if f[1] is not -1]
 
-		# for i in xrange(len(depthIms)):
-		for i in xrange(0, len(depthIms), 20):
-			# try:
-			if 1:
-				''' Get frame data '''
-				im_depth = depthIms[i]
-				skel_pos = world2depth(skels_world[i], rez=[240,320])
-				''' --- NOTE THIS 10 PX OFFSET IN THE MSR DATASET !!! --- '''
-				skel_pos[:,0] -= 10
-				# embed()
-				''' Compute features and labels '''
-				im_labels = get_per_pixel_joints(im_depth, skel_pos, 'geodesic')
-				# im_labels = get_per_pixel_joints(im_depth, skel_pos, 'circular', radius=10)
-				im_labels[(im_depth>0)*(im_labels==255)] = 25
-				mask = (im_labels<N_SKEL_JOINTS+1)
-				pixel_loc = np.nonzero(mask)
-				pixel_labels = im_labels[pixel_loc]	
-				# im_depth[im_depth==0] = 2000
-				# features = calculate_rf_features(im_depth, offsets_1, offsets_2)
-				features = calculate_rf_features(im_depth, offsets_1, offsets_2, mask=mask)
+			print "Done computing this set of features/labels"
 
-				print i, len(pixel_loc[0]), "Pixels"
-				all_features += [features]
-				all_labels += [pixel_labels]
+		print "Done computing all features/labels"
+	except:
+		print "Error computing features"
+		return
 
-				# embed()
-				''' Visualize '''
-				if 0:
-					im_labels = np.repeat(im_labels[:,:,None], 3, -1)
-					im_labels = display_MSR_skeletons(im_labels, skel_pos, (20,), skel_type='Low')
-					cv2.putText(im_labels, "Blue=Truth", (10, 210), cv2.FONT_HERSHEY_DUPLEX, .5, (int(im_labels.max()/2), 0, 0))
-					cv2.putText(im_labels, "Green=Predict", (10, 230), cv2.FONT_HERSHEY_DUPLEX, .5, (0, int(im_labels.max()/2), 0))					
-					cv2.imshow("feature_space", im_labels/im_labels.max().astype(np.float))
-					ret = cv2.waitKey(10)
-					if ret > 0: break
-
-					# embed()
-			# except:
-				# print "Frame failed:", i
-				# break
-		del depthIms, maskIms, colorIms, skels_world
-	
+	#embed()
 	all_features = np.vstack(all_features)
 	all_labels = np.hstack(all_labels)
-
-	rf = RFClassifier(n_estimators=3, 
+	print "Starting forest"
+	rf = RFClassifier(n_estimators=3,
 						criterion='entropy',\
 	 					max_depth=20, 
 	 					max_features='auto',\
