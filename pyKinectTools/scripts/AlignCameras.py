@@ -7,7 +7,8 @@ ICUDec2012 data:
  '''
 
 from pyKinectTools.utils.DepthUtils import *
-from scipy.misc import imread
+# from scipy.misc import imread
+from pylab import imread
 
 from mayavi import mlab
 from mayavi.api import Engine

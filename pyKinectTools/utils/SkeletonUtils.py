@@ -20,8 +20,9 @@ def display_MSR_skeletons(img, skel, color=(200,0,0), skel_type='MSR'):
                         [2, 4],[4,5],[5,6],[6,7], # Left arm
                         [2, 8],[8,9],[9,10],[10,11], # Right arm
                         [0,12],[12,13],[13,14],[14,15], #Left foot
-                        [0,16],[16,17],[17,18],[18,19]
+                        [0,16],[16,17],[17,18],[18,19] #Right foot
                         ]
+        head = 3
     elif skel_type == 'Low':
         joints = [0, 1, 2, 3, 4, 5, 7, 8, 9, 11, 13, 15, 17, 19]
         connections = [
@@ -31,6 +32,7 @@ def display_MSR_skeletons(img, skel, color=(200,0,0), skel_type='MSR'):
                         [0,13],[13,15], #Left foot
                         [0,17],[17,19]
                         ]
+        head = 3                        
     elif skel_type == 'Upperbody':
         joints = [0, 1, 2, 3, 4, 5, 7, 8, 9, 11]
         connections = [
@@ -38,6 +40,25 @@ def display_MSR_skeletons(img, skel, color=(200,0,0), skel_type='MSR'):
                         [2, 4],[4,5],[5,7], # Left arm
                         [2, 8],[8,9],[9,11], # Right arm
                         ]
+        head = 3
+    elif skel_type == 'Kinect':
+        joints = range(14)
+        connections = [
+                        [0,1], #Head to torso
+                        [2, 3],[3,4], # Left arm
+                        [4, 5],[5,6], # Right arm
+                        [1,7],[7,8],[8,9], #Left foot
+                        [1,10],[10,11],[11,12] #Right foot                        
+                        ]
+        head = 0
+    elif skel_type == 'Kinect_Upper':
+        joints = range(13)
+        connections = [
+                        [0,1], #Head to torso
+                        [2, 3],[3,4],[4,5], # Left arm
+                        [5, 6],[6,7],[7,8], # Right arm
+                        ]
+        head = 0
 
     for i in joints:
         j = skel[i]
@@ -46,8 +67,9 @@ def display_MSR_skeletons(img, skel, color=(200,0,0), skel_type='MSR'):
             cv2.circle(img, (j[0], j[1]), 5, color)
 
     # Make head a bigger node
-    cv2.circle(img, (skel[3,0], skel[3,1]), 15, color)
-
+    cv2.circle(img, (skel[head,0], skel[head,1]), 15, color)
+    # from IPython import embed
+    #embed()
     for c in connections:
         # Remove zero nodes
         if not ( (skel[c[0],0]==0 and skel[c[0],1]==0) or (skel[c[1],0]==0 and skel[c[1],1]==0)):

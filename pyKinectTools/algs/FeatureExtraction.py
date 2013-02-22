@@ -4,6 +4,7 @@ First half of this file is the old feature extraction stuff -- second half if th
 
 import os, time, sys
 import numpy as np
+import cv2
 
 from pyKinectTools.utils.DepthUtils import *
 
@@ -405,19 +406,19 @@ def calculateBasicPose(depthIm, mask):
 
 ''' -------------------------- Features Jan 2013 ---------------------'''
 
-
+from IPython import embed
 def plotUsers(image, users=None, flow=None, vis=True, device=2, backgroundModel=None, computeHog=True, computeLBP=False):
 
 	usersPlotted = 0
 	uvw = [-1]
+	ret = -1
 
 	bodyIndicies = [0, 5, 8] # See SkeletonUtils.py
 	hogs = []
 	for u in users.keys():
 		if users[u]['tracked']:
 			xyz = users[u]['com']
-			uvw = world2depth(xyz)
-
+			uvw = world2depth(np.array([xyz]))[0]
 			''' Only plot if there are valid coordinates (not [0,0,0])'''
 			if uvw[0] > 0:
 				if users[u]['tracked'] and len(users[u]['jointPositions'].keys()) > 0:
@@ -427,14 +428,15 @@ def plotUsers(image, users=None, flow=None, vis=True, device=2, backgroundModel=
 
 					'''Plot skeleton'''
 					if 1:
-						w = 3
-						for j in users[u]['jointPositions'].keys():
-							pt = world2depth(users[u]['jointPositions'][j])
-							image[pt[0]/2-w:pt[0]/2+w, pt[1]/2-w:pt[1]/2+w] = 4000                                                        
+						pts = [j for j in users[u]['jointPositions'].values()]
+						skel = world2depth(np.array(pts), [240,320])
+						#embed()
+						from pyKinectTools.utils.SkeletonUtils import display_MSR_skeletons
+						image = display_MSR_skeletons(image, skel, color=(100,0,0), skel_type='Kinect')
 
 					usersPlotted += 1
 
-	if vis and usersPlotted >= 0:
+	if 0 and vis and usersPlotted >= 0:
 		# Make sure windows open
 		cv2.namedWindow('Depth_'+str(device))
 		cv2.imshow('Depth_'+str(device), image.astype(np.float)/5000.0)
