@@ -1,6 +1,7 @@
 import cv2
 import numpy as np
 import scipy.misc as sm
+import itertools as it
 
 '''
 These functions read in the depth images, color images, and skeletons from the MSR Daily Activity dataset.
@@ -9,6 +10,23 @@ http://research.microsoft.com/en-us/um/people/zliu/ActionRecoRsrc/default.htm
 
 def read_MSR_labels():
 	return ['drink', 'eat', 'read book', 'call cellphone', 'write on a paper', 'use laptop', 'use vacuum cleaner', 'cheer up', 'sit still', 'toss paper', 'play game', 'lie down on sofa', 'walk', 'play guitar', 'stand up', 'sit down']
+
+
+def create_MSR_filenames(actions, subjects, positions):
+	'''
+	---Parameters---
+	actions : list of numbers 1-16
+	subjects: list of numbers 1-10
+	positions: list of numbers netween 1-2 (1=sitting, 2=standing)
+	---Returns---
+	list of filenames
+	'''
+	filenames = []
+	indicies = [i for i in it.product(actions, subjects, positions)]
+	for i in indicies:
+		filenames += ["a{0:02d}_s{1:02d}_e{2:02d}_".format(i[0],i[1],i[2])]
+	
+	return filenames
 
 def read_MSR_depth_ims(depth_file):
 	''' Extracts depth images and masks from the MSR Daily Activites dataset 

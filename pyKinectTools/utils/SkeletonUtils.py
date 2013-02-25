@@ -24,9 +24,11 @@ def display_MSR_skeletons(img, skel, color=(200,0,0), skel_type='MSR'):
                         ]
         head = 3
     elif skel_type == 'Low':
-        joints = [0, 1, 2, 3, 4, 5, 7, 8, 9, 11, 13, 15, 17, 19]
+        joints = [0, 2, 3, 4, 5, 7, 8, 9, 11, 13, 15, 17, 19]
+        # joints = [0, 1, 2, 3, 4, 5, 7, 8, 9, 11, 13, 15, 17, 19]
         connections = [
-                        [3, 2],[2,1],[1,0], #Head to torso
+                        [3, 2],[2,0], #Head to torso
+                        # [3, 2],[2,1],[1,0], #Head to torso
                         [2, 4],[4,5],[5,7], # Left arm
                         [2, 8],[8,9],[9,11], # Right arm
                         [0,13],[13,15], #Left foot
@@ -34,9 +36,11 @@ def display_MSR_skeletons(img, skel, color=(200,0,0), skel_type='MSR'):
                         ]
         head = 3                        
     elif skel_type == 'Upperbody':
+        joints = [0, 2, 3, 4, 5, 7, 8, 9, 11]
         joints = [0, 1, 2, 3, 4, 5, 7, 8, 9, 11]
         connections = [
-                        [3, 2],[2,1],[1,0], #Head to torso
+                        [3, 2],[2,0], #Head to torso
+                        # [3, 2],[2,1],#[1,0], #Head to torso
                         [2, 4],[4,5],[5,7], # Left arm
                         [2, 8],[8,9],[9,11], # Right arm
                         ]

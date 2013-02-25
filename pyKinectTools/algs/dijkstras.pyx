@@ -29,13 +29,18 @@ cdef inline int dim2ind(int i, int j, int width, int height):
 @cython.boundscheck(False)
 @cython.wraparound(False)
 @cython.infer_types(True)
-cpdef inline list graph_dijkstras(cnp.ndarray[UINT16, ndim=2, mode="c"] distsMat, cnp.ndarray[UINT8, ndim=2, mode="c"] visitMat, cnp.ndarray[UINT16, ndim=2, mode="c"] depthMat, cnp.ndarray[INT16, ndim=1, mode="c"] current_):
+cpdef inline list graph_dijkstras(cnp.ndarray[UINT16, ndim=2, mode="c"] distsMat, 
+							cnp.ndarray[UINT8, ndim=2, mode="c"] visitMat, 
+							cnp.ndarray[UINT16, ndim=2, mode="c"] depthMat, 
+							cnp.ndarray[INT16, ndim=1, mode="c"] current_, 
+							int xy_scale):
 	'''
 	Inputs:
 		distsMat (uint16)
 		visitMat
 		depthMat
 		current_ : Starting point
+		xy_scale : [used to compare depth and x/y values]
 	Outputs:
 	'''
 
@@ -90,9 +95,9 @@ cpdef inline list graph_dijkstras(cnp.ndarray[UINT16, ndim=2, mode="c"] distsMat
 					tmpInd = dim2ind(current[0]+i, current[1]+j, width, height)
 					''' Only look at nodes that havent' been visited (that are in bounds) '''
 					if visitMat_c[current[0]+i, current[1]+j] < VISITED:
-						gradient = abs( depthMat_c[current[0]+i,current[1]+j] - depthMat_c[current[0],current[1]] ) + 1
+						gradient = abs( depthMat_c[current[0]+i,current[1]+j] - depthMat_c[current[0],current[1]] ) + xy_scale # Add for distance to pixel
 
-						distsMat_c[current[0]+i, current[1]+j] = int_min(distsMat_c[current[0]+i,current[1]+j], currentCost + gradient + 1)
+						distsMat_c[current[0]+i, current[1]+j] = int_min(distsMat_c[current[0]+i,current[1]+j], currentCost + gradient)
 						visitMat_c[current[0]+i, current[1]+j] = int_max(visitMat_c[current[0]+i,current[1]+j], TOUCHED)
 
 						if visitMat_c[current[0]+i, current[1]+j] < VISITED:
@@ -205,13 +210,18 @@ cpdef inline list graph_dijkstras(cnp.ndarray[UINT16, ndim=2, mode="c"] distsMat
 @cython.boundscheck(False)
 @cython.wraparound(False)
 @cython.infer_types(True)
-cpdef inline distance_map(cnp.ndarray[UINT16, ndim=2, mode="c"] distsMat, cnp.ndarray[UINT8, ndim=2, mode="c"] visitMat, cnp.ndarray[UINT16, ndim=2, mode="c"] depthMat, cnp.ndarray[INT16, ndim=1, mode="c"] current_):
+cpdef inline distance_map(cnp.ndarray[UINT16, ndim=2, mode="c"] distsMat,
+							cnp.ndarray[UINT8, ndim=2, mode="c"] visitMat, 
+							cnp.ndarray[UINT16, ndim=2, mode="c"] depthMat, 
+							cnp.ndarray[INT16, ndim=1, mode="c"] current_,
+							int xy_scale):
 	'''
 	Inputs:
 		distsMat (uint16)
 		visitMat
 		depthMat
 		current_ : Starting point
+		xy_scale : [used to compare depth and x/y values]
 	Outputs:
 	'''
 
@@ -260,9 +270,9 @@ cpdef inline distance_map(cnp.ndarray[UINT16, ndim=2, mode="c"] distsMat, cnp.nd
 					tmpInd = dim2ind(current[0]+i, current[1]+j, width, height)
 					''' Only look at nodes that havent' been visited (that are in bounds) '''
 					if visitMat[current[0]+i, current[1]+j] < VISITED:
-						gradient = abs( depthMat[current[0]+i,current[1]+j] - depthMat[current[0],current[1]] )
+						gradient = abs( depthMat[current[0]+i,current[1]+j] - depthMat[current[0],current[1]] ) + xy_scale
 
-						distsMat[current[0]+i, current[1]+j] = int_min(distsMat[current[0]+i,current[1]+j], currentCost + gradient + 1)
+						distsMat[current[0]+i, current[1]+j] = int_min(distsMat[current[0]+i,current[1]+j], currentCost + gradient)
 						visitMat[current[0]+i, current[1]+j] = int_max(visitMat[current[0]+i,current[1]+j], TOUCHED)
 
 						if visitMat[current[0]+i, current[1]+j] < VISITED:
