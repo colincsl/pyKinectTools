@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 import scipy.misc as sm
 import os, time
-from pyKinectTools.utils.SkeletonUtils import display_MSR_skeletons
+from pyKinectTools.utils.SkeletonUtils import display_skeletons
 from pyKinectTools.utils.DepthUtils import world2depth
 from pyKinectTools.dataset_readers.MSR_DailyActivities import read_MSR_depth_ims, read_MSR_color_ims, read_MSR_skeletons, read_MSR_labels
 from pyKinectTools.algs.BackgroundSubtraction import extract_people
@@ -64,8 +64,8 @@ def visualize_data(name):
 		# cv2.imshow("b", blurIm/float(blurIm.max()))
 
 		''' Visualization '''
-		# color = display_MSR_skeletons(color, skel_i, color=(0,200,0))
-		# blurIm = display_MSR_skeletons(blurIm, skel_i, color=(0,200,0))
+		# color = display_skeletons(color, skel_i, color=(0,200,0))
+		# blurIm = display_skeletons(blurIm, skel_i, color=(0,200,0))
 		cv2.imshow("Depth", depth/float(depth.max()))
 		cv2.imshow("RGB", color)
 		# cv2.imshow("RGB_blur", color*(mask[:,:,None]==0) + blurIm*(mask[:,:,None]>0))
@@ -161,7 +161,7 @@ def compute_features(name, vis=False, person_rez=[144,72]):
 
 		''' Plot skeletons on color image'''
 		if vis:
-			color = display_MSR_skeletons(color, skel_i)
+			color = display_skeletons(color, skel_i)
 
 			''' Visualization '''
 			cv2.imshow("Depth", depth/float(depth.max()))

@@ -103,7 +103,7 @@ class Features:
 				vecs_out.append(vecs)
 
 				com_xyz_out.append(com)
-				com_uv = world2depth(np.array([com]))
+				com_uv = world2depth(np.array([com]), self.img.shape)
 				com_uv = com_uv.T[0]
 				com_out.append(com_uv)
 
@@ -125,7 +125,7 @@ class Features:
 				for i in xrange(-100*0, 100, 2):
 					spineLine.append(spineStart+spine*i)
 			spineLine = np.array(spineLine)
-			spineLine_xyd = np.array(world2depth(spineLine))
+			spineLine_xyd = np.array(world2depth(spineLine),self.img.shape)
 
 			if 0:
 				#Show 3d structure
@@ -407,43 +407,6 @@ def calculateBasicPose(depthIm, mask):
 ''' -------------------------- Features Jan 2013 ---------------------'''
 
 from IPython import embed
-def plotUsers(image, users=None, flow=None, vis=True, device=2, backgroundModel=None, computeHog=True, computeLBP=False):
-
-	usersPlotted = 0
-	uvw = [-1]
-	ret = -1
-
-	bodyIndicies = [0, 5, 8] # See SkeletonUtils.py
-	hogs = []
-	for u in users.keys():
-		if users[u]['tracked']:
-			xyz = users[u]['com']
-			uvw = world2depth(np.array([xyz]))[0]
-			''' Only plot if there are valid coordinates (not [0,0,0])'''
-			if uvw[0] > 0:
-				if users[u]['tracked'] and len(users[u]['jointPositions'].keys()) > 0:
-
-					'''Colorize COM'''
-					cv2.rectangle(image, tuple([uvw[1]/2-3, uvw[0]/2-3]), tuple([uvw[1]/2+3, uvw[0]/2+3]), (4000))
-
-					'''Plot skeleton'''
-					if 1:
-						pts = [j for j in users[u]['jointPositions'].values()]
-						skel = world2depth(np.array(pts), [240,320])
-						#embed()
-						from pyKinectTools.utils.SkeletonUtils import display_MSR_skeletons
-						image = display_MSR_skeletons(image, skel, color=(100,0,0), skel_type='Kinect')
-
-					usersPlotted += 1
-
-	if 0 and vis and usersPlotted >= 0:
-		# Make sure windows open
-		cv2.namedWindow('Depth_'+str(device))
-		cv2.imshow('Depth_'+str(device), image.astype(np.float)/5000.0)
-		ret = cv2.waitKey(10)
-
-	return ret
-
 
 
 
@@ -536,7 +499,7 @@ def computeFeaturesWithSkels(image, users=None, flow=None, device=2, computeHog=
 
 	for u in users.keys():
 		xyz = users[u]['com']
-		uvw = world2depth(xyz)
+		uvw = world2depth(xyz, image.shape)
 		hogs = []
 
 		# Only plot if there are valid coordinates (not [0,0,0])
@@ -544,7 +507,7 @@ def computeFeaturesWithSkels(image, users=None, flow=None, device=2, computeHog=
 
 			''' HOG at each Body positions '''
 			for i in bodyIndicies:
-				pt = world2depth(users[u]['jointPositions'][users[u]['jointPositions'].keys()[i]])
+				pt = world2depth(users[u]['jointPositions'][users[u]['jointPositions'].keys()[i]], image.shape)
 				uImg = image[pt[0]/2-textureSize[0]/2:pt[0]/2+textureSize[0]/2, (pt[1]/2-textureSize[1]/2):(pt[1]/2+textureSize[1]/2)]
 
 				if uImg.size == 0 or uImg.max()==0:

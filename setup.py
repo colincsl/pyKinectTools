@@ -14,7 +14,7 @@ from Cython.Distutils import build_ext
 import numpy as np
 
 ext_modules = [
-				Extension("pyKinectTools_algs_Dijkstras", ["pyKinectTools/algs/dijkstras.pyx"],),
+				Extension("pyKinectTools_algs_Dijkstras", ["pyKinectTools/algs/dijkstras.pyx"],language='c++'),
 				]
 # _Dijkstras
 # Extension("pyKinectTools.NeighborSuperpixels", ["pyKinectTools/algs/NeighborSuperpixels.pyx"])				

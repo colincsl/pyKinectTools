@@ -3,19 +3,81 @@ import numpy as np
 import cv2
 import cv2.cv as cv
 import time
+from pyKinectTools.utils.DepthUtils import skel2depth, depth2world, world2depth
 
+N_MSR_JOINTS = 20
+
+def transform_skels(skels, transformation, output='image'):
+    '''
+    ---Parameters---
+    skels : list of skeletons in frame 1
+    transformation : 4x4 transform from frame 1 to 2
+    output : 'image' or 'world' for either coordinate system
+    ---Result---
+    skels_out : skeletons in frame 2
+    '''
+    skels_out = []
+    for skel_c1 in skels:
+        if np.all(skel_c1 != -1):
+            skels_mask = skel_c1 == 0
+            # Convert to depth coordinate system
+            skel_c1 = depth2world(skel2depth(skel_c1, [240,320]), [240,320])
+            # Transform from cam1 -> cam2
+            skel_c2 = np.dot(transformation[:3,:3], skel_c1.T).T + transformation[:3,3]
+
+            if len(skel_c2) != N_MSR_JOINTS:
+                skel_c2 = kinect_to_msr_skel(skel_c2)
+
+            skel_c2[skels_mask] = 0
+
+            if output=='world':
+                skels_out += [skel_c2]
+            elif output=='image':
+                # Get skel in image (cam2) coordinates
+                skel_im2 = world2depth(skel_c2, [240,320])
+                skels_out += [skel_im2]
+
+
+    return skels_out
 
 
 # ----------------------------------------------------------------
+def kinect_to_msr_skel(skel):
+    # SKEL_JOINTS = [0, 2, 3, 4, 5, 7, 8, 9, 11, 13, 15, 17, 19] # Low 
+
+    skel_msr = np.zeros([N_MSR_JOINTS, 3])
+    skel_msr[3,:] = skel[0,:] #head
+    skel_msr[1,:] = skel[1,:] #torso
+    skel_msr[0,:] = skel[1,:] #torso
+    skel_msr[4,:] = skel[2,:] #l shoulder
+    skel_msr[5,:] = skel[3,:] #l elbow
+    skel_msr[7,:] = skel[4,:] #l hand
+    skel_msr[8,:] = skel[5,:] #r shoudler
+    skel_msr[9,:] = skel[6,:] #r elbow
+    skel_msr[11,:] = skel[7,:] #r hand
+    skel_msr[12,:] = skel[8,:] #l hip
+    skel_msr[13,:] = skel[9,:] #l knee
+    skel_msr[15,:] = skel[10,:] #l foot
+    skel_msr[16,:] = skel[11,:] #r hip
+    skel_msr[17,:] = skel[12,:] #r knee
+    skel_msr[19,:] = skel[13,:] #r foot
+
+    return skel_msr.astype(np.int16)
 
 from skimage.draw import circle, line
-def display_MSR_skeletons(img, skel, color=(200,0,0), skel_type='MSR'):
+def display_skeletons(img, skel, color=(200,0,0), skel_type='MSR'):
     '''
     skel_type : 'MSR' or 'Low' ##or 'Upperbody'
     '''
     if skel_type == 'MSR':
-        joints = range(20)
-        connections = [
+        joints = range(N_MSR_JOINTS)
+        joint_names = ['torso1', 'torso2', 'neck', 'head',
+                        'r_shoulder', 'r_elbow', 'r_wrist', 'r_hand',
+                         'l_shoulder', 'l_elbow', 'l_wrist', 'l_hand',
+                         'r_pelvis', 'r_knee', 'r_ankle', 'r_foot',
+                         'l_pelvis', 'l_knee', 'l_ankle', 'l_foot'
+                         ]
+        connections = [        
                         [3, 2],[2,1],[1,0], #Head to torso
                         [2, 4],[4,5],[5,6],[6,7], # Left arm
                         [2, 8],[8,9],[9,10],[10,11], # Right arm
@@ -24,39 +86,48 @@ def display_MSR_skeletons(img, skel, color=(200,0,0), skel_type='MSR'):
                         ]
         head = 3
     elif skel_type == 'Low':
-        joints = [0, 2, 3, 4, 5, 7, 8, 9, 11, 13, 15, 17, 19]
+        joints = [0, 3, 4, 5, 7, 8, 9, 11, 13, 15, 17, 19] # Low 
+        # joints = [0, 2, 3, 4, 5, 7, 8, 9, 11, 13, 15, 17, 19]
         # joints = [0, 1, 2, 3, 4, 5, 7, 8, 9, 11, 13, 15, 17, 19]
         connections = [
-                        [3, 2],[2,0], #Head to torso
+                        # [3, 2],[2,0], #Head to torso
+                        [3, 0], #Head to torso
                         # [3, 2],[2,1],[1,0], #Head to torso
-                        [2, 4],[4,5],[5,7], # Left arm
-                        [2, 8],[8,9],[9,11], # Right arm
+                        [4,8], #connect shoulders
+                        [0, 4],[4,5],[5,7], # Left arm
+                        [0, 8],[8,9],[9,11], # Right arm
                         [0,13],[13,15], #Left foot
                         [0,17],[17,19]
                         ]
         head = 3                        
     elif skel_type == 'Upperbody':
-        joints = [0, 2, 3, 4, 5, 7, 8, 9, 11]
-        joints = [0, 1, 2, 3, 4, 5, 7, 8, 9, 11]
+        joints = [0, 3, 4, 5, 7, 8, 9, 11]
+        # joints = [0, 1, 2, 3, 4, 5, 7, 8, 9, 11]
         connections = [
-                        [3, 2],[2,0], #Head to torso
-                        # [3, 2],[2,1],#[1,0], #Head to torso
-                        [2, 4],[4,5],[5,7], # Left arm
-                        [2, 8],[8,9],[9,11], # Right arm
+                        [3,0], #Head to torso
+                        [0, 4],[4,5],[5,7], # Left arm
+                        [4,8], #connect shoudlers
+                        [0, 8],[8,9],[9,11], # Right arm
                         ]
         head = 3
+
     elif skel_type == 'Kinect':
         joints = range(14)
         connections = [
                         [0,1], #Head to torso
-                        [2, 3],[3,4], # Left arm
-                        [4, 5],[5,6], # Right arm
-                        [1,7],[7,8],[8,9], #Left foot
-                        [1,10],[10,11],[11,12] #Right foot                        
-                        ]
+                        [1,2],[2,3],[3,4], # Left arm
+                        [2,5],# connect shoulders
+                        [1,5],[5,6],[6,7], # Right arm
+                        [1,8],[8,9],[9,10], #Left foot
+                        [1,11],[11,12],[12,13] #Right foot                        
+                        ] 
+        joint_names = ['head', 'torso', 'l_shoulder', 'l_elbow', 'l_hand',
+                    'r_shoulder', 'r_elbow', 'r_hand',
+                    'l_hip', 'l_knee', 'l_foot', 
+                    'r_hip', 'r_knee', 'r_foot']
         head = 0
     elif skel_type == 'Kinect_Upper':
-        joints = range(13)
+        joints = range(9)
         connections = [
                         [0,1], #Head to torso
                         [2, 3],[3,4],[4,5], # Left arm
@@ -82,389 +153,25 @@ def display_MSR_skeletons(img, skel, color=(200,0,0), skel_type='MSR'):
     return img
 
 
-''' ----- Old data ---- '''
+def plotUsers(image, users):
+    # embed()
+    # if type(users) == dict:
+        # users = [u for u in users.values()]
 
+    # for u in users:
+    # uvw = [-1]
+    for u in users.keys():
+        if users[u]['tracked']:
+            xyz = users[u]['com']
+            uvw = skel2depth(np.array([xyz]), image.shape)[0]
+            ''' Only plot if there are valid coordinates (not [0,0,0])'''
+            if uvw[0] > 0:
+                if users[u]['tracked'] and len(users[u]['jointPositions'].keys()) > 0:
 
-#ENUMS
-colors = 'kkkkkkrgkbkkrgkbkcmkycmkykkkkkk'
-S_HEAD      =1
-S_NECK      =2
-S_TORSO     =3
-S_L_SHOULDER    =6
-S_L_ELBOW   =7
-S_L_HAND        =9
-S_R_SHOULDER    =12
-S_R_ELBOW   =13
-S_R_HAND        =15
-S_L_HIP     =17
-S_L_KNEE        =18
-S_L_FOOT        =20
-S_R_HIP     =21
-S_R_KNEE        =22
-S_R_FOOT        =24
-# SKELETON = [S_HEAD, S_NECK, S_TORSO, S_L_SHOULDER, S_L_ELBOW, S_L_HAND, S_R_SHOULDER, S_R_ELBOW, S_R_HAND,  S_L_HIP, S_L_KNEE, S_L_FOOT, S_R_HIP, S_R_KNEE, S_R_FOOT]
-# SKELETON = [S_HEAD, S_L_SHOULDER, S_L_ELBOW, S_L_HAND, S_R_SHOULDER, S_R_ELBOW, S_R_HAND, S_L_KNEE, S_L_FOOT, S_R_KNEE, S_R_FOOT] # removed neck, torso, hip
-SKELETON = [S_HEAD, S_L_SHOULDER, S_L_ELBOW, S_L_HAND, S_R_SHOULDER, S_R_ELBOW, S_R_HAND, S_L_FOOT, S_R_FOOT] # removed neck, torso, hip, knee
-# SKELETON = [S_HEAD, S_L_ELBOW, S_L_HAND, S_R_ELBOW, S_R_HAND, S_L_FOOT, S_R_FOOT] # removed neck, torso, shoulders, hip, knee
-
-#PARENTS
-P_HEAD          = S_NECK
-P_NECK          = S_TORSO
-P_TORSO         = S_TORSO
-P_L_SHOULDER    = S_NECK
-P_L_ELBOW       = S_L_SHOULDER
-# P_L_HAND      = S_L_SHOULDER#S_L_ELBOW # displacement from shoulder is better metric! (6% gain)
-P_L_HAND        = S_L_ELBOW # displacement from shoulder is better metric! (6% gain)
-P_R_SHOULDER    = S_NECK
-P_R_ELBOW       = S_R_SHOULDER
-# P_R_HAND      = S_R_SHOULDER#S_R_ELBOW
-P_R_HAND        = S_R_ELBOW # displacement from shoulder is better metric! (6% gain)
-P_L_HIP         = S_TORSO
-P_L_KNEE        = S_L_HIP
-P_L_FOOT        = S_L_KNEE
-P_R_HIP         = S_TORSO
-P_R_KNEE        = S_R_HIP
-P_R_FOOT        = S_R_KNEE
-# PARENTS = [P_HEAD, P_NECK, P_TORSO, P_L_SHOULDER, P_L_ELBOW, P_L_HAND, P_R_SHOULDER, P_R_ELBOW, P_R_HAND,  P_L_HIP, P_L_KNEE, P_L_FOOT, P_R_HIP, P_R_KNEE, P_R_FOOT]
-# PARENTS = [P_HEAD, P_L_SHOULDER, P_L_ELBOW, P_L_HAND, P_R_SHOULDER, P_R_ELBOW, P_R_HAND, P_L_KNEE, P_L_FOOT, P_R_KNEE, P_R_FOOT] # removed neck, torso
-PARENTS = [P_HEAD, P_L_SHOULDER, P_L_ELBOW, P_L_HAND, P_R_SHOULDER, P_R_ELBOW, P_R_HAND, P_L_FOOT, P_R_FOOT] # removed neck, torso, hip
-# PARENTS = [P_HEAD, P_L_ELBOW, P_L_HAND, P_R_ELBOW, P_R_HAND, P_L_FOOT, P_R_FOOT] # removed neck, torso, shoulders,  hip
-# PARENTS = [P_TORSO, P_TORSO, P_TORSO, P_TORSO, P_TORSO, P_TORSO, P_TORSO, P_TORSO, P_TORSO, P_TORSO, P_TORSO] # removed neck, torso
-
-
-
-
-def readUserData(file):
-    raw = open(file)
-    raw = raw.read()
-    sp = raw.split()
-    users = {}
-
-    while ('User' in sp):
-        index = sp.index('User')
-        users[int(sp[index+1])] = {}
-        x = float(sp[index+2])
-        y = float(sp[index+3])
-        z = float(sp[index+4])
-        users[int(sp[index+1])]['World'] = [x, y, z]
-        imgCoords = world2depth([x, y, z])
-        users[int(sp[index+1])]['Img'] = imgCoords
-        sp.pop(index)
-        # print users
-    return users
-
-
-# set normOrn to 0!
-def readSkeletonData(file, normalizeOrientation=0):
-    
-    raw = open(file)
-    raw = raw.read()
-    sp = raw.split()
-    
-    skeletons = {}    
-
-    while 'Skeleton' in sp:    
-        baseInd = sp.index('Skeleton')
-        skelInd = int(sp[baseInd+1])
-        if skeletons.has_key(skelInd) == 0:
-            skeletons[skelInd] = {}
-            skeletons[skelInd]['rawJoints'] = []
-        
-        for j in range(25):
-            for k in range(3):
-                skeletons[skelInd]['rawJoints'].append(float(sp[baseInd+j*3+k+2]))
-            err = np.array(skeletons[skelInd]['rawJoints'][-3:])
-            if np.sum(err) == 0:
-                inds = [len(skeletons[skelInd]['rawJoints'])-3]
-                inds.append(inds[0]+3)
-                new_data = filter(skeletons[skelInd]['rawJoints'], err, inds)
-                skeletons[skelInd]['rawJoints'][inds[0]:inds[1]] = new_data
-        sp.pop(baseInd)
-    
-    for i in skeletons.keys():
-        joints = np.array(skeletons[i]['rawJoints'], dtype=float)
-        joints = joints.reshape(-1, 25, 3)
-        jointsN = joints.copy()
-        jointsRel = joints.copy()
-        
-        import pdb
-        # pdb.set_trace()
-
-        # Get centered positions
-        for j in range(len(joints)):
-            jointsN[j] = joints[j] - joints[j, S_TORSO]
-            # pdb.set_trace()
-            # Normalize orientation:
-            if normalizeOrientation:
-                # nVecs = np.array([jointsN[j, S_TORSO],  jointsN[j, S_L_SHOULDER], jointsN[j, S_R_SHOULDER]])
-                nVecs = np.array([jointsN[j, S_TORSO],  jointsN[j, S_L_SHOULDER], jointsN[j, S_R_SHOULDER], jointsN[j, S_NECK], jointsN[j, S_L_HIP],jointsN[j, S_R_HIP]])
-                # jointsN[j, S_NECK],
-                nVecs -= nVecs.T.mean(1)
-                _,_,v = np.linalg.svd(nVecs)
-                # pdb.set_trace()
-                a = np.array(v[:,2]) # Get normal
-                if a[2] > 0:
-                    a = -a
-                # print a
-                b = np.array([0.0,0.0,-1.0])
-                
-                # Get axis angle:
-                angle = -np.arccos(np.dot(a,b)) # = cos(theta)
-                axis = np.cross(a,b)
-                axis /= np.linalg.norm(axis)
-                # print angle*180.0/np.pi, axis                
-                # Apply orientation normalization to all joints
-                # print jointsN[j,:]
-                for k in range(len(SKELETON)):
-                    # pdb.set_trace()
-                    v = jointsN[j,SKELETON[k]]
-                    # pdb.set_trace()
-                    # v /= np.sqrt(np.sum(v**2))
-                    vOut = v * np.cos(angle) + np.cross(axis, v)*np.sin(angle) + axis*(np.dot(axis, v))*(1-np.cos(angle))
-                    jointsN[j,SKELETON[k]] = vOut
-                    # print vOut
-                    # pdb.set_trace()
-
-                nVecs = np.array([jointsN[j, S_TORSO], jointsN[j, S_L_SHOULDER], jointsN[j, S_R_SHOULDER]])
-                nVecs -= nVecs.T.mean(1)
-                _,_,v = np.linalg.svd(nVecs)
-                # print v
-                # pdb.set_trace()
-
-            
-
-        # Get relative positions
-        for j in range(len(SKELETON)):
-            # jointsRel[:,SKELETON[j]] = joints[:,SKELETON[j]] - joints[:,PARENTS[j]]
-            jointsRel[:,SKELETON[j]] = jointsN[:,SKELETON[j]] - jointsN[:,PARENTS[j]]
-            tmp = np.mean(np.sqrt(np.sum(jointsRel[:,SKELETON[0]]**2, axis=1)))
-            # if not np.any(np.isnan(tmp)) and not np.any(tmp==0):
-            jointsRel[:,SKELETON[j]] /= np.mean(np.sqrt(np.sum(jointsRel[:,SKELETON[0]]**2, axis=1))) # normalize
-
-        skeletons[i]['jointsPos'] = joints
-        skeletons[i]['jointsCentered'] = jointsN
-        skeletons[i]['jointsRel'] = jointsRel
-
-    return skeletons
-
-
-
-### Filter ###
-def filter(data, check, inds):
-#    print check
-#    print inds
-    if np.sum(check) == 0:
-        new_inds = [inds[0]-78,inds[1]-78]    
-        if new_inds[0] < 0 or new_inds[1] < 0: #if the beginning of the file
-            return np.array([0.,0.,0.])
-#            print "<0"
-        else:
-            check = np.array(data[new_inds[0] : new_inds[1]])
-            check = filter(data, check, new_inds)
-    return check
-        
-#    skels = readSkeletonData(file)
-
-# ----------------------------------------------------------------
-
-def displaySkeleton(skeleton):    
-    
-    joints = skeleton['jointsPos']
-    jointsN = skeleton['jointsCentered']
-    jointsRel = skeleton['jointsRel']
-
-
-    # Get relative positions
-    for i in range(len(SKELETON)):
-        jointsRel[:,SKELETON[i]] = joints[:,SKELETON[i]] - joints[:,PARENTS[i]]    
-
-    axes(axisbg = [.9,.9,.9])
-#    axes(axisbg = [1,1,1])
-    for i in range(0, len(joints), 2):
-        b = 1100 # Axis size                
-        # Center about the torso
-        jointsN[i] = joints[i] - joints[i, 3]    
-        
-        # Chart over time
-        if (0):
-            colorSet = ['r','g','b', 'c', 'm', 'y', 'k', 'r','g','b', 'c', 'm', 'y', 'k', 'r','g','b', 'c', 'm', 'y', 'k','r','g','b', 'c', 'm', 'y', 'k']
-            axis([0, 200, -300, 300])                
-            for label in SKELETON:
-                plot(i, jointsRel[i,label,0], 'o', color = colorSet[label])
-
-        # Display relative positions
-        if (0):
-            cla()
-            b = 500
-            axis([-b, b, -b, b])             
-            # Viz head as circle
-            plot(jointsRel[i, 1, 0], jointsRel[i,1,1], 'og', markersize=40, markerfacecolor='w')     
-            # Viz joints as lines
-            for label in SKELETON:
-                plot([0, jointsRel[i,label,0]], [0, jointsRel[i,label, 1]])
-
-        # Display absolute positions
-        if (0):
-            cla()
-            b = 1100  
-            axis([-b, b, -b, b])                
-            # Viz joints as lines
-            for label in range(len(SKELETON)):
-                plot([joints[i,SKELETON[label],0], joints[i,PARENTS[label],0]], [joints[i,SKELETON[label],1], joints[i,PARENTS[label], 1]])
-            # Connect hips
-            plot([joints[i, S_L_HIP, 0], joints[i, S_R_HIP, 0]], [joints[i, S_L_HIP, 1], joints[i, S_R_HIP, 1]]) 
-            # Viz head as circle
-            plot(joints[i, 1, 0], joints[i,1,1], 'og', markersize=40, markerfacecolor='w')  
-            # Connect shoulder to torso
-            plot([joints[i, S_TORSO, 0], joints[i, S_L_SHOULDER, 0]], [joints[i, S_TORSO, 1], joints[i, S_L_SHOULDER, 1]]) #diag
-            plot([joints[i, S_TORSO, 0], joints[i, S_R_SHOULDER, 0]], [joints[i, S_TORSO, 1], joints[i, S_R_SHOULDER, 1]]) #diag  
-
-        # Display centered, absolute positions
-        if (1):
-            cla()
-            b = 1100
-            axis([-b, b, -b, b])
-            # Viz joints as lines
-            for label in range(len(SKELETON)):
-                plot([jointsN[i,SKELETON[label],0], jointsN[i,PARENTS[label],0]], [jointsN[i,SKELETON[label],1], jointsN[i,PARENTS[label], 1]])
-            # Connect hips
-            plot([jointsN[i, S_L_HIP, 0], jointsN[i, S_R_HIP, 0]], [jointsN[i, S_L_HIP, 1], jointsN[i, S_R_HIP, 1]])
-            # Viz head as circle
-            plot(jointsN[i, 1, 0], jointsN[i,1,1], 'og', markersize=40, markerfacecolor='w')     
-            # Connect shoulder to torso
-            plot([jointsN[i, S_TORSO, 0], jointsN[i, S_L_SHOULDER, 0]], [jointsN[i, S_TORSO, 1], jointsN[i, S_L_SHOULDER, 1]]) #diag
-            plot([jointsN[i, S_TORSO, 0], jointsN[i, S_R_SHOULDER, 0]], [jointsN[i, S_TORSO, 1], jointsN[i, S_R_SHOULDER, 1]]) #diag  
-
-        draw()
-        time.sleep(.01)
-
-    # Flash screen to show new drawing
-    axes(axisbg = [0,.25,0])
-    draw()
-    time.sleep(.5)
-
-def getAllSkeletons(folder, normalizeOrientation=0, count=55):
-    skelSets = {}
-    for i in range(count):
-        file = folder + '/jointLog' + str(i) + '.txt'
-        skelSets[i] = readSkeletonData(file, normalizeOrientation)
-    return skelSets
-
-
-def displaySkeleton_CV(img, skels):
-    for i in skels:
-        try:
-            # joints = skels[i]['jointsPos']
-            joints = skels[i]['jointsPos']
-            # print i
-            # pdb.set_trace()
-            if np.any(joints[0, :, 2]) != 0:
-                for label in range(len(SKELETON)):
-                        pts1 = joints[0, SKELETON[label]]
-                        pts1 = world2depth(list(pts1))
-                        pts2 = joints[0, PARENTS[label]]
-                        pts2 = world2depth(list(pts2))
-                        if pts1[0] != 0 and pts2[0] != 0:
-                            cv.Line(img, (640-pts1[0], 480-pts1[1]), (640-pts2[0], 480-pts2[1]), [100], 5)
-                # Connect hips
-                pts1 = joints[0, S_L_HIP]
-                pts1 = world2depth(list(pts1))
-                pts2 = joints[0, S_R_HIP]
-                pts2 = world2depth(list(pts2))
-                if pts1[0] != 0 and pts2[0] != 0:
-                    cv.Line(img, (640-pts1[0], 480-pts1[1]), (640-pts2[0], 480-pts2[1]), [100], 5)
-                # Viz head as circle
-                pts1 = joints[0, 1]
-                pts1 = world2depth(list(pts1))
-                if pts1[0] != 0:
-                    cv.Circle(img,(640-pts1[0],480-pts1[1]), 30, [100], 3)
-                # Connect shoulder to torso
-                pts1 = joints[0, S_TORSO]
-                pts1 = world2depth(list(pts1))
-                pts2 = joints[0, S_L_SHOULDER]
-                pts2 = world2depth(list(pts2))
-                if pts1[0] != 0 and pts2[0] != 0:
-                    cv.Line(img, (640-pts1[0], 480-pts1[1]), (640-pts2[0], 480-pts2[1]), [100], 5)
-                pts1 = joints[0, S_TORSO]
-                pts1 = world2depth(list(pts1))
-                pts2 = joints[0, S_R_SHOULDER]
-                pts2 = world2depth(list(pts2))
-                if pts1[0] != 0 and pts2[0] != 0:
-                    cv.Line(img, (640-pts1[0], 480-pts1[1]), (640-pts2[0], 480-pts2[1]), [100], 5)
-
-                # plot([joints[i, S_TORSO, 0], joints[i, S_L_SHOULDER, 0]], [joints[i, S_TORSO, 1], joints[i, S_L_SHOULDER, 1]]) #diag
-                # plot([joints[i, S_TORSO, 0], joints[i, S_R_SHOULDER, 0]], [joints[i, S_TORSO, 1], joints[i, S_R_SHOULDER, 1]]) #diag           
-            # else:
-            #     print joints[0]
-
-        except:
-            print "error"
-            continue
-    return img
-
-
-
-
-
-# jointsN = skelSetsTrain[0][0]['jointsCentered']
-
-
-def displaySkeleton_3D(img, skels):
-    from mpl_toolkits.mplot3d import Axes3D
-    fig = figure(7)
-    ax = fig.add_subplot(111, projection='3d')
-    tmp = [x for x in SKELETON]
-
-    
-    for i in range(jointsN.shape[0]):
-        ax.cla()
-        ax.scatter(jointsN[i,tmp,0], jointsN[i,tmp,1], jointsN[i,tmp,2], zdir='y')
-
-        for label in range(len(SKELETON)):
-            ax.plot([jointsN[i,SKELETON[label],0], jointsN[i,PARENTS[label],0]], [jointsN[i,SKELETON[label],1], jointsN[i,PARENTS[label], 1]], [jointsN[i,SKELETON[label],2], jointsN[i,PARENTS[label], 2]], zdir='y')
-            # Connect hips
-            ax.plot([jointsN[i, S_L_HIP, 0], jointsN[i, S_R_HIP, 0]], [jointsN[i, S_L_HIP, 1], jointsN[i, S_R_HIP, 1]], [jointsN[i, S_L_HIP, 2], jointsN[i, S_R_HIP, 2]], zdir='y')
-            # Viz head as circle
-            ax.plot([jointsN[i, 1, 0]], [jointsN[i,1,1]], [jointsN[i,1,2]], zdir='y')     
-            # Connect shoulder to torso
-            ax.plot([jointsN[i, S_TORSO, 0], jointsN[i, S_L_SHOULDER, 0]], [jointsN[i, S_TORSO, 1], jointsN[i, S_L_SHOULDER, 1]], [jointsN[i, S_TORSO, 2], jointsN[i, S_L_SHOULDER, 2]], zdir='y') #diag
-            ax.plot([jointsN[i, S_TORSO, 0], jointsN[i, S_R_SHOULDER, 0]], [jointsN[i, S_TORSO, 1], jointsN[i, S_R_SHOULDER, 1]], [jointsN[i, S_TORSO, 2], jointsN[i, S_R_SHOULDER, 2]], zdir='y') #diag  
-
-        # ax.axis([-500, 500, -500, 500])
-        # ax.set_aspect('equal', 'box')
-        # ax.set_aspect('equal')
-        #Set artificual limits
-        MAX = 500
-        for direction in (-1, 1):
-            for point in np.diag(direction * MAX * np.array([1,1,1])):
-                ax.plot([point[0]], [point[1]], [point[2]], 'w')
-
-        draw()
-
-def plotSkelAxes():
-    labels = [x for x in SKELETON]
-    # colors = 'rgbykmrgbykmrgbykmrgbykmrgbykmrgbykmrgbykmrgbykm'
-    colors = 'kkkkkkrgkbkkrgkbkcmkycmkykkkkkk'
-    #Show projections
-    figure(10)
-    subplot(1,3,1)
-    for i in tmp: #in z direction
-        print i
-        plot(jointsN[:,i, 0], jointsN[:,i,1], label=str(i), color=colors[i])
-        title('Front')
-        ylabel('x')
-        ylabel('y')    
-    subplot(1,3,2)
-    for i in tmp: #in x direction
-        plot(jointsN[:,i, 1], jointsN[:,i,2], label=str(i), color=colors[i])
-        title('Side')
-        ylabel('y')
-        ylabel('z')    
-    subplot(1,3,3)
-    for i in tmp: #in x direction
-        plot(jointsN[:,i, 0], jointsN[:,i,2], label=str(i), color=colors[i])
-        title('Top')
-        ylabel('x')
-        ylabel('z')
-
-
+                    '''Colorize COM'''
+                    cv2.rectangle(image, tuple([uvw[0]-3, uvw[1]-3]), tuple([uvw[0]+3, uvw[1]+3]), (4000))
+                    '''Plot skeleton'''
+                    pts = [j for j in users[u]['jointPositions'].values()]
+                    skel = skel2depth(np.array(pts), image.shape)
+                    from pyKinectTools.utils.SkeletonUtils import display_skeletons
+                    image = display_skeletons(image, skel, color=(image.max(),0,0), skel_type='Kinect')

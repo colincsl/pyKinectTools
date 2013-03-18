@@ -7,6 +7,8 @@ Implements methods for background subtraction
 import os, time, sys
 import numpy as np
 import scipy.ndimage as nd
+from IPython import embed
+import cv2
 
 
 def constrain(img, mini=-1, maxi=-1): #500, 4000
@@ -102,7 +104,7 @@ def extract_people_clusterMethod(img):
 
 	return d1A, goodObjs
 
-def extract_people(im, mask, minPersonPixThresh=500, gradThresh=100, gradientFilter=True):
+def extract_people(im, mask, minPersonPixThresh=5000, gradThresh=None):
 	'''
 	---Paramaters---
 	im : 
@@ -116,21 +118,40 @@ def extract_people(im, mask, minPersonPixThresh=500, gradThresh=100, gradientFil
 	userBoundingBoxes :
 	userLabels :
 	'''
-	if not gradientFilter:
+	if gradThresh == None:
 		grad_bin = mask
 	else:
-		grad_g = np.max(np.abs(np.gradient(im.astype(np.int16))), 0)
-		grad_bin = (np.abs(grad_g) < gradThresh)
-		# grad_bin = nd.binary_erosion(grad_bin, iterations=1)
-		mask = mask*grad_bin# np.logical_and(mask[:,:-1],grad_bin)# np.logical_not(grad_bin))
+		gradients = np.gradient(im)
+		mag = np.sqrt(gradients[0]**2+gradients[1]**2)
+		mask *= mag<gradThresh
+
+		# grad_g = np.max(np.abs(np.gradient(im.astype(np.int16))), 0)
+		# grad_bin = (np.abs(grad_g) < gradThresh)
+		# mask = mask*grad_bin# np.logical_and(mask[:,:-1],grad_bin)# np.logical_not(grad_bin))
 
 	labelIm, maxLabel = nd.label(im*mask)
 	connComps = nd.find_objects(labelIm, maxLabel)
 
-	# Only extract if there are sufficient pixels
-	usrTmp = [(c,l) for c,l in zip(connComps,range(1, maxLabel+1)) if minPersonPixThresh < nd.sum(labelIm[c]==l)]
+	# Only extract if there are sufficient pixels and it is within a valid height/width ratio
+	px_count = [nd.sum(labelIm[c]==l) for c,l in zip(connComps,range(1, maxLabel+1))]
+	ratios = [(c[1].stop-c[1].start)/float(c[0].stop-c[0].start)for c in connComps]
+	du = [float(c[0].stop-c[0].start) for c in connComps]
+	dv = [float(c[1].stop-c[1].start) for c in connComps]
+	areas = [float(c[0].stop-c[0].start)*float(c[1].stop-c[1].start)for c in connComps]
+	# Filter
+	usrTmp = [(c,l,px) for c,l,px,ratio,area in zip(connComps,range(1, maxLabel+1), px_count, ratios, areas) 
+				if ratio < 2 and 
+					px > minPersonPixThresh and
+					px/area > 0.2
+			]
+
+	if usrTmp != []:
+		print len(usrTmp), "users"
+	# for i in range(len(px_count)):
+		# if px_count[i] > minPersonPixThresh:
+			# print px_count[i], np.array(px_count[i])/np.array(areas[i]), ratios[i]
 	if len(usrTmp) > 0:
-		userBoundingBoxes, userLabels = zip(*usrTmp)
+		userBoundingBoxes, userLabels, px_count = zip(*usrTmp)
 	else:
 		userBoundingBoxes = []
 		userLabels = []
@@ -141,7 +162,7 @@ def extract_people(im, mask, minPersonPixThresh=500, gradThresh=100, gradientFil
 	for i,i_new in zip(userLabels, range(1, userCount+1)):
 		mask[labelIm==i] = i_new
 
-	return mask, userBoundingBoxes, userLabels
+	return mask, userBoundingBoxes, userLabels, px_count
 
 def getMeanImage(depthImgs):
 	mean_ = np.mean(depthImgs, 2)
@@ -188,11 +209,6 @@ class AdaptiveMixtureOfGaussians:
 		self.VarianceInit = variance
 		self.CurrentGaussianCount = 1		
 
-		# self.Means = np.ones([xRez,yRez,self.CurrentGaussianCount])
-		# self.Variances = np.ones([xRez,yRez,self.CurrentGaussianCount])*self.VarianceInit
-		# self.Weights = np.ones([xRez,yRez,self.CurrentGaussianCount])*self.LearningRate
-		# self.Deltas = np.zeros([xRez,yRez,self.CurrentGaussianCount])
-
 		self.Means = np.zeros([xRez,yRez,self.MaxGaussians])
 		self.Variances = np.empty([xRez,yRez,self.MaxGaussians])
 		self.Weights = np.empty([xRez,yRez,self.MaxGaussians])
@@ -211,22 +227,19 @@ class AdaptiveMixtureOfGaussians:
 
 	# @profile
 	def update(self, im):
-		from matplotlib.pylab import *
-		from IPython import embed
 
-		import pdb
 		self.currentIm = im
+		self.currentIm[im == 0] = im.max()
+		mask = im != 0		
 
 		''' Check deviations '''
-		self.Deviations = ((self.Means - im[:,:,np.newaxis])**2 / self.Variances)
+		self.Deviations = ((self.Means - im[:,:,np.newaxis])**2 / self.Variances) * mask[:,:,None]
 
 		for m in range(self.CurrentGaussianCount):
 			self.Deviations[m > self.NumGaussians,m] = np.inf
 
 		Ownership = np.argmin(self.Deviations, -1)
 		deviationMin = np.min(self.Deviations, -1)
-		# Ownership = np.nanargmin(self.Deviations, -1)
-		# deviationMin = np.nanmin(self.Deviations, -1)
 
 		createNewMixture = deviationMin > 3
 		createNewMixture[np.isinf(deviationMin)] = False
@@ -260,18 +273,6 @@ class AdaptiveMixtureOfGaussians:
 		self.CurrentGaussianCount = self.NumGaussians.max()
 		# print "Gaussians: ", self.NumGaussians.max()
 
-		# if np.any(Ownership>0):
-		# 	from skimage.viewer.viewers import CollectionViewer
-		# 	nView = CollectionViewer([bgSubtraction.Weights[:,:,i]/np.nanmax(bgSubtraction.Weights[:,:,i]).astype(float) for i in range(bgSubtraction.MaxGaussians)])
-		# 	# nView = CollectionViewer([self.NumGaussians[:,:,i]/np.nanmax(self.NumGaussians[:,:,i]).astype(float) for i in range(self.MaxGaussians)])
-		# 	# nView.show()			
-		# meanView = CollectionViewer([self.Means[:,:,i]/np.nanmax(self.Means[:,:,i]).astype(float) for i in range(self.MaxGaussians)])
-		# meanView = CollectionViewer([bgSubtraction.Means[:,:,i]/np.nanmax(bgSubtraction.Means[:,:,i]).astype(float) for i in range(bgSubtraction.MaxGaussians)])
-		# 	meanView.show()
-		# 	varView = CollectionViewer([self.Variances[:,:,i]/np.nanmax(self.Variances[:,:,i]).astype(float) for i in range(self.MaxGaussians)])
-		# 	varView.show()
-
-
 
 		''' Update gaussians'''
 		for m in range(self.CurrentGaussianCount):
@@ -288,7 +289,6 @@ class AdaptiveMixtureOfGaussians:
 			# self.Variances[:,:,m] 	= self.Variances[:,:,m] + tmpWeight * (self.Deltas[:,:,m]**2 - self.Variances[:,:,m])
 
 			''' If the weight is zero, reset '''
-
 			# embed()
 			if m < np.any(tmpMask):
 				if self.CurrentGaussianCount > 1:
@@ -306,10 +306,6 @@ class AdaptiveMixtureOfGaussians:
 						embed()
 
 
-			import cv2
-			# cv2.imshow(str(m), self.Means[:,:,m]/5000.)
-			# cv2.imshow(str(m), self.Weights[:,:,m]/np.nanmax(self.Weights[:,:,m]))
-		# cv2.imshow("ownership", Ownership/Ownership.max().astype(np.float))
 
 		# print np.sum(self.Weights[:,:,0]< .1)
 		# embed()
@@ -317,57 +313,54 @@ class AdaptiveMixtureOfGaussians:
 		# self.backgroundModel = np.nanmax(self.Means, 2)
 		
 		'''This'''
-		# embed()
 		# tmp = np.argmax(self.Weights,2).ravel()
 		# self.backgroundModel = self.Means[:,:,tmp]
 
 		# self.backgroundModel = self.Means[:,:,np.nanargmax(self.Weights, 2).ravel()]
 		# self.backgroundModel = np.nanmax(self.Means*(self.Means<10000), 2)
-		
-
-		# print "Val:", im[150,20]
-		# print "Owner:", Ownership[150,20]
-		# print "Means:", self.Means[150,20]
-		# print "Weight:", self.Weights[150,20]
-		# print "Var:", self.Variances[150,20]
-		# print 'Create new:', createNewMixture[150,20]
-		# print 'numGauss:', self.NumGaussians[150,20]
 
 
 	def getModel(self):
 		return self.backgroundModel
 
 	def getForeground(self, thresh=100):
-		return (self.backgroundModel - self.currentIm) > thresh
-
+		# mask = self.currentIm!=0
+		residual = np.abs(self.currentIm - self.backgroundModel)
+		# residual = self.backgroundModel
+		# residual *= mask
+		foreground = residual > thresh
+		foreground = nd.binary_closing(foreground, iterations=1)
+		# import cv2
+		# cv2.imshow("res", residual/residual.max())
+		return foreground
 
 
 class MedianModel:
 
-	def __init__(self):
-		self.prevDepthIms = fillImage(depthIm.copy())[:,:,np.newaxis]
-		self.prevColorIms = colorIm_g[:,:,np.newaxis]		
+	def __init__(self, depthIm):
+		self.prevDepthIms = fillImage(depthIm.copy())[:,:,None]
+		self.backgroundModel = self.prevDepthIms[:,:,0]
 
-	def update(self,depthIm, colorIm):
+	def update(self,depthIm):
 
 		# Add to set of images
-		self.prevDepthIms = np.dstack([self.prevDepthIms, depthIm])
-		self.prevColorIms = np.dstack([self.prevColorIms, colorIm])
+		self.currentIm = fillImage(depthIm.copy())
+		self.prevDepthIms = np.dstack([self.prevDepthIms, self.currentIm])
 
 		# Check if too many (or few) images
 		imCount = self.prevDepthIms.shape[2]
-		if imCount <= 1:
-			return
-
-		elif imCount > 50:
+		# if imCount <= 1:
+			# return
+		if imCount > 50:
 			self.prevDepthIms = self.prevDepthIms[:,:,-50:]
-			self.prevColorIms = self.prevColorIms[:,:,-50:]	
 
 		self.backgroundModel = np.median(self.prevDepthIms, -1)
 
 	def getModel(self):
 		return self.backgroundModel		
 
+	def getForeground(self, thresh=100):
+		return (self.backgroundModel - self.currentIm) > thresh
 
 
 

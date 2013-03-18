@@ -5,16 +5,15 @@ import scipy.misc as sm
 import Image
 from pyKinectTools.utils.RealtimeReader import *
 from pyKinectTools.utils.Utils import createDirectory
+from pyKinectTools.utils.SkeletonUtils import display_skeletons
 import cPickle as pickle
 # import cProfile
 
 # from multiprocessing import Pool, Process, Queue
 
-DIR = '/Users/colin/Data/icu_test/0/'
+DIR = '/Users/colin/Data/CIRL_Feb28/'
 # DIR = '/home/clea/Data/WICU_12Feb2012/'
 # DIR = '/media/Data/icu_test_color/'
-
-# DIR = '/media/Data/CV_class/'
 
 
 # @profile
@@ -244,15 +243,16 @@ def main(deviceID, record, baseDir, frameDifferencePercent, getSkel, anonomize, 
 								if viz and getSkel:
 										for u_key in users.keys():
 												u = users[u_key]
-												pt = world2depth(u.com)
+												pt = skel2depth(np.array([u.com]))[0]
 												w = 10
-												d[pt[0]-w:pt[0]+w, pt[1]-w:pt[1]+w] = 255
+												d[pt[1]-w:pt[1]+w, pt[0]-w:pt[0]+w] = 255
 												w = 3
 												if u.tracked:
-														print "Joints: ", len(u.jointPositions)
-														for j in u.jointPositions.keys():
-																pt = world2depth(u.jointPositions[j])
-																d[pt[0]-w:pt[0]+w, pt[1]-w:pt[1]+w] = 200                                                        
+														# print "Joints: ", len(u.jointPositions)
+														# from IPython import embed
+														# embed()
+														pts = skel2depth(np.array(u.jointPositions.values()), d.shape)
+														d = display_skeletons(d, pts, (100,0,0), skel_type='Kinect')
 
 
 								if viz:

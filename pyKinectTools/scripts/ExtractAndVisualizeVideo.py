@@ -60,16 +60,15 @@ keys_frame_right = 1048691
 
 # -------------------------MAIN------------------------------------------
 # @profile
-def main(get_depth, get_color, get_skeleton, get_mask, calculate_features, visualize, save_anonomized):
+def main(get_depth, get_color, get_skeleton, get_mask, calculate_features, visualize, save_anonomized, device):
 
+	dev = device
 	ret = 0
 	backgroundTemplates = np.empty([1,1,1])
 	backgroundModel = None
 	backgroundCount = 20
 	bgPercentage = .05
 	prevDepthIm = None
-	# prevDepthIms = []
-	# prevColorIms = []
 
 	day_dirs = os.listdir('depth/')
 	day_dirs = [x for x in day_dirs if x[0]!='.']
@@ -87,7 +86,6 @@ def main(get_depth, get_color, get_skeleton, get_mask, calculate_features, visua
 	frame_prev = 0
 	frame_prev_time = time()
 
-	# for day_index in day_dirs:
 	day_index = 0
 	while day_index < len(day_dirs):
 		
@@ -97,7 +95,6 @@ def main(get_depth, get_color, get_skeleton, get_mask, calculate_features, visua
 			except:
 				print "Day not found"
 				day_index = 0
-		# print "New day:", day_index
 
 		dayDir = day_dirs[day_index]
 
@@ -120,7 +117,6 @@ def main(get_depth, get_color, get_skeleton, get_mask, calculate_features, visua
 				hour_index = 0
 
 		while hour_index < len(hour_dirs):
-			# print "New hour:", hour_index
 			hourDir = hour_dirs[hour_index]
 
 			minute_dirs = os.listdir('depth/'+dayDir+'/'+hourDir)
@@ -143,10 +139,10 @@ def main(get_depth, get_color, get_skeleton, get_mask, calculate_features, visua
 
 			''' Loop through this minute '''
 			while minute_index < len(minute_dirs):
-				# print "New min:", minute_index
 				minute_dir = minute_dirs[minute_index]
 
-				if minute_dir[0] == '.': # Prevent from reading hidden files
+				# Prevent from reading hidden files
+				if minute_dir[0] == '.': 
 					continue
 
 				depth_files = []
@@ -157,63 +153,55 @@ def main(get_depth, get_color, get_skeleton, get_mask, calculate_features, visua
 				devices = [x for x in devices if x[0]!='.' and x.find('tmp')<0]
 				devices.sort()
 
-				for deviceID in ['device_1']:
-					if not os.path.isdir('depth/'+dayDir+'/'+hourDir+'/'+minute_dir+'/'+deviceID):
-						continue
+				deviceID = "device_{0:d}".format(dev+1)
 
-					''' Sort files '''
-					if get_depth:
-						depthTmp = os.listdir('depth/'+dayDir+'/'+hourDir+'/'+minute_dir+'/'+deviceID)
-						tmpSort = [int(x.split('_')[-3])*100 + int(formatFileString(x.split('_')[-2])) for x in depthTmp]
-						depthTmp = np.array(depthTmp)[np.argsort(tmpSort)].tolist()
-						depth_files.append([x for x in depthTmp if x.find('.png')>=0])
-					if get_skeleton:
-						skelTmp = os.listdir('skel/'+dayDir+'/'+hourDir+'/'+minute_dir+'/'+deviceID)
-						tmpSort = [int(x.split('_')[-4])*100 + int(formatFileString(x.split('_')[-3])) for x in skelTmp]
-						skelTmp = np.array(skelTmp)[np.argsort(tmpSort)].tolist()
-						skelFiles.append([x for x in skelTmp if x.find('.dat')>=0])
+				if not os.path.isdir('depth/'+dayDir+'/'+hourDir+'/'+minute_dir+'/'+deviceID):
+					continue
+
+				''' Sort files '''
+				if get_depth:
+					depthTmp = os.listdir('depth/'+dayDir+'/'+hourDir+'/'+minute_dir+'/'+deviceID)
+					tmpSort = [int(x.split('_')[-3])*100 + int(formatFileString(x.split('_')[-2])) for x in depthTmp]
+					depthTmp = np.array(depthTmp)[np.argsort(tmpSort)].tolist()
+					depth_files.append([x for x in depthTmp if x.find('.png')>=0])
+				if get_skeleton:
+					skelTmp = os.listdir('skel/'+dayDir+'/'+hourDir+'/'+minute_dir+'/'+deviceID)
+					tmpSort = [int(x.split('_')[-4])*100 + int(formatFileString(x.split('_')[-3])) for x in skelTmp]
+					skelTmp = np.array(skelTmp)[np.argsort(tmpSort)].tolist()
+					skelFiles.append([x for x in skelTmp if x.find('.dat')>=0])
 
 				if len(depth_files) == 0:
 					continue
-				# for dev, depthFile in multiCameraTimeline(depth_files):
-				if deviceID == 'device_2':
-					dev = 1
-				else:
-					dev = 0
-
 
 				if play_speed >= 0 and ret != keys_frame_left:
 					frame_id = 0
 				else:
 					frame_id = len(depth_files[dev])-1
 
-				while frame_id < len(depth_files[dev]):
 
-					depthFile = depth_files[dev][frame_id]
+				while frame_id < len(depth_files[0]):
+				# while frame_id < len(depth_files[dev]):
+
+					depthFile = depth_files[0][frame_id]
 					# try:
 					if 1:
 						''' Load Depth '''
 						if get_depth:
-							depthIm = sm.imread('depth/'+dayDir+'/'+hourDir+'/'+minute_dir+'/'+devices[dev]+'/'+depthFile)
+							depthIm = sm.imread('depth/'+dayDir+'/'+hourDir+'/'+minute_dir+'/'+deviceID+'/'+depthFile)
 							depthIm = np.array(depthIm, dtype=np.uint16)
 						''' Load Color '''
 						if get_color:
 							colorFile = 'color_'+depthFile[6:-4]+'.jpg'
-							# pdb.set_trace()
-							colorIm = sm.imread('color/'+dayDir+'/'+hourDir+'/'+minute_dir+'/'+devices[dev]+'/'+colorFile)
+							colorIm = sm.imread('color/'+dayDir+'/'+hourDir+'/'+minute_dir+'/'+deviceID+'/'+colorFile)
 							# colorIm_g = colorIm.mean(-1, dtype=np.uint8)
 							colorIm_g = skimage.img_as_ubyte(skimage.color.rgb2gray(colorIm))
 							# colorIm_lab = skimage.color.rgb2lab(colorIm).astype(np.uint8)
-						# ''' Load Mask '''
-						# if get_mask:
-						# 	maskIm = sm.imread('depth/'+dayDir+'/'+hourDir+'/'+minute_dir+'/'+devices[dev]+'/'+depthFile[:-4]+"_mask.jpg") > 100
-						# 	depthIm = depthIm*(1-maskIm)+maskIm*5000
 
 						''' Load Skeleton Data '''
 						if get_skeleton:
 							skelFile = 'skel_'+depthFile[6:-4]+'_.dat'
-							if os.path.isfile('skel/'+dayDir+'/'+hourDir+'/'+minute_dir+'/'+devices[dev]+'/'+skelFile):
-								with open('skel/'+dayDir+'/'+hourDir+'/'+minute_dir+'/'+devices[dev]+'/'+skelFile, 'rb') as inFile:
+							if os.path.isfile('skel/'+dayDir+'/'+hourDir+'/'+minute_dir+'/'+deviceID+'/'+skelFile):
+								with open('skel/'+dayDir+'/'+hourDir+'/'+minute_dir+'/'+deviceID+'/'+skelFile, 'rb') as inFile:
 									users = pickle.load(inFile)				
 							else:
 								print "No user file:", skelFile
@@ -241,7 +229,7 @@ def main(get_depth, get_color, get_skeleton, get_mask, calculate_features, visua
 
 						''' Find people '''
 						if get_skeleton:
-							ret = plotUsers(depthIm, users, device=devices[dev], vis=True)
+							ret = plotUsers(depthIm, users, device=deviceID, vis=True)
 						if get_mask:
 							foregroundMask, userBoundingBoxes, userLabels = extract_people(depthIm, foregroundMask, minPersonPixThresh=1500, gradientFilter=True, gradThresh=100)
 						
@@ -273,7 +261,7 @@ def main(get_depth, get_color, get_skeleton, get_mask, calculate_features, visua
 							if len(tmpSecond) == 0:
 								tmpSecond = '0'+tmpSecond
 							if get_depth:
-								vv.imshow("Depth", depthIm/5000.)								
+								vv.imshow("Depth", depthIm/6000.)								
 								vv.putText("Depth", "Day "+dayDir+" Time "+hourDir+":"+minute_dir+":"+tmpSecond, (5,220), size=15)					
 								vv.putText("Depth", "Play speed: "+str(play_speed)+"x", (5,15), size=15)													
 								vv.putText("Depth", str(int(framerate))+" fps", (275,15), size=15)													
@@ -290,7 +278,7 @@ def main(get_depth, get_color, get_skeleton, get_mask, calculate_features, visua
 
 
 							''' Multi-camera map '''
-							if len(coms) > 0:
+							if 0 and len(coms) > 0:
 								mapRez = [200,200]
 								mapIm = np.zeros(mapRez)
 								coms_np = np.array(coms)
@@ -334,7 +322,8 @@ def main(get_depth, get_color, get_skeleton, get_mask, calculate_features, visua
 
 						new_date_entered = False
 						if ret > 0:
-							print "Ret is",ret
+							# player_controls(ret)							
+							# print "Ret is",ret
 
 							if ret == keys_ESC:
 								break
@@ -368,7 +357,6 @@ def main(get_depth, get_color, get_skeleton, get_mask, calculate_features, visua
 								display_help()
 							
 						frame_id += play_speed
-						# print frame_id
 
 					if save_anonomized and get_mask:
 						save_dir = 'color_masked/'+dayDir+'/'+hourDir+'/'+minute_dir+'/'+devices[dev]+'/'
@@ -384,7 +372,7 @@ def main(get_depth, get_color, get_skeleton, get_mask, calculate_features, visua
 					# End seconds
 					if ret == keys_ESC or new_date_entered:
 						break
-					if frame_id >= len(depth_files[dev]):
+					if frame_id >= len(depth_files[0]):
 						minute_index += 1
 					elif frame_id < 0:
 						minute_index -= 1
@@ -455,6 +443,7 @@ if __name__=="__main__":
 	parser.add_option('-a', '--anonomize', dest='save', action="store_true", default=False, help='Save anonomized RGB image')
 	parser.add_option('-f', '--calcFeatures', dest='bgSubtraction', action="store_true", default=False, help='Enable feature extraction')		
 	parser.add_option('-v', '--visualize', dest='viz', action="store_true", default=False, help='Enable visualization')
+	parser.add_option('-i', '--dev', dest='dev', type='int', default=0, help='Device number')
 	(opt, args) = parser.parse_args()
 
 	if opt.bgSubtraction or opt.save:
@@ -468,7 +457,7 @@ if __name__=="__main__":
 	elif opt.depth==False and opt.color==False and opt.skel==False:
 		print "You must supply the program with some arguments."
 	else:
-		main(get_depth=opt.depth, get_skeleton=opt.skel, get_color=opt.color, get_mask=opt.mask, calculate_features=opt.bgSubtraction, visualize=opt.viz, save_anonomized=opt.save)
+		main(get_depth=opt.depth, get_skeleton=opt.skel, get_color=opt.color, get_mask=opt.mask, calculate_features=opt.bgSubtraction, visualize=opt.viz, save_anonomized=opt.save, device=opt.dev)
 
 	'''Profiling'''
 	# cProfile.runctx('main()', globals(), locals(), filename="ShowSkeletons.profile")

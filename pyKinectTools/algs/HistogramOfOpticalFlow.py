@@ -38,7 +38,7 @@ def getDepthFlow(imPrev, imNew):
     flowNew[flow==8,:] = [ 1, 1]
     return flow
 
-def hog2image(hog, imageSize=[96,72],orientations=9,pixels_per_cell=(8, 8),cells_per_block=(3, 3)):
+def hog2image(hogArray, imageSize=[32,32],orientations=9,pixels_per_cell=(8, 8),cells_per_block=(3, 3)):
     from scipy import sqrt, pi, arctan2, cos, sin
     from skimage import draw
 
@@ -52,12 +52,12 @@ def hog2image(hog, imageSize=[96,72],orientations=9,pixels_per_cell=(8, 8),cells
     n_blocksx = (n_cellsx - bx) + 1
     n_blocksy = (n_cellsy - by) + 1    
 
-    hog = hog.reshape([n_blocksy, n_blocksx, by, bx, orientations])
+    hogArray = hogArray.reshape([n_blocksy, n_blocksx, by, bx, orientations])
 
     orientation_histogram = np.zeros((n_cellsy, n_cellsx, orientations))
     for x in range(n_blocksx):
             for y in range(n_blocksy):
-                block = hog[y, x, :]
+                block = hogArray[y, x, :]
                 orientation_histogram[y:y + by, x:x + bx, :] = block
 
     radius = min(cx, cy) // 2 - 1
@@ -66,11 +66,11 @@ def hog2image(hog, imageSize=[96,72],orientations=9,pixels_per_cell=(8, 8),cells
         for y in range(n_cellsy):
             for o in range(orientations):
                 centre = tuple([y * cy + cy // 2, x * cx + cx // 2])
-                dx = radius * cos(float(o) / orientations * np.pi)
-                dy = radius * sin(float(o) / orientations * np.pi)
+                dx = int(radius * cos(float(o) / orientations * np.pi))
+                dy = int(radius * sin(float(o) / orientations * np.pi))
                 # rr, cc = draw.bresenham(centre[0] - dy, centre[1] - dx,
                 #                         centre[0] + dy, centre[1] + dx)
-                rr, cc = draw.bresenham(centre[0] - dx, centre[1] - dy,
+                rr, cc = draw.bresenham(centre[0] - dx, centre[1] - dy,\
                                         centre[0] + dx, centre[1] + dy)  
                 hog_image[rr, cc] += orientation_histogram[y, x, o]
 
