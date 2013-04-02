@@ -280,8 +280,8 @@ def hof(flow, orientations=9, pixels_per_cell=(8, 8),
             for y in range(n_cellsy):
                 for o in range(orientations-1):
                     centre = tuple([y * cy + cy // 2, x * cx + cx // 2])
-                    dx = radius * cos(float(o) / orientations * np.pi)
-                    dy = radius * sin(float(o) / orientations * np.pi)
+                    dx = int(radius * cos(float(o) / orientations * np.pi))
+                    dy = int(radius * sin(float(o) / orientations * np.pi))
                     rr, cc = draw.bresenham(centre[0] - dy, centre[1] - dx,
                                             centre[0] + dy, centre[1] + dx)
                     hof_image[rr, cc] += orientation_histogram[y, x, o]

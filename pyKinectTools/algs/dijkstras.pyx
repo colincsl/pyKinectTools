@@ -384,14 +384,27 @@ DOESN'T WORK RIGHT NOW. EVERYTIME YOU INSERT IT REBUILDS A VECTOR... SO DO SOMET
 ''' ------------------------------------------------- '''
 
 
-# @cython.profile(True)
 @cython.boundscheck(False)
 @cython.wraparound(False)
 @cython.infer_types(True)
-# cpdef inline cnp.ndarray[dtype=UINT16, ndim=2, mode='c'] geodesic_extrema_MPI(cnp.ndarray[INT16, ndim=3, mode="c"] depth_mat, \
 cpdef inline list geodesic_extrema_MPI(cnp.ndarray[INT16, ndim=3, mode="c"] depth_mat, \
 								cnp.ndarray[INT16, ndim=1, mode="c"] start_pos, \
 								int iterations):
+
+	cdef int height = depth_mat.shape[0]
+	cdef int width = depth_mat.shape[1]
+	cdef cnp.ndarray[dtype=UINT16, ndim=2, mode='c'] cost_map = np.zeros([height, width], dtype=np.uint16)
+
+	return geodesic_map_MPI(cost_map, depth_mat, start_pos, iterations, 0)
+
+@cython.boundscheck(False)
+@cython.wraparound(False)
+@cython.infer_types(True)
+cpdef inline list geodesic_map_MPI(cnp.ndarray[UINT16, ndim=2, mode="c"] cost_map,\
+								cnp.ndarray[INT16, ndim=3, mode="c"] depth_mat, \
+								cnp.ndarray[INT16, ndim=1, mode="c"] start_pos, \
+								int iterations,
+								int visualize):
 	'''
 	Inputs:
 		distsMat (uint16)
@@ -403,9 +416,8 @@ cpdef inline list geodesic_extrema_MPI(cnp.ndarray[INT16, ndim=3, mode="c"] dept
 
 	Based on MPI algorithm. More efficient than Stanford method.
 
-	Length of queue gets to almost 600
+	(self-note: Length of queue gets to ~600)
 	'''
-
 	cdef int i, j, tmpX, tmpY
 	cdef int minGradient, argGradient, gradient
 	cdef int height = depth_mat.shape[0]
@@ -419,17 +431,17 @@ cpdef inline list geodesic_extrema_MPI(cnp.ndarray[INT16, ndim=3, mode="c"] dept
 	cdef int foundTouched
 	cdef double delta_cost
 
-	cdef cnp.ndarray[dtype=UINT16, ndim=2, mode='c'] cost_map = np.zeros([height, width], dtype=np.uint16)
+	# cdef cnp.ndarray[dtype=UINT16, ndim=2, mode='c'] cost_map = np.zeros([height, width], dtype=np.uint16)
 	cdef cnp.ndarray[dtype=INT16, ndim=1, mode='c'] current = start_pos
 	cost_map[depth_mat[:,:,2]!=0] += MAXVALUE
 	cost_map[start_pos[0], start_pos[1]] = 0
 
-	cdef int current_pos[3]	
+	cdef int current_xyz[3]
 
 	# cdef PriorityQueue queue = PriorityQueue(500)
 	cdef vector[INT16] queue_u
 	cdef vector[INT16] queue_v
-	extrema = []
+	extrema = [start_pos]
 
 
 	''' Set border to OUTOFBOUNDS '''
@@ -450,44 +462,89 @@ cpdef inline list geodesic_extrema_MPI(cnp.ndarray[INT16, ndim=3, mode="c"] dept
 			queue_v.pop_back()
 
 			# Prevent from going over edge
-			if current[0] < 1 or current[0] > height-1 or current[1] < 1 or current[1] > width-1:
-				break
+			# if current[0] <= 0 or current[0] >= height-1 or current[1] <= 0 or current[1] >= width-1:
+				# break
 
 			current_cost = cost_map[current[0], current[1]]
-			current_pos[0] = depth_mat[current[0], current[1],0]
-			current_pos[1] = depth_mat[current[0], current[1],1]
-			current_pos[2] = depth_mat[current[0], current[1],2]
+			current_xyz[0] = depth_mat[current[0], current[1],0]
+			current_xyz[1] = depth_mat[current[0], current[1],1]
+			current_xyz[2] = depth_mat[current[0], current[1],2]
 
 			# Find the neighbor with the minimum cost
 			for i in range(-1,2):
 				for j in range(-1,2):
-					if not (i == 0 and j == 0):
-						# if visited_map[current[0]+i, current[1]+j]==0:
-						if depth_mat[current[0]+i, current[1]+j, 2]!=0:
-							delta_cost = sqrt(pow((depth_mat[current[0]+i, current[1]+j,0]-current_pos[0]),2)+\
-											pow((depth_mat[current[0]+i, current[1]+j,1]-current_pos[1]),2)+\
-											pow((depth_mat[current[0]+i, current[1]+j,2]-current_pos[2]),2))
-							# if delta_cost > 100.:
-								# pass
-								# print delta_cost
-								# cost_map[current[0]+i, current[1]+j] = MAXVALUE
-							# If this new value is lower than previous, mark new cost
-							if current_cost+delta_cost < cost_map[current[0]+i, current[1]+j]:
-								cost_map[current[0]+i, current[1]+j] = int(current_cost+delta_cost)
-								queue_u.insert(queue_u.begin(), int(current[0]+i))
-								queue_v.insert(queue_v.begin(), int(current[1]+j))
-		
+					if (not (i == 0 and j == 0)):
+						if current[0]+i >= 0 and current[0]+i < height and current[1]+j >= 0 and current[1]+j < width:
+							if depth_mat[current[0]+i, current[1]+j, 2] != 0:
+								delta_cost = sqrt(pow((depth_mat[current[0]+i, current[1]+j,0] - current_xyz[0]),2)+\
+												  pow((depth_mat[current[0]+i, current[1]+j,1] - current_xyz[1]),2)+\
+												  pow((depth_mat[current[0]+i, current[1]+j,2] - current_xyz[2]),2))
+								# If this new value is lower than previous, mark new cost
+								if current_cost+delta_cost < cost_map[current[0]+i, current[1]+j]:
+									cost_map[current[0]+i, current[1]+j] = int(current_cost+delta_cost)
+									queue_u.insert(queue_u.begin(), int(current[0]+i))
+									queue_v.insert(queue_v.begin(), int(current[1]+j))
+			
 		cost_map[cost_map==MAXVALUE] = 0
-		# print "Max", np.max(cost_map)
 		extrema_ind = np.argmax(cost_map)
 		extrema.append(np.unravel_index(extrema_ind, [height, width]))
-		current[0] = int(extrema[iters][0])
-		current[1] = int(extrema[iters][1])
+		current[0] = int(extrema[iters+1][0])
+		current[1] = int(extrema[iters+1][1])
 		cost_map[current[0], current[1]] = 0
 
-
-	# for e in extrema:
-		# cost_map[e[0]-4:e[0]+5, e[1]-4:e[1]+5] = cost_map.max()
-
-	# return cost_map
+	if visualize == 1:
+		extrema += [np.copy(cost_map)]
 	return extrema
+
+
+@cython.boundscheck(False)
+@cython.wraparound(False)
+@cython.infer_types(True)
+cpdef inline cnp.ndarray[UINT16, ndim=2, mode="c"] geodesic_trail(cnp.ndarray[UINT16, ndim=2, mode="c"] cost_map,\
+								cnp.ndarray[INT16, ndim=1, mode="c"] start_pos):
+
+	cdef int height = cost_map.shape[0]
+	cdef int width = cost_map.shape[1]
+	cdef list trail = [[start_pos[0],start_pos[1]]]
+	cdef cnp.ndarray[dtype=INT16, ndim=1, mode='c'] current_uv = start_pos
+	cdef int current_energy = cost_map[current_uv[0],current_uv[1]]
+	cdef int min_step[2]
+	cdef int min_step_cost = 0
+	cdef int max_step_cost = 0
+	cdef int diff_tmp
+
+	while current_energy != 0 and min_step_cost < 32000:
+		min_step_cost = 32000
+		max_step_cost = 0
+		min_step[0] = 0
+		min_step[1] = 0
+		for i in range(-1,2):
+			for j in range(-1,2):
+				# print current_uv
+				if not (i == 0 and j == 0) \
+					and current_uv[0]+i > 0 and current_uv[0]+i < height-1\
+					and current_uv[1]+j > 0 and current_uv[1]+j < width-1:
+					diff_tmp = cost_map[current_uv[0],current_uv[1]] - cost_map[current_uv[0]+i,current_uv[1]+j]
+					if diff_tmp > 0 and cost_map[current_uv[0]+i,current_uv[1]+j] < 32000\
+						and diff_tmp < 50:
+						if cost_map[current_uv[0]+i,current_uv[1]+j] < min_step_cost:
+							min_step_cost = cost_map[current_uv[0]+i,current_uv[1]+j]
+							min_step[0] = i
+							min_step[1] = j
+						# else:
+							# min_step_cost = cost_map[current_uv[0]+i,current_uv[1]+j]
+							# min_step[0] = i
+							# min_step[1] = j							
+		if min_step[0] == 0 and min_step[1] == 0:
+			break
+		current_uv[0] += min_step[0]
+		current_uv[1] += min_step[1]
+		current_energy = min_step_cost
+		trail += [[current_uv[0], current_uv[1]]]
+
+
+	return np.array(trail, dtype=np.int16)
+
+
+
+

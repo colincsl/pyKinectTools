@@ -2,21 +2,85 @@ import numpy as np
 import scipy.ndimage as nd
 import pyKinectTools.algs.Dijkstras as dgn
 
-from pyKinectTools.utils.DepthUtils import *
+# from pyKinectTools.utils.DepthUtils import *
 from pyKinectTools.utils.DepthUtils import depthIm2PosIm
+from copy import deepcopy
+from skimage.draw import circle
+
 from IPython import embed
 from pylab import *
 
-def geodesic_extrema_MPI(im, centroid=None, iterations=1):
+def geodesic_extrema_MPI(im_pos, centroid=None, iterations=1, visualize=False, box=None):
+	'''
+	im : im_pos (NxMx3)
+	'''
 	if centroid==None:
-		centroid = np.array(nd.center_of_mass(im), dtype=np.int)
-	posmat = depthIm2PosIm(im).astype(np.int16)
-	# cost_map = dgn.geodesic_extrema_MPI(posmat, np.array(centroid, dtype=np.int16), iterations)
-	# return cost_map
-	extrema = dgn.geodesic_extrema_MPI(posmat, np.array(centroid, dtype=np.int16), iterations)
-	extrema = np.vstack([centroid, extrema])
-	# extrema = extrema[:,[1,0]]
-	return extrema
+		centroid = np.array(nd.center_of_mass(im_pos[:,:,2]), dtype=np.int16)
+	if box is not None:
+		im_pos = im_pos[box]	
+	im_pos = np.ascontiguousarray(im_pos, dtype=np.int16)
+
+	if visualize:
+		cost_map = np.zeros([im_pos.shape[0], im_pos.shape[1]], dtype=np.uint16)
+		extrema = dgn.geodesic_map_MPI(cost_map, im_pos, np.array(centroid, dtype=np.int16), iterations, 1)
+		cost_map = np.array(extrema[-1])
+		extrema = extrema[:-1]
+		return extrema, cost_map
+	else:
+		extrema = np.array(dgn.geodesic_extrema_MPI(im_pos, np.array(centroid, dtype=np.int16), iterations))
+		return extrema#[:,[1,0]]
+
+# def geodesic_extrema_MPI(im, centroid=None, iterations=1, visualize=False, box=None):
+# 	if centroid==None:
+# 		centroid = np.array(nd.center_of_mass(im), dtype=np.int)
+# 	im_pos = depthIm2PosIm(im).astype(np.int16)
+# 	if box is not None:
+# 		im_pos = im_pos[box]	
+
+# 	if visualize:
+# 		cost_map = np.zeros([im.shape[0], im.shape[1]], dtype=np.uint16)
+# 		extrema = dgn.geodesic_map_MPI(cost_map, im_pos, np.array(centroid, dtype=np.int16), iterations, 1)
+# 		cost_map = extrema[-1]
+# 		extrema = extrema[:-1]
+# 		return extrema, cost_map
+# 	else:
+# 		extrema = dgn.geodesic_extrema_MPI(im_pos, np.array(centroid, dtype=np.int16), iterations)
+# 		return extrema
+
+def connect_extrema(im_pos, target, markers, visualize=False):
+	'''
+	im_pos : XYZ positions of each point in image formation (n x m x 3)
+	'''
+	height, width,_ = im_pos.shape	
+	centroid = np.array(target)
+
+	im_pos = np.ascontiguousarray(im_pos.astype(np.int16))
+	cost_map = np.ascontiguousarray(np.zeros([height, width], dtype=np.uint16))
+
+	extrema = dgn.geodesic_map_MPI(cost_map, im_pos, np.array(centroid, dtype=np.int16), 1, 1)
+	cost_map = extrema[-1]
+
+	trails = []
+	for m in markers:
+		trail = dgn.geodesic_trail(cost_map.copy()+(32000*(im_pos[:,:,2]==0)).astype(np.uint16), np.array(m, dtype=np.int16))
+		trails += [trail.copy()]
+	if visualize:
+		cost_map = deepcopy(cost_map)
+		circ = circle(markers[0][0],markers[0][1], 5)
+		circ = np.array([np.minimum(circ[0], height-1), np.minimum(circ[1], width-1)])
+		circ = np.array([np.maximum(circ[0], 0), np.maximum(circ[1], 0)])
+		cost_map[circ[0], circ[1]] = 0
+		for i,t in enumerate(trails[1:]):
+			# embed()
+			cost_map[t[:,0], t[:,1]] = 0
+			circ = circle(markers[i+1][0],markers[i+1][1], 5)
+			circ = np.array([np.minimum(circ[0], height-1), np.minimum(circ[1], width-1)])
+			circ = np.array([np.maximum(circ[0], 0), np.maximum(circ[1], 0)])
+			cost_map[circ[0], circ[1]] = 0
+		return trails, cost_map
+	else:
+		return trails
+
 
 
 def distance_map(im, centroid, scale=1):
@@ -79,10 +143,6 @@ def generateKeypoints(im, centroid, iterations=10, scale=6):
 	extrema
 	distance_map
 	'''
-
-	# from pylab import *
-	# embed()
-
 
 	x,y = centroid
 	maps = []

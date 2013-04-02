@@ -145,8 +145,8 @@ def extract_people(im, mask, minPersonPixThresh=5000, gradThresh=None):
 					px/area > 0.2
 			]
 
-	if usrTmp != []:
-		print len(usrTmp), "users"
+	# if usrTmp != []:
+		# print len(usrTmp), "users"
 	# for i in range(len(px_count)):
 		# if px_count[i] > minPersonPixThresh:
 			# print px_count[i], np.array(px_count[i])/np.array(areas[i]), ratios[i]
@@ -176,14 +176,15 @@ def getMeanImage(depthImgs):
 
 	return mean_
 
-def fillImage(im, tol=500):
+def fillImage(im, tol=None):
 	## Close holes in images
-	inds = nd.distance_transform_edt(im<tol, return_distances=False, return_indices=True)
-	i2 = np.nonzero(im<50)
+	inds = nd.distance_transform_edt(im==0, return_distances=False, return_indices=True)
+	i2 = np.nonzero(im==0)
 	i3 = inds[:, i2[0], i2[1]]
-	im[i2] = im[i3[0], i3[1]] # For all errors, set to avg 	
+	im[i2] = im[i3[0], i3[1]]
 
 	return im
+
 
 
 def removeNoise(im, thresh=500):

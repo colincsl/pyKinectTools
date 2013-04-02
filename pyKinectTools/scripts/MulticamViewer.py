@@ -118,7 +118,7 @@ def main(get_depth, get_color, get_skeleton, visualize):
 		if visualize:
 			if cam_count == 2:
 				for s in VP2_skels:
-					VP2.depthIm = display_skeletons(VP2.depthIm, s, (5000,), skel_type='Kinect')
+					VP2.depthIm = display_skeletons(VP2.depthIm, s, (VP2.depthIm.max(),), skel_type='Kinect')
 				VP2.visualize()
 				VP2.playback_control()
 			VP.visualize()
