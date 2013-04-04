@@ -35,7 +35,7 @@ from pyKinectTools.dataset_readers.EVALPlayer import EVALPlayer
 from pyKinectTools.algs.GeodesicSkeleton import *
 from pyKinectTools.algs.HistogramOfOpticalFlow import hog2image
 from pyKinectTools.algs.BackgroundSubtraction import fillImage
-# from pyKinectTools.utils.VideoViewer import *
+from pyKinectTools.algs.PoseTracking import *
 
 from IPython import embed
 np.seterr(all='ignore')
@@ -351,150 +351,7 @@ def train(ims_rgb, ims_depth, labels):
 	print 'Parameters saved. Process complete'
 
 
-# ------------------ Tracking functions ------------------
 
-def link_length_constraints(skeleton_xyz, constraint_links, constraint_values, alpha=0.1):
-	'''
-	alpha : (0.,1.) How strong the constraint is. (0 = Don't Apply, 1 Full weight)
-	'''
-	# embed()
-	for i,c in enumerate(constraint_links):
-		pt1 = skeleton_xyz[c[0]]
-		pt2 = skeleton_xyz[c[1]]
-		link_actual = np.linalg.norm(pt2-pt1)
-		link_vector = (pt2-pt1)/np.linalg.norm(pt2-pt1)
-		link_ideal = constraint_values[i]
-		error = link_ideal - link_actual
-		skeleton_xyz[c[0]] = alpha*skeleton_xyz[c[0]] + (1-alpha)*(skeleton_xyz[c[0]]-link_vector*error)
-		skeleton_xyz[c[1]] = alpha*skeleton_xyz[c[1]] + (1-alpha)*(skeleton_xyz[c[1]]+link_vector*error)
-
-	# embed()
-	return skeleton_xyz
-
-# def geometry_constraints(skeleton_xyz, skeleton_img, joint_size, alpha=0.5):
-
-	# # embed()
-	# for i,c in enumerate(constraint_links):
-	# 	pt1 = skeleton_xyz[c[0]]
-	# 	pt2 = skeleton_xyz[c[1]]
-	# 	pt1_im = skeleton_img[c[0]]
-	# 	pt2_im = skeleton_img[c[1]]
-	# 	length = int(np.linalg.norm(pt2_im-pt1_im))
-
-	# 	joint_line = line(pt1_im[0], pt1_im[1], pt2_im[0], pt2_im[1])
-	# 	im_pos = 
-	# 	link_actual = np.linalg.norm(pt2-pt1)
-	# 	link_vector = (pt2-pt1)/np.linalg.norm(pt2-pt1)
-	# 	link_ideal = constraint_values[i]
-	# 	error = link_ideal - link_actual
-	# 	skeleton_xyz[c[0]] = alpha*skeleton_xyz[c[0]] + (1-alpha)*(skeleton_xyz[c[0]]-link_vector*error)
-	# 	skeleton_xyz[c[1]] = alpha*skeleton_xyz[c[1]] + (1-alpha)*(skeleton_xyz[c[1]]+link_vector*error)
-
-	# # embed()
-	# return skeleton_xyz
-
-def geometry_constraints(skeleton_xyz, joint_size, alpha=0.5):
-	'''
-	alpha : (0.,1.) How strong the constraint is. (1 = Don't Apply, 0 Full weight)
-	'''
-
-	distances = pairwise_distances(skeleton_xyz)
-	# map(lambda x: joint_size[x[0]]*joint_size[x[1]], np.repeat(np.arange(0, 10)[:,None], 2, -1))
-	for i in xrange(len(skeleton_xyz)):
-		for j in xrange(len(skeleton_xyz)):
-			if i < j and distances[i,j] < joint_size[i]+joint_size[j]:
-				pt1 = skeleton_xyz[i]
-				pt2 = skeleton_xyz[j]
-				link_vector = (pt2-pt1)/np.linalg.norm(pt2-pt1)
-				error = -(distances[i,j] - (joint_size[i]+joint_size[j]))
-				skeleton_xyz[i] = alpha*skeleton_xyz[i] + (1-alpha)*(skeleton_xyz[i]-link_vector*error)
-				skeleton_xyz[j] = alpha*skeleton_xyz[j] + (1-alpha)*(skeleton_xyz[j]+link_vector*error)
-				# print i,j, link_vector
-
-	# embed()
-
-	# Finish this idea! Constrain line not just endpoints
-	# line = np.array(skimage.draw.bresenham(skel_img_box[c[0],0], skel_img_box[c[0],1],\
-	# 							skel_img_box[c[1],0], skel_img_box[c[1],1])).T
-	# line_surf = surface_map[:, line[:,0], line[:,1]].T
-
-
-	return skeleton_xyz	
-
-def ray_cast_constraints(skeleton_xyz, skeleton_img, im_pos, surface_map, joint_size=None, mm_per_px=2):
-	'''
-	These should all be in the masked/bounding box coordinates.
-	--Params--
-	skeleton_xyz :
-	skeleton_img : 
-	im_pos : 
-	surface_map : 
-	--Return--
-	skeleton_xyz
-	skeleton_img
-	'''
-
-	if joint_size is None:
-		joint_size = np.ones(len(skeleton_xyz))
-
-	## Silhouette: Ensure the points are within the mask
-	# Look at density around each joint
-	offset = np.random.random(size=[20,2])*2 - 1
-	for i,s in enumerate(skeleton_img):
-		tmp = np.array(offset*joint_size[i]/mm_per_px + [s[0],s[1]], np.int16 ).clip([0,0], [im_pos.shape[0]-1, im_pos.shape[1]-1])
-		skeleton_img[i,:2] = np.mean(surface_map[:, tmp[:,0], tmp[:,1]].T, 0).astype(np.int16)
-	# embed()
-	# Only look at point estimate
-	# print skeleton_img[:,:2] - surface_map[:, skeleton_img[:,0], skeleton_img[:,1]].T
-	skeleton_img[:,:2] = surface_map[:, skeleton_img[:,0], skeleton_img[:,1]].T
-	
-	## Z-surface: Ensure the points lie on or behind the surface
-	z_surface = im_pos[skeleton_img[:,0], skeleton_img[:,1], 2]
-	skeleton_img[:,2] = skeleton_img[:,2] = np.maximum(skeleton_img[:,2], z_surface)
-	# skeleton_img[:,2] = skeleton_img[:,2] = z_surface
-	skeleton_xyz[:,:2] = im_pos[skeleton_img[:,0],skeleton_img[:,1],:2]
-
-	return skeleton_xyz, skeleton_img
-
-
-class FaceDetector:
-	min_threshold = 0.
-	max_threshold = 100.
-	face_box = None
-	face_position = []
-	# cascades = []
-
-	def __init__(self, rez=[480,640]):
-		# self.cascades += [cv2.CascadeClassifier('/Users/colin/libs/opencv/opencv/data/haarcascades/haarcascade_frontalface_alt_tree.xml')]
-		self.cascade = cv2.CascadeClassifier('/Users/colin/libs/opencv/opencv/data/haarcascades/haarcascade_frontalface_alt_tree.xml')
-		self.rez = rez
-
-	def run(self, im_color):
-		im_gray = (rgb2gray(im_color)*255).astype(np.uint8)
-		if self.rez[0] == 240:
-			faces = self.cascade.detectMultiScale(im_gray, scaleFactor=1.1, minNeighbors=1, minSize=(10,10), maxSize=(40,40), flags=cv2.cv.CV_HAAR_FIND_BIGGEST_OBJECT)
-		else:
-			faces = self.cascade.detectMultiScale(im_gray, scaleFactor=1.1, minNeighbors=1, minSize=(40,40), maxSize=(80,80), flags=cv2.cv.CV_HAAR_FIND_BIGGEST_OBJECT)
-		
-		if len(faces) > 0:
-			self.face_box = (slice(faces[0][1], faces[0][1]+faces[0][2])), slice(faces[0][0], faces[0][0]+faces[0][3])
-			self.face_position = [[faces[0][1]+faces[0][2]/2, faces[0][0]+faces[0][3]/2]]
-			face_lab = rgb2lab(im_color[self.face_box])[:,:,1]
-			hist = skimage.exposure.histogram(face_lab)
-			# Get rid of background
-			hist[0][hist[1]<0] = 0
-
-			total_count = float(np.sum(hist[0]))
-			mean = np.sum(hist[0]*hist[1]) / total_count
-			var = np.sum((hist[0]/total_count)*(hist[1]**2)) - mean**2
-			# self.min_threshold = np.maximum(mean-var, 0)
-			self.max_threshold = mean+var
-			# print 'Thresh:', self.min_threshold, self.max_threshold
-		else:
-			self.face_position = []
-
-# from sklearn.mixture import GMM
-# gmm = GMM(1)
 
 
 # -------------------------MAIN------------------------------------------
@@ -504,6 +361,7 @@ def main(visualize=False, learn=False, patch_size=32, n_frames=2500):
 	if 1:
 		get_color = True
 		cam = KinectPlayer(base_dir='./', device=1, bg_subtraction=True, get_depth=True, get_color=True, get_skeleton=True, fill_images=False)	
+		cam.bgSubtraction.backgroundModel = sm.imread('/Users/colin/Data/CIRL_28Feb2013/depth/59/13/47/device_1/depth_59_13_47_4_13_35507.png').clip(0, 3500)
 		# cam = KinectPlayer(base_dir='./', device=2, bg_subtraction=True, get_depth=True, get_color=True, get_skeleton=True, fill_images=False)	
 		# cam = MSRPlayer(base_dir='/Users/colin/Data/MSR_DailyActivities/Data/', actions=[1], subjects=[1,2,3,4,5], bg_subtraction=True, get_depth=True, get_color=True, get_skeleton=True, fill_images=False)
 	elif 1:
@@ -534,7 +392,7 @@ def main(visualize=False, learn=False, patch_size=32, n_frames=2500):
 	skel_init = np.array([
 		[-650,0,0], # head
 		[-425,0,0], # neck
-		[-100,0,0],# torso
+		[-150,0,0],# torso
 		[-425,-150,0],# l shoulder
 		[-150,-250,0],# l elbow
 		[50,-350,0],# l hand
@@ -551,7 +409,7 @@ def main(visualize=False, learn=False, patch_size=32, n_frames=2500):
 	joint_size = np.array([
 		50, # head
 		50, # neck
-		200,# torso
+		100,# torso
 		50,# l shoulder
 		50,# l elbow
 		50,# l hand
@@ -617,12 +475,13 @@ def main(visualize=False, learn=False, patch_size=32, n_frames=2500):
 			im_color = np.ascontiguousarray(im_color)		
 			im_color = im_color[:,:,[2,1,0]]
 		if len(cam_skels) > 0:
-			skel_tmp = skel2depth(cam_skels[0], cam.depthIm.shape)
+			skel_msr_xyz = cam_skels[0]
+			skel_msr_im = skel2depth(cam_skels[0], cam.depthIm.shape)
 
 
 		if learn:
 			# Use offsets surounding joints
-			for i,j_pos in enumerate(skel_tmp):
+			for i,j_pos in enumerate(skel_msr_im):
 				x = j_pos[1]
 				y = j_pos[0]
 				if x-patch_size/2 >= 0 and x+patch_size/2 < height and y-patch_size/2 >= 0 and y+patch_size/2 < width:
@@ -633,6 +492,9 @@ def main(visualize=False, learn=False, patch_size=32, n_frames=2500):
 					labels[frame_count*n_joints+i] = -1
 		else:
 			box = nd.find_objects(mask)[0]
+			box = np.pad(im_depth[box], 2, 'edge')
+			# box = (box[0].start - np.clip(box[0].start-10, 0, 999)
+			# box = ((box[0].start-10, box[0].stop+10), (box[1].start-10, box[1].stop+10))
 			# Ensure the size is a multiple of HOG size
 			# box = (slice(box[0].start, ((box[0].stop - box[0].start) / model_params['hog_size'][0])*model_params['hog_size'][0] + box[0].start),
 					# slice(box[1].start, ((box[1].stop - box[1].start) / model_params['hog_size'][1])*model_params['hog_size'][1] + box[1].start))
@@ -685,42 +547,44 @@ def main(visualize=False, learn=False, patch_size=32, n_frames=2500):
 							cam.colorIm[circ[:,0], circ[:,1]] = (0,120 - 30*i,0)#(255*(i==0),255*(i==1),255*(i==2))
 					markers = optima
 
-					# Depth-based matching
-					# optima = peak_local_max(skin_match_d, min_distance=20, num_peaks=3, exclude_border=False)
-					# for i,o in enumerate(optima):
-					# 	joint = o + [box[0].start, box[1].start]
-					# 	circ = np.array(circle(joint[0],joint[1], 10))
-					# 	circ = circ.clip([0,0,0], [height-1, width-1, 999])
-					# 	cam.colorIm[circ[0], circ[1]] = (0,0,255-40*i)#(255*(i==0),255*(i==1),255*(i==2))
+					if 0:
+						pass
+						# Depth-based matching
+						# optima = peak_local_max(skin_match_d, min_distance=20, num_peaks=3, exclude_border=False)
+						# for i,o in enumerate(optima):
+						# 	joint = o + [box[0].start, box[1].start]
+						# 	circ = np.array(circle(joint[0],joint[1], 10))
+						# 	circ = circ.clip([0,0,0], [height-1, width-1, 999])
+						# 	cam.colorIm[circ[0], circ[1]] = (0,0,255-40*i)#(255*(i==0),255*(i==1),255*(i==2))
 
-					# im_pos = depthIm2PosIm(cam.depthIm).astype(np.int16)
-					# im_pos = im_pos[box]*mask[box][:,:,None]
+						# im_pos = depthIm2PosIm(cam.depthIm).astype(np.int16)
+						# im_pos = im_pos[box]*mask[box][:,:,None]
 
-					# cost_map = im_depth[box]
-					# extrema = geodesic_extrema_MPI(im_pos, iterations=5, visualize=False)
-					# if len(extrema) > 0:						
-					# 	for i,o in enumerate(extrema):
-					# 		joint = np.array(o) + [box[0].start, box[1].start]
-					# 		circ = np.array(circle(joint[0],joint[1], 10)).T
-					# 		circ = circ.clip([0,0], [height-1, width-1])
-					# 		cam.colorIm[circ[:,0], circ[:,1]] = (0,0,120-30*i)#(255*(i==0),255*(i==1),255*(i==2))
-					# markers = optima					
-					# trails = []
-					# if len(markers) > 1:
-					# 	for i,m in enumerate(markers):
-					# 		trails_i = connect_extrema(im_pos, markers[i], markers[[x for x in range(len(markers)) if x != i]], visualize=False)
-					# 		trails += trails_i
-					# for t in trails:
-					# 	try:
-					# 		cost_map[t[:,0], t[:,1]] = 0
-					# 		cam.colorIm[t[:,0]+box[0].start, t[:,1]+box[1].start] = (0,0,255)
-					# 	except:
-					# 		print 'Error highlighting trail'
+						# cost_map = im_depth[box]
+						# extrema = geodesic_extrema_MPI(im_pos, iterations=5, visualize=False)
+						# if len(extrema) > 0:						
+						# 	for i,o in enumerate(extrema):
+						# 		joint = np.array(o) + [box[0].start, box[1].start]
+						# 		circ = np.array(circle(joint[0],joint[1], 10)).T
+						# 		circ = circ.clip([0,0], [height-1, width-1])
+						# 		cam.colorIm[circ[:,0], circ[:,1]] = (0,0,120-30*i)#(255*(i==0),255*(i==1),255*(i==2))
+						# markers = optima					
+						# trails = []
+						# if len(markers) > 1:
+						# 	for i,m in enumerate(markers):
+						# 		trails_i = connect_extrema(im_pos, markers[i], markers[[x for x in range(len(markers)) if x != i]], visualize=False)
+						# 		trails += trails_i
+						# for t in trails:
+						# 	try:
+						# 		cost_map[t[:,0], t[:,1]] = 0
+						# 		cam.colorIm[t[:,0]+box[0].start, t[:,1]+box[1].start] = (0,0,255)
+						# 	except:
+						# 		print 'Error highlighting trail'
 
-					# cv2.imshow('SkinMap, SkinDetect, DepthDetect', 
-					# 			np.hstack([ im_skin			/float(im_skin.max()),
-					# 						skin_match_c	/float(skin_match_c.max())]
-					# 						))
+						# cv2.imshow('SkinMap, SkinDetect, DepthDetect', 
+						# 			np.hstack([ im_skin			/float(im_skin.max()),
+						# 						skin_match_c	/float(skin_match_c.max())]
+						# 						))
 
 
 
@@ -883,7 +747,7 @@ def main(visualize=False, learn=False, patch_size=32, n_frames=2500):
 				extrema_truth = np.empty(len(extrema), dtype=np.int)
 				for i in range(len(extrema)):
 					ex = extrema[i]
-					dist = np.sqrt(np.sum((ex - skel_tmp[:,[1,0]])**2,-1))
+					dist = np.sqrt(np.sum((ex - skel_msr_im[:,[1,0]])**2,-1))
 					extrema_truth[i] = np.argmin(dist)
 
 					# print skel_predict[i], extrema_truth[i]
@@ -923,7 +787,7 @@ def main(visualize=False, learn=False, patch_size=32, n_frames=2500):
 				skel_previous += im_pos_mean
 
 			# Features
-			extrema = geodesic_extrema_MPI(im_pos, iterations=7, visualize=False)
+			extrema = geodesic_extrema_MPI(im_pos, iterations=10, visualize=False)
 			if len(extrema) > 0:				
 				for i,o in enumerate(extrema):
 					joint = np.array(o) + [box[0].start, box[1].start]
@@ -934,122 +798,111 @@ def main(visualize=False, learn=False, patch_size=32, n_frames=2500):
 			# Z-surface
 			surface_map = nd.distance_transform_edt(-mask[box], return_distances=False, return_indices=True)
 
+			if 1:
+				mask_interval = 1
+				feature_radius = 10
+			else:
+				mask_interval = 3
+				feature_radius = 2
+
+			box = (slice(box[0].start, box[0].stop, mask_interval),slice(box[1].start, box[1].stop, mask_interval))
+
+			im_pos_full = im_pos.copy()
+			im_pos = im_pos[::mask_interval,::mask_interval]
+			box_height, box_width,_ = im_pos.shape
+			skel_img_box = None
+
+			# ---- (Step 1A) Find feature coordespondences ----
+			# This function does not need to be computed at every iteration
+			# Set of joints used for each set of features:
+			# Face detector, skin, extrema
+
+			features_joints = [[0], [0,5,8], range(len(skel_current))]
+			# features_joints = [[0], [0,5,8], [0,3,5,6,8,11,14]]
+			feature_width = feature_radius*2+1
+			feature_tmp = np.exp(- ((feature_radius - np.mgrid[:feature_width,:feature_width][0])**2 + (feature_radius - np.mgrid[:feature_width,:feature_width][1])**2 ) / (2.*feature_radius**2))
+			feature_tmp /= np.sum(feature_tmp)
+			all_features = [face_detector.face_position, optima, extrema]
+			total_feature_count = np.sum([len(f) for f in all_features])
+
+			px_feature = np.zeros([im_pos.shape[0], im_pos.shape[1], len(skel_current)])			
+			for i,features in enumerate(all_features):
+				for j,o_ in enumerate(features):
+					o = np.array(o_)/mask_interval
+					pt_xyz = im_pos[o[0], o[1]]
+					o = np.clip(o, [feature_radius,feature_radius], [im_pos.shape[0]-feature_radius-1, im_pos.shape[1]-feature_radius-1])
+					joint_ind = np.argmin(np.sum((skel_current[features_joints[i]] - pt_xyz)**2, 1))
+					px_feature[o[0]-feature_radius:o[0]+feature_radius+1,o[1]-feature_radius:o[1]+feature_radius+1,features_joints[i][joint_ind]] += feature_tmp# * ((total_feature_count-len(features))/float(total_feature_count))
+
+			# Find feature max labels
+			px_label = np.argmax(px_feature, -1)
+			px_label_flat = px_label[mask[box]].flatten()
+			px_label_prob = np.max(px_feature, -1)[mask[box]].flatten()
+			px_diff = skel_current[px_label_flat] - im_pos[mask[box]]
+
+			# Calc the feature change in position for each joint
+			feature_diff = np.zeros([len(skel_current), 3])
+			feature_prob = np.zeros(len(skel_current))
+			for i,_ in enumerate(skel_current):
+				labels = px_label_flat==i
+				if sum(labels) > 0:
+					feature_prob[i] = 1
+					px_label_prob[labels] /= np.sum(px_label_prob[labels])
+					feature_diff[i] = np.sum(px_label_prob[labels][:,None]*px_diff[labels], 0)
+				else:
+					feature_prob[i] = 0
+			feature_diff = np.nan_to_num(feature_diff)
+
+			# Loop through the rest of the constraints
 			for _ in range(20):
-
-				# ---- (Step 1) Find correspondences, c ----
+				# ---- (Step 1B) Find depth coordespondences ----
 				px_corr = np.zeros([im_pos.shape[0], im_pos.shape[1], len(skel_current)])
-				px_feature = np.zeros([im_pos.shape[0], im_pos.shape[1], len(skel_current)])
-
-				embed()
-				# Calc euclidian probabilities
-				sigma_label = 100.
-				for i,s in enumerate(skel_current):
-					px_corr[:,:,i] = np.exp(-np.sqrt(np.sum((im_pos - s)**2, -1))/sigma_label)
-
-				# correspondances = np.empty([len(skel_current), 2], dtype=np.int)
-				# for i,s in enumerate(skel_current):
-				# 	corr_index = np.nanargmin(np.sqrt(np.sum(((im_pos - s)**2+(px_label[:,:,None]!=i)*9999999), -1)))
-				# 	correspondances[i] = np.unravel_index(corr_index, im_pos.shape[:2])
-
-				# Find correspondence max labels
-				for i,_ in enumerate(skel_current):
-					px_corr = px_corr / px_corr.sum(-1)[:,:,None]
+				
+				## Calc euclidian probabilities
+				if skel_img_box is None:
+					skel_img_box = world2rgb(skel_current, cam.depthIm.shape) - [box[0].start, box[1].start, 0]
+					skel_img_box = skel_img_box.clip([0,0,0], [im_pos.shape[0]-1, im_pos.shape[1]-1, 9999])
+				for i,s in enumerate(skel_img_box):
+					px_corr[:,:,i] = np.exp(-np.sqrt(np.sum((im_pos - im_pos[s[0], s[1]])**2, -1)) / joint_size[i])
+				# for i,_ in enumerate(skel_current):
+					# px_corr = px_corr / px_corr.sum(-1)[:,:,None]
 				px_label = np.argmax(px_corr, -1)
+				
+				# for i,s in enumerate(skel_current):
+					# px_corr[:,:,i] = np.sum((im_pos - s)**2, -1) / joint_size[i]**2
+				# px_label = np.argmin(px_corr, -1)
+
 				px_label_flat = px_label[mask[box]].flatten()
 				px_label_prob = np.max(px_corr, -1)[mask[box]].flatten()
-				px_diff = skel_current[px_label_flat] - im_pos[mask[box]]
+				px_diff = skel_current[px_label_flat]-im_pos[mask[box]]
+				# If within joint size, then correspondence should be zero
+				px_diff[np.sqrt(np.sum(px_diff**2, 1)) < joint_size[px_label_flat]] = 0
 
 				# Calc the correspondance change in position for each joint
 				corr_diff = np.empty([len(skel_current), 3])
-				# corr_prob = np.empty(len(skel_current))
 				for i,_ in enumerate(skel_current):
 					labels = px_label_flat==i
-					# corr_prob[i] = np.sum(px_label_prob[labels]) / np.sum(labels)
 					px_label_prob[labels] /= np.sum(px_label_prob[labels])
-					# embed()
-					# corr_diff[i] = np.sum(px_corr[mask[box]].reshape([-1, 1, 15])*px_diff, 0)
 					corr_diff[i] = np.sum(px_label_prob[labels][:,None]*px_diff[labels], 0)
+					# corr_diff[i] = np.sum(np.maximum(px_diff[labels]-joint_size[i]/2,0), 0)
 				corr_diff = np.nan_to_num(corr_diff)
 
+				# ---- (Step 2) Find occlusions ----
 				# Determine if joints are visible
-				sigma_occluded = 100
-				correspondances_prob = np.exp(-np.sqrt(np.sum(corr_diff**2,-1))/sigma_occluded)
-				valid_joints = correspondances_prob > .5
-				# visible_joints = corr_prob > 0.5
-				# print "C Occluded:" 
-				print(skel_names[-valid_joints])
-
-				cv2.imshow('Correspondence label,probability', 
-							np.hstack([ (px_label*mask[box])/float(px_label.max()),
-										np.max(px_corr, -1)]
-										))
-
-				# Calc feature probabilities
-				f_rad = 10
-				f_width = f_rad*2+1
-				# Set of joints used for each set of features:
-				# Face detector, skin, extrema
-				# features_joints = [[0], [0,5,8], range(len(skel_current))]
-				features_joints = [[0], [0,5,8], [0,3,5,6,8,11,14]]
-				feature_tmp = np.exp(- ((f_rad - np.mgrid[:f_width,:f_width][0])**2 + (f_rad - np.mgrid[:f_width,:f_width][1])**2 ) / (2.*f_rad**2))
-				feature_tmp /= np.sum(feature_tmp)
-				all_features = [face_detector.face_position, optima, extrema]
-				total_feature_count = np.sum([len(f) for f in all_features])
-				for i,features in enumerate(all_features):
-					for j,o in enumerate(features):
-						pt_xyz = im_pos[o[0], o[1]]
-						o = np.clip(o, [f_rad,f_rad], [im_pos.shape[0]-f_rad-1, im_pos.shape[1]-f_rad-1])
-						joint_ind = np.argmin(np.sum((skel_current[features_joints[i]] - pt_xyz)**2, 1))
-						px_feature[o[0]-f_rad:o[0]+f_rad+1,o[1]-f_rad:o[1]+f_rad+1,features_joints[i][joint_ind]] += feature_tmp# * ((total_feature_count-len(features))/float(total_feature_count))
-
-				# Find feature max labels
-				px_label = np.argmax(px_feature, -1)
-				px_label_flat = px_label[mask[box]].flatten()
-				# px_label_prob = px_feature[px_label][mask[box]].flatten()
-				px_label_prob = np.max(px_feature, -1)[mask[box]].flatten()
-				px_diff = skel_current[px_label_flat] - im_pos[mask[box]]
-
-				# Calc the feature change in position for each joint
-				feature_diff = np.zeros([len(skel_current), 3])
-				feature_prob = np.zeros(len(skel_current))
-				for i,_ in enumerate(skel_current):
-					labels = px_label_flat==i
-					if sum(labels) > 0:
-						feature_prob[i] = 1
-						px_label_prob[labels] /= np.sum(px_label_prob[labels])
-						feature_diff[i] = np.sum(px_label_prob[labels][:,None]*px_diff[labels], 0)
-					else:
-						feature_prob[i] = 0
-				feature_diff = np.nan_to_num(feature_diff)
-
-				# embed()
-				cv2.imshow('feature label,probability', 
-							np.hstack([ (px_label*mask[box])/float(px_label.max()),
-										np.max(px_feature, -1)/float(np.max(px_feature, -1).max())]
-										))
-
+				# correspondances_prob = np.exp(-np.sqrt(np.sum(corr_diff**2,-1))/100.)
 				# Determine if joints are visible
-				# valid_joints = np.logical_or(feature_prob>.5, valid_joints)
 				visible_joints = np.exp(-np.sqrt(corr_diff[:,2]**2)/100) > .5
-				# print "F Occluded:", skel_names[-valid_joints]
-				correspondances_prob =  (correspondances_prob + (1-feature_prob)) / ((correspondances_prob+1)+(correspondances_prob))
-										#(correspondances_prob + (1-feature_prob)) * .5 
-				print correspondances_prob
 
-				# ---- (Step 2) Update pose state, x ----
-				# Todo: Check objective
+
+				# ---- (Step 3) Update pose state, x ----
 				gamma = .0
-				sigma = 1.
-				lambda_x = 1.
+				lambda_d = .5
+				lambda_c = .5
 				skel_prev_difference = (skel_current - skel_previous)
-				gamma = gamma*valid_joints# + (1-gamma)*(-visible_joints)
-				lambda_c = lambda_x*correspondances_prob#*visible_joints
-				lambda_f = lambda_x*(1-correspondances_prob)#*visible_joints
-
 				skel_current = skel_previous \
-								+ gamma[:,None]*skel_prev_difference \
-								- lambda_c[:,None]*corr_diff\
-								- lambda_f[:,None]*feature_diff
+								+ gamma*skel_prev_difference \
+								- lambda_d*corr_diff\
+								- lambda_c*feature_diff
 
 				skel_img_box = world2rgb(skel_current, cam.depthIm.shape) - [box[0].start, box[1].start, 0]
 				skel_img_box = skel_img_box.clip([0,0,0], [im_pos.shape[0]-1, im_pos.shape[1]-1, 9999])
@@ -1058,28 +911,53 @@ def main(visualize=False, learn=False, patch_size=32, n_frames=2500):
 				order = np.arange(len(constraint_links))
 				for _ in range(1):
 					# A: Link lengths
-					# Apply constraints in random order					
-					# np.random.shuffle(order)
-					skel_current = link_length_constraints(skel_current, constraint_links[order], constraint_values[order], alpha=.65)
+					skel_current = link_length_constraints(skel_current, constraint_links[order], constraint_values[order], alpha=.3)
 					# B: Geometry
-					skel_current = geometry_constraints(skel_current, joint_size, alpha=0.65)
+					skel_current = geometry_constraints(skel_current, joint_size, alpha=0.8)
 
-				skel_img_box = world2rgb(skel_current, cam.depthIm.shape) - [box[0].start, box[1].start, 0]
-				skel_img_box = skel_img_box.clip([0,0,0], [im_pos.shape[0]-1, im_pos.shape[1]-1, 9999])
+				# skel_img_box = (world2rgb(skel_current, cam.depthIm.shape) - [box[0].start, box[1].start, 0])/mask_interval
+				# skel_img_box = skel_img_box.clip([0,0,0], [im_pos.shape[0]-1, im_pos.shape[1]-1, 9999])
+				skel_img_box = (world2rgb(skel_current, cam.depthIm.shape) - [box[0].start, box[1].start, 0])				
+				skel_img_box = skel_img_box.clip([0,0,0], [cam.depthIm.shape[0]-1, cam.depthIm.shape[1]-1, 9999])
 				# C: Ray-cast constraints
-				skel_current, skel_img_box = ray_cast_constraints(skel_current, skel_img_box, im_pos, surface_map, joint_size)
-				# world2rgb(skel_current, cam.depthIm.shape) - (skel_img_box + [box[0].start, box[1].start, 0])
-				# print 'B:', skel_current, skel_img_box
+				skel_current, skel_img_box = ray_cast_constraints(skel_current, skel_img_box, im_pos_full, surface_map, joint_size)
 
 			# # Map back from mask to image
 			skel_img = skel_img_box + [box[0].start, box[1].start, 0]
-
+			# embed()
 			# ----------------------------------------------------------------
+
+			# Compute accuracy wrt standard Kinect data
+			# skel_im_error = skel_msr_im[:,[1,0]] - skel_img[[0,2,3,4,5,6,7,8,9,10,11,12,13,14],:2]
+			try:
+				skel_msr_im_box = np.array([skel_msr_im[:,1]-box[0].start,skel_msr_im[:,0]-box[1].start]).T.clip([0,0],[box_height-1, box_width-1])
+				skel_xyz_error = im_pos[skel_msr_im_box[:,0],skel_msr_im_box[:,1]] - skel_current[[0,2,3,4,5,6,7,8,9,10,11,12,13,14],:]
+				skel_l2 = np.sqrt(np.sum(skel_xyz_error**2, 1))
+			except:
+				embed()
+			print skel_l2
+			skel_correct = np.nonzero(skel_l2 < 150)[0]
+			print "{0:0.2f}% joints correct".format(len(skel_correct)/15.*100)
+			# skel_error_x = skel_msr_xyz[::-1,1] - skel_current[[0,2,3,4,5,6,7,8,9,10,11,12,13,14],0]
+			# skel_error_y = skel_msr_xyz[:,0] - skel_current[[0,2,3,4,5,6,7,8,9,10,11,12,13,14],1]
+			# skel_error_z = skel_msr_xyz[:,2] - skel_current[[0,2,3,4,5,6,7,8,9,10,11,12,13,14],2]
+			# skel_l2 = np.sqrt(np.sum(skel_error, 0))
 
 			# print world2rgb(np.array([im_pos_mean]), (240,320))
 			# mp = world2rgb(np.array([im_pos_mean]), (240,320))[0]
 			# c = circle(mp[0],mp[1], 10)
 			# cam.depthIm[c[0],c[1]] = 50				
+
+			cv2.imshow('Correspondence label,probability',
+						np.hstack([ (px_label*mask[box])/float(px_label.max()),
+									np.max(px_corr, -1)]
+						))
+
+
+			cv2.imshow('feature label,probability', 
+						np.hstack([ (px_label*mask[box])/float(px_label.max()),
+									np.max(px_feature, -1)/float(np.max(px_feature, -1).max())]
+						))
 
 			if 0:
 				subplot(2,2,1)
@@ -1105,8 +983,8 @@ def main(visualize=False, learn=False, patch_size=32, n_frames=2500):
 			if get_color:
 				cam.colorIm = display_skeletons(cam.colorIm, skel_img[:,[1,0,2]], (0,255,), skel_type='Ganapathi')
 				for i,s in enumerate(skel_img):
-					# if not valid_joints[i]:
-					if not visible_joints[i]:
+					# if not visible_joints[i]:
+					if i not in skel_correct:
 						c = circle(s[0], s[1], 5)
 						cam.colorIm[c[0], c[1]] = (255,0,0)
 				# cam.colorIm = display_skeletons(cam.colorIm, world2rgb(skel_init+im_pos_mean, [240,320])[:,[1,0]], skel_type='Ganapathi')
@@ -1124,18 +1002,18 @@ def main(visualize=False, learn=False, patch_size=32, n_frames=2500):
 				# 	pt2 = (pt1[0]+int(w), pt1[1]+int(h))
 				# 	cv2.rectangle(cam.colorIm, pt1, pt2, (255, 0, 0), 3, 8, 0)				
 				# cam2.depthIm = display_skeletons(cam2.depthIm, cam2_skels[0], (max_depth,), skel_type='Low')
-				# cam.depthIm = display_skeletons(cam.depthIm, skel_tmp, (max_depth,), skel_type='Low')
+				# cam.depthIm = display_skeletons(cam.depthIm, skel_msr_im, (max_depth,), skel_type='Low')
 				if len(cam_skels) > 0:
-					# skel_tmp = kinect_to_msr_skel(skel_tmp)
-					# cam.colorIm[:,:,2] = display_skeletons(cam.colorIm[:,:,2], skel_tmp, (255,), skel_type='Low')
-					cam.colorIm[:,:,2] = display_skeletons(cam.colorIm[:,:,2], skel_tmp, (255,), skel_type='Kinect')
+					# skel_msr_im = kinect_to_msr_skel(skel_msr_im)
+					# cam.colorIm[:,:,2] = display_skeletons(cam.colorIm[:,:,2], skel_msr_im, (255,), skel_type='Low')
+					cam.colorIm[:,:,2] = display_skeletons(cam.colorIm[:,:,2], skel_msr_im, (255,), skel_type='Kinect')
 				# cv2.imshow("C", im_color)
 				cam.visualize()
 				# cam2.visualize()
 				# embed()
 
 		frame_count+=1
-		print frame_count	
+		print "Frame #{0:d}".format(frame_count)
 
 	if learn:
 		# train(ims_rgb, ims_depth, labels)
@@ -1166,14 +1044,14 @@ if 0:
 	### Find joint label closest to each extrema
 	extrema = geodesic_extrema_MPI(cam.depthIm*(mask>0), iterations=3)
 	for i,_ in enumerate(extrema):
-		# j_pos = skel_tmp[i]
+		# j_pos = skel_msr_im[i]
 		j_pos = extrema[i]
 		x = j_pos[0]
 		y = j_pos[1]
 		if x-patch_size/2 >= 0 and x+patch_size/2 < height and y-patch_size/2 >= 0 and y+patch_size/2 < width:
 			ims_rgb += [im_color[x-patch_size/2:x+patch_size/2, y-patch_size/2:y+patch_size/2]]
 			ims_depth += [im_depth[x-patch_size/2:x+patch_size/2, y-patch_size/2:y+patch_size/2]]
-			dists = np.sqrt(np.sum((j_pos - skel_tmp[:,[1,0]])**2,-1))
+			dists = np.sqrt(np.sum((j_pos - skel_msr_im[:,[1,0]])**2,-1))
 			labels += [np.argmin(dists)]
 
 	### Multi-cam

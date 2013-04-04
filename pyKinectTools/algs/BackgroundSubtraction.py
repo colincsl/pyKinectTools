@@ -104,7 +104,7 @@ def extract_people_clusterMethod(img):
 
 	return d1A, goodObjs
 
-def extract_people(im, mask, minPersonPixThresh=5000, gradThresh=None):
+def extract_people(im, minPersonPixThresh=5000, gradThresh=None):
 	'''
 	---Paramaters---
 	im : 
@@ -118,6 +118,7 @@ def extract_people(im, mask, minPersonPixThresh=5000, gradThresh=None):
 	userBoundingBoxes :
 	userLabels :
 	'''
+	mask = im!=0
 	if gradThresh == None:
 		grad_bin = mask
 	else:
@@ -196,6 +197,22 @@ def removeNoise(im, thresh=500):
 	im[:,:,2] = nd.median_filter(im[:,:,2], 3)
 
 	return im
+
+
+class BaseBackgroundModel:
+	
+	def __init__(self, depthIm):
+		self.backgroundModel = depthIm
+
+	def update(self,depthIm):
+		self.currentIm = depthIm.copy()
+
+	def getModel(self):
+		return self.backgroundModel		
+
+	def getForeground(self, thresh=50):
+		return (np.abs(self.backgroundModel - self.currentIm)*(self.currentIm!=0)) > thresh
+
 
 
 ''' Adaptive Mixture of Gaussians '''
@@ -324,46 +341,66 @@ class AdaptiveMixtureOfGaussians:
 	def getModel(self):
 		return self.backgroundModel
 
-	def getForeground(self, thresh=100):
-		# mask = self.currentIm!=0
-		residual = np.abs(self.currentIm - self.backgroundModel)
-		# residual = self.backgroundModel
-		# residual *= mask
-		foreground = residual > thresh
-		foreground = nd.binary_closing(foreground, iterations=1)
-		# import cv2
-		# cv2.imshow("res", residual/residual.max())
-		return foreground
+	# def getForeground(self, thresh=100):
+	# 	# mask = self.currentIm!=0
+	# 	residual = np.abs(self.currentIm - self.backgroundModel)*(self.currentIm!=0)
+	# 	# residual = self.backgroundModel
+	# 	# residual *= mask
+	# 	foreground = residual > thresh
+	# 	foreground = nd.binary_closing(foreground, iterations=1)
+	# 	# import cv2
+	# 	# cv2.imshow("res", residual/residual.max())
+	# 	return foreground
 
 
 class MedianModel:
 
-	def __init__(self, depthIm):
-		self.prevDepthIms = fillImage(depthIm.copy())[:,:,None]
+	
+	def __init__(self, depthIm, n_images=50, fill_image=False):
+		self.fill_image = fill_image
+		if fill_image:
+			self.prevDepthIms = fillImage(depthIm.copy())[:,:,None]
+		else:
+			self.prevDepthIms = depthIm.copy()[:,:,None]
 		self.backgroundModel = self.prevDepthIms[:,:,0]
+		self.n_images = n_images
 
 	def update(self,depthIm):
 
 		# Add to set of images
-		self.currentIm = fillImage(depthIm.copy())
+		if self.fill_image:
+			self.currentIm = fillImage(depthIm.copy())
+		else:
+			self.currentIm = depthIm.copy()
 		self.prevDepthIms = np.dstack([self.prevDepthIms, self.currentIm])
 
 		# Check if too many (or few) images
 		imCount = self.prevDepthIms.shape[2]
-		# if imCount <= 1:
-			# return
-		if imCount > 50:
-			self.prevDepthIms = self.prevDepthIms[:,:,-50:]
+		if imCount > self.n_images:
+			self.prevDepthIms = self.prevDepthIms[:,:,-self.n_images:]
 
 		self.backgroundModel = np.median(self.prevDepthIms, -1)
 
-	def getModel(self):
-		return self.backgroundModel		
+	# def getModel(self):
+		# return self.backgroundModel
 
-	def getForeground(self, thresh=100):
-		return (self.backgroundModel - self.currentIm) > thresh
+	# def getForeground(self, thresh=50):
+		# return (np.abs(self.backgroundModel - self.currentIm)*(self.currentIm!=0)*(self.backgroundModel!=0)) > thresh
 
 
+class StaticModel(BaseBackgroundModel):
+
+	def __init__(self, depthIm):
+		self.backgroundModel = depthIm
+
+	# def update(self,depthIm):
+	# 	self.currentIm = depthIm.copy()
+
+	# def getModel(self):
+	# 	return self.backgroundModel		
+
+	# def getForeground(self, thresh=50):
+	# 	return (np.abs(self.backgroundModel - self.currentIm)*(self.currentIm!=0)*(self.backgroundModel!=0)) > thresh
 
 ''' Likelihood based on optical flow'''
 

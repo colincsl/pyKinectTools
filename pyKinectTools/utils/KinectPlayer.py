@@ -18,7 +18,7 @@ from pyKinectTools.utils.VideoViewer import VideoViewer
 # from pyKinectTools.utils.DepthUtils import world2depth, depthIm2XYZ
 from pyKinectTools.utils.MultiCameraUtils import multiCameraTimeline, formatFileString
 # from pyKinectTools.utils.FeatureUtils import saveFeatures, loadFeatures, learnICADict, learnNMFDict, displayComponents
-from pyKinectTools.algs.BackgroundSubtraction import AdaptiveMixtureOfGaussians, MedianModel, fillImage, extract_people
+from pyKinectTools.algs.BackgroundSubtraction import AdaptiveMixtureOfGaussians, MedianModel, fillImage, extract_people, StaticModel
 from pyKinectTools.algs.FeatureExtraction import calculateBasicPose, computeUserFeatures, computeFeaturesWithSkels
 
 vv = VideoViewer()
@@ -58,8 +58,8 @@ class KinectPlayer:
 		self.enable_bg_subtraction = bg_subtraction
 		self.fill_images = fill_images
 		self.base_dir = base_dir
-		self.dev = device-1
-		self.deviceID = "device_{0:d}".format(self.dev+1)
+		self.dev = device
+		self.deviceID = "device_{0:d}".format(self.dev)
 
 		self.get_depth = get_depth
 		self.get_color = get_color
@@ -92,26 +92,25 @@ class KinectPlayer:
 	def update_background(self):
 		'''Background model'''
 		if self.backgroundModel is None:
-			self.bgSubtraction = AdaptiveMixtureOfGaussians(self.depthIm, maxGaussians=3, learningRate=0.01, decayRate=0.001, variance=300**2)
+			self.bgSubtraction = StaticModel(self.depthIm)
+			# self.bgSubtraction = AdaptiveMixtureOfGaussians(self.depthIm, maxGaussians=5, learningRate=0.01, decayRate=0.001, variance=300**2)
 			# self.bgSubtraction = MedianModel(self.depthIm)
 			self.backgroundModel = self.bgSubtraction.getModel()
 			return
 		
 		self.bgSubtraction.update(self.depthIm)
 		self.backgroundModel = self.bgSubtraction.getModel()
-		self.foregroundMask = self.bgSubtraction.getForeground(thresh=100)
+		self.foregroundMask = self.bgSubtraction.getForeground(thresh=500)
 
 	def next(self, frames=1):
 		'''
 		frames : skip (this-1) frames
 		'''
 		try:
-		# if 1:
 			for i in xrange(frames):
 				self.player.next()
 				if self.enable_bg_subtraction:
 					self.update_background()
-					# print 'Updating background'
 			return True
 		except:
 			return False
@@ -132,15 +131,15 @@ class KinectPlayer:
 		depth = self.depthIm.astype(np.int16)
 		mask = self.foregroundMask
 
-		labelIm, boxes, labels,_ = extract_people(depth, mask, minPersonPixThresh=5000, gradThresh=edge_thresh)
+		labelIm, boxes, labels,_ = extract_people(depth*mask, minPersonPixThresh=5000, gradThresh=edge_thresh)
 		label_sizes = [np.sum(labelIm[boxes[i]]==i+1) for i in range(len(labels))]
 		labels_c = [l+1 for l,lab in zip(range(len(labels)), labels) if 5000 < label_sizes[l]]
 		labels_sizes_c = [label_sizes[l] for l,lab in zip(range(len(labels)), labels) if 5000 < label_sizes[l]]
 
 		if len(labels_sizes_c) > 0:
 			max_ind = np.argmax(labels_sizes_c)
-			mask = labelIm==labels_c[max_ind]
-			depth[-mask] = 0
+			mask_new = labelIm==labels_c[max_ind]
+			depth[-mask_new] = 0
 			return depth
 		else:
 			return -1
@@ -169,22 +168,11 @@ class KinectPlayer:
 
 						# depth = self.depthIm.astype(np.int16)
 						# mask = self.foregroundMask
-
-						# labelIm, boxes, labels = extract_people(depth, mask)
-						# label_sizes = [np.sum(labelIm[boxes[i]]==i+1) for i in range(len(labels))]
-						# labels = [l+1 for l,lab in zip(range(len(labels)), labels) if 1000 < label_sizes[l] < 25000]
-
-						# mask = labelIm==labels[0]
-						# depth[-mask] = 0
 						depth = self.get_person()
 						depthIms += [depth]
 						# colorIms += [color]
 		except:
 			print "No skeletons remaining."
-		# depthIms = np.array(depthIms)
-		# skels_world = np.array(skels_world)
-		# colorIms = np.array(colorIms)
-		# embed()
 		
 		return depthIms, skels_world
 
@@ -199,7 +187,7 @@ class KinectPlayer:
 			self.ret = plotUsers(self.depthIm, self.users)
 
 		if self.get_depth:
-			vv.imshow("Depth "+self.deviceID, (self.depthIm-1500)/2500.)
+			vv.imshow("Depth "+self.deviceID, (self.depthIm-1000)/5000.)
 			vv.putText("Depth "+self.deviceID, "Day "+self.day_dir+" Time "+self.hour_dir+":"+self.minute_dir+":"+self.tmpSecond, (5,220), size=15)					
 			vv.putText("Depth "+self.deviceID, "Play speed: "+str(self.play_speed)+"x", (5,15), size=15)													
 			# vv.putText("Depth "+self.deviceID, str(int(self.framerate))+" fps", (275,15), size=15)													
@@ -395,6 +383,7 @@ class KinectPlayer:
 						if self.get_color:
 							colorFile = 'color_'+self.depthFile[6:-4]+'.jpg'
 							self.colorIm = sm.imread(self.base_dir+'color/'+self.day_dir+'/'+self.hour_dir+'/'+self.minute_dir+'/'+self.deviceID+'/'+colorFile)
+							self.colorIm = self.colorIm[:,:,[2,1,0]]
 							# self.colorIm_g = skimage.img_as_ubyte(skimage.color.rgb2gray(self.colorIm))
 							# self.colorIm_lab = skimage.color.rgb2lab(self.colorIm).astype(np.uint8)
 
@@ -411,12 +400,11 @@ class KinectPlayer:
 							for i in self.users.keys():
 								user = self.users[i]
 						timestamp = self.depthFile[:-4].split('_')[1:] # Day, hour, minute, second, millisecond, Frame number in this second
-						self.depthIm = np.minimum(self.depthIm.astype(np.float), 3500)
+						self.depthIm = self.depthIm.astype(np.float).clip(0,3500)
 						# self.depthIm = np.minimum(self.depthIm.astype(np.float), 5000)
 						
 						if self.fill_images:
 							fillImage(self.depthIm)
-
 
 						yield
 							

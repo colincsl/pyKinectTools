@@ -6,6 +6,7 @@ import time
 from pyKinectTools.utils.DepthUtils import skel2depth, depth2world, world2depth
 
 N_MSR_JOINTS = 20
+N_KINECT_JOINTS = 14
 
 def transform_skels(skels, transformation, output='image'):
     '''
@@ -64,11 +65,34 @@ def kinect_to_msr_skel(skel):
 
     return skel_msr.astype(np.int16)
 
+def msr_to_kinect_skel(skel):
+    # SKEL_JOINTS = [0, 2, 3, 4, 5, 7, 8, 9, 11, 13, 15, 17, 19] # Low 
+
+    skel_kinect = np.zeros([N_KINECT_JOINTS, 3], dtype=np.int16)
+    skel_kinect[0,:] = skel[3,:] #head
+    # skel_kinect[1,:] = skel[1,:] #torso
+    skel_kinect[1,:] = skel[0,:] #torso
+    skel_kinect[2,:] = skel[4,:] #l shoulder
+    skel_kinect[3,:] = skel[5,:] #l elbow
+    skel_kinect[4,:] = skel[7,:] #l hand
+    skel_kinect[5,:] = skel[8,:] #r shoudler
+    skel_kinect[6,:] = skel[9,:] #r elbow
+    skel_kinect[7,:] = skel[11,:] #r hand
+    skel_kinect[8,:] = skel[12,:] #l hip
+    skel_kinect[9,:] = skel[13,:] #l knee
+    skel_kinect[10,:] = skel[15,:] #l foot
+    skel_kinect[11,:] = skel[16,:] #r hip
+    skel_kinect[12,:] = skel[17,:] #r knee
+    skel_kinect[13,:] = skel[17,:] #r foot
+
+    return skel_kinect
+
 from skimage.draw import circle, line
 def display_skeletons(img, skel, color=(200,0,0), skel_type='MSR'):
     '''
     skel_type : 'MSR' or 'Low' ##or 'Upperbody'
     '''
+    img = np.ascontiguousarray(img)
     if skel_type == 'MSR':
         joints = range(N_MSR_JOINTS)
         joint_names = ['torso1', 'torso2', 'neck', 'head',
@@ -119,13 +143,30 @@ def display_skeletons(img, skel, color=(200,0,0), skel_type='MSR'):
                         [2,5],# connect shoulders
                         [1,5],[5,6],[6,7], # Right arm
                         [1,8],[8,9],[9,10], #Left foot
-                        [1,11],[11,12],[12,13] #Right foot                        
+                        [1,11],[11,12],[12,13], #Right foot
+                        [8,11] #Bridge hips
                         ] 
         joint_names = ['head', 'torso', 'l_shoulder', 'l_elbow', 'l_hand',
                     'r_shoulder', 'r_elbow', 'r_hand',
                     'l_hip', 'l_knee', 'l_foot', 
                     'r_hip', 'r_knee', 'r_foot']
         head = 0
+    elif skel_type == 'Ganapathi':
+        joints = range(15)
+        connections = [
+            [0,1],[1,2],#Head to neck, neck to torso
+            [1,3],[3,4],[4,5], # Left arm
+            [3,9],[6,12], # shoudlers to hips
+            [1,6],[6,7],[7,8], # Right arm
+            [2,9],[9,10],[10,11], #Left foot
+            [2,12],[12,13],[13,14], #Right foot
+            [9,12] #Bridge hips
+            ]
+        joint_names = ['head', 'neck', 'torso', 'l_shoulder', 'l_elbow', 'l_hand',
+                    'r_shoulder', 'r_elbow', 'r_hand',
+                    'l_hip', 'l_knee', 'l_foot', 
+                    'r_hip', 'r_knee', 'r_foot']
+        head = 0        
     elif skel_type == 'Kinect_Upper':
         joints = range(9)
         connections = [
@@ -138,16 +179,20 @@ def display_skeletons(img, skel, color=(200,0,0), skel_type='MSR'):
     for i in joints:
         j = skel[i]
         # Remove zero nodes
-        if not (j[0] == 0 and j[1] == 0):
-            cv2.circle(img, (j[0], j[1]), 5, color)
+        try:
+            if not (j[0] <= 0 or j[1] <= 0):
+                # circ = skimage.draw.circle(j[0],j[1], 5)
+                # img[circ[0], circ[1]] = color
+                cv2.circle(img, (j[0], j[1]), 5, color, -1)
+        except:
+            pass
 
     # Make head a bigger node
     cv2.circle(img, (skel[head,0], skel[head,1]), 15, color)
-    # from IPython import embed
-    #embed()
+
     for c in connections:
         # Remove zero nodes
-        if not ( (skel[c[0],0]==0 and skel[c[0],1]==0) or (skel[c[1],0]==0 and skel[c[1],1]==0)):
+        if not ( (skel[c[0],0]<=0 and skel[c[0],1]<=0) or (skel[c[1],0]<=0 and skel[c[1],1]<=0)):
             cv2.line(img, (skel[c[0],0], skel[c[0],1]), (skel[c[1],0], skel[c[1],1]), color, 2)
 
     return img

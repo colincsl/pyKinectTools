@@ -51,79 +51,31 @@ T = np.array([ 1.9985242312092553e-02, -7.4423738761617583e-04,-1.09167363343362
 # P3D.y = (y_d - cy_d) * depth(x_d,y_d) / fy_d
 # P3D.z = depth(x_d,y_d)
 
-# def depth2world(pts, rez=[480,640]):
-#     ''' Convert depth coordinates to world coordinates standard Kinect calibration '''
-#     assert type(pts) == np.ndarray, "Wrong type into depth2world"
 
-#     # if x_.shape[0]==76800 or (x_[:,0].max() < 240 and x_[:,1].max() < 320):
-#     #     x_[:,0] *= 2
-#     #     x_[:,1] *= 2
 
-#     x = rez[0] - np.array(pts[:,1])    
-#     y = np.array(pts[:,0])
-#     d = np.array(pts[:,2])
+def u16_to_u8(im):
+    '''
+    Convert 16 bit image to 8 bit
+    '''
+    return ((im-im.min())/(im.max()/255.)).astype(np.uint8)
 
-#     if rez != [480,640]:
-#         y *= 480. / rez[0]
-#         x *= 640. / rez[1]        
-    
-#     if np.all(d==0):
-#         return [0,0,0]
+def depthIm_to_colorIm(depthIm, rez=(480,640)):
+    # Convert depth->rgb and ensure points are within bounds
+    rgb_pts = world2rgb(depthIm2XYZ(depthIm), rez)
+    in_bounds = (0 <= rgb_pts[:,0]) * (rgb_pts[:,0] < rez[0]) * (0 <= rgb_pts[:,1]) * (rgb_pts[:,1] < rez[1])
+    im_out = np.zeros(rez)
+    im_out[rgb_pts[in_bounds,0], rgb_pts[in_bounds,1]] = rgb_pts[in_bounds,2]
 
-#     x_w = ((x - cx_d) * d * fx_d)
-#     y_w = ((y - cy_d) * d * fy_d)
-#     # x_w = ((x - cx_rgb) * d * fx_rgb)
-#     # y_w = ((y - cy_rgb) * d * fy_rgb)    
-#     z_w = d
+    return im_out
 
-#     pts = np.array([x_w, y_w, z_w])
-#     pts = np.dot(R.T, pts).T - T
-#     x_w = pts[:,0]
-#     y_w = pts[:,1]
-#     z_w = pts[:,2]
-
-#     return np.array([y_w, x_w, z_w]).T    
-
-# def world2depth(pts, rez=[480,640]):
-#     ''' 
-#     Convert world coordinates to depth coordinates using the standard Kinect calibration 
-#     ---Parameters---
-#     pts : numpy array (Nx3)
-#     rez : resolution of depth image
-#     '''
-#     assert type(pts) == np.ndarray, "world2depth input must be a numpy array"
-
-#     pts = np.array([pts[:,1], pts[:,0], pts[:,2]]).T
-#     pts = np.dot(R, pts.T).T + T
-#     x = np.array(pts[:,0])
-#     y = np.array(pts[:,1])
-#     # Make sure z coordinates are positive and greater than 0
-#     z = np.array(pts[:,2])
-#     # z = np.abs(np.array(pts[:,2]))
-#     # z = -np.maximum(1, z)
-    
-#     # print rez    
-#     # from IPython import embed
-#     # embed()    
-#     # import pdb
-#     # pdb.set_trace()
-
-#     x = (( x / (z * fx_d)) + cx_d)
-#     y = (( y / (z * fy_d)) + cy_d)
-#     # x = ( x / (z * fx_rgb) + cx_rgb)
-#     # y = ( y / (z * fy_rgb) + cy_rgb)
-
-#     if rez != [480,640]:
-#         x *= rez[0] / 480.
-#         y *= rez[1] / 640.
-
-#     return np.array([y, rez[0]-x, z], dtype=np.int16).T
-
-def skel2depth(skel, rez=[240,320]):
+def skel2depth(skel, rez=(480,640)):
     '''
     '''    
     if type(skel) != np.ndarray:
         skel = np.array(skel)
+  
+    mod_x = rez[0]/480.
+    mod_y = rez[1]/640.
 
     # 3d_d->3d_r
     pts_r = np.dot(R, skel.T).T + T
@@ -132,40 +84,47 @@ def skel2depth(skel, rez=[240,320]):
     rgb_y = pts_r[:,1]/fy_rgb / pts_r[:,2] + cy_rgb
     rgb_z = pts_r[:,2]
 
-    if rez != [480,640]:
-        rgb_x *= rez[1]/640.
-        rgb_y *= rez[0]/480.
+    rgb_x *= rez[1]/640.
+    rgb_y *= rez[0]/480.
 
-    pts = np.array([rgb_x,rez[0]-rgb_y,rgb_z], dtype=np.int16).T
+    pts = np.round([rgb_x,rez[0]-rgb_y,rgb_z]).astype(np.int16).T
 
     return pts
 
-def depth2world(x_, rez=[480,640]):
+def depth2world(x_, rez=(480,640)):
     ''' Convert depth coordinates to world coordinates standard Kinect calibration '''
     assert type(x_) == np.ndarray, "Wrong type into depth2world"
 
-    # if x_.shape[0]==76800 or (x_[:,0].max() < 240 and x_[:,1].max() < 320):
-    #     x_[:,0] *= 2
-    #     x_[:,1] *= 2
-
-    if rez != [480,640]:
-        x_[:,0] *= 480/rez[0]
-        x_[:,1] *= 640/rez[1]        
+    # if tuple(rez) != (480,640):
+    x_[:,0] *= 480./rez[0]
+    x_[:,1] *= 640./rez[1]
     
     y = np.array(x_[:,1])
     x = np.array(x_[:,0])
     d = np.array(x_[:,2])
     
-    if np.all(d==0):
-        return [0,0,0]
+    xo =  ((x - cx_d) * d * fx_d)
+    yo = ((y - cy_d) * d * fy_d)
+    zo = d
 
-    # xo =  ((x - cx_d) * d * fx_d)
-    # yo = ((y - cy_d) * d * fy_d)
+    return np.round([xo, yo, zo]).astype(np.int16).T
+
+def rgb2world(x_, rez=(480,640)):
+    ''' Convert color coordinates to world coordinates standard Kinect calibration '''
+    assert type(x_) == np.ndarray, "Wrong type into rgb2world"
+
+    x_[:,0] *= 480./rez[0]
+    x_[:,1] *= 640./rez[1]
+    
+    y = np.array(x_[:,1])
+    x = np.array(x_[:,0])
+    d = np.array(x_[:,2])
+    
     xo =  ((x - cx_rgb) * d * fx_rgb)
     yo = ((y - cy_rgb) * d * fy_rgb)
-
     zo = d
-    return np.array([xo, yo, zo]).T  
+
+    return np.round([xo, yo, zo]).astype(np.int16).T
 
 def world2depth(x_, rez=[480, 640]):
     ''' 
@@ -179,20 +138,46 @@ def world2depth(x_, rez=[480, 640]):
     y = np.array(x_[:,1])     
     x = np.array(x_[:,0])
     ''' Make sure z coordinates are positive and greater than 0'''
-    # z = np.abs(np.array(x_[:,2]))
     z = np.array(x_[:,2])
     z = np.maximum(1, z)
 
-    # xo = (( x / (z * fx_d)) + cx_d).astype(np.int)
-    # yo = ((y / (z * fy_d)) + cy_d).astype(np.int)
-    xo = (( x / (z * fx_rgb)) + cx_rgb).astype(np.int)
-    yo = ((y / (z * fy_rgb)) + cy_rgb).astype(np.int)    
+    xo = (( x / (z * fx_d)) + cx_d)
+    yo = ((y / (z * fy_d)) + cy_d)
 
-    if rez != [480,640]:
-        yo *= rez[0] / 480.
-        xo *= rez[1] / 640.        
+    yo *= rez[1]/640.
+    xo *= rez[0]/480.
 
-    return np.array([xo, yo, z], dtype=np.int).T
+    output = np.round([xo, yo, z]).astype(np.int16).T
+    output = output.clip([0,0,0], [rez[0]-1,rez[1]-1, 99999])
+
+    return output
+
+
+def world2rgb(x_, rez=[480, 640]):
+    ''' 
+    Convert world coordinates to depth coordinates using the standard Kinect calibration 
+    ---Parameters---
+    x_ : numpy array (Nx3)
+    rez : resolution of depth image
+    '''
+    assert type(x_) == np.ndarray, "world2depth input must be a numpy array"
+
+    y = np.array(x_[:,1])     
+    x = np.array(x_[:,0])
+    ''' Make sure z coordinates are positive and greater than 0'''
+    z = np.array(x_[:,2])
+    z = np.maximum(1, z)
+
+    xo = (( x / (z * fx_rgb)) + cx_rgb)
+    yo = (( y / (z * fy_rgb)) + cy_rgb)
+
+    yo *= rez[1]/640.
+    xo *= rez[0]/480.
+
+    output = np.round([xo, yo, z]).astype(np.int16).T
+    output = output.clip([0,0,0], [rez[0]-1,rez[1]-1, 99999])
+
+    return output
 
 
 def depthIm2XYZ(depthMap):
@@ -206,13 +191,30 @@ def depthIm2PosIm(depthMap):
     imOut[:,:,2] = depthMap
 
     inds = np.nonzero(imOut[:,:,2]>0)
-    xyzVals = depth2world(np.array([inds[0],inds[1],imOut[inds[0],inds[1],2]]).T)
+    xyzVals = depth2world(np.array([inds[0],inds[1],imOut[inds[0],inds[1],2]]).T, depthMap.shape)
 
     imOut[inds[0],inds[1],0] = xyzVals[:,0]
     imOut[inds[0],inds[1],1] = xyzVals[:,1]
 
     return imOut
 
+def rgbIm2PosIm(depthMap):
+    imOut = np.zeros([depthMap.shape[0],depthMap.shape[1],3], dtype=float)
+    imOut[:,:,2] = depthMap
+
+    inds = np.nonzero(imOut[:,:,2]>0)
+    xyzVals = rgb2world(np.array([inds[0],inds[1],imOut[inds[0],inds[1],2]]).T, depthMap.shape)
+
+    imOut[inds[0],inds[1],0] = xyzVals[:,0]
+    imOut[inds[0],inds[1],1] = xyzVals[:,1]
+
+    return imOut
+
+
+def posIm2depth(posIm):
+
+    xyz = np.array([inds[0],inds[1],imOut[inds[0],inds[1],2]]).T, depthMap.shape
+    world2depth = world2depth()
 
 def posImage2XYZ(im_in, min_=500, max_=4000):
     # Used to convert 8bit depth image to a
@@ -233,7 +235,7 @@ def posImage2XYZ(im_in, min_=500, max_=4000):
     imOut[inds[0],inds[1],0] = xyzVals[:,0]
     imOut[inds[0],inds[1],1] = xyzVals[:,1]
     # imOut[inds[0],inds[1],0] = xyzVals[:,1]
-    # imOut[inds[0],inds[1],1] = xyzVals[:,0]    
+    # imOut[inds[0],inds[1],1] = xyzVals[:,0]
     imOut[inds[0],inds[1],2] = xyzVals[:,2]
 
     return imOut
