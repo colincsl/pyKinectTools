@@ -60,7 +60,7 @@ def extract_people_clusterMethod(img):
 	clusterLimits = []
 	# for i in range(-1, n_clusters_):
 	max_ = 0
-	for i in xrange(1, n_clusters_):		
+	for i in xrange(1, n_clusters_):
 		min_ = np.min(samples[np.nonzero((labels==i)*samples)])
 		max_ = np.max(samples[np.nonzero((labels==i)*samples)])
 		clusterLimits.append([min_,max_])
@@ -83,7 +83,7 @@ def extract_people_clusterMethod(img):
 
 	objs = nd.find_objects(labels[0])
 	goodObjs = []
-	for i in xrange(len(objs)):	
+	for i in xrange(len(objs)):
 		if objs[i] != None:
 			# px = nd.sum(d, labels[0], i)
 			px = nd.sum(labels[0][objs[i]]>0)
@@ -99,7 +99,7 @@ def extract_people_clusterMethod(img):
 		# imshow(d[goodObjs[i][0]] > 0)
 		# imshow(labels[0] == goodObjs[i][1])
 
-		d1A = np.maximum(d1A, (labels[0] == goodObjs[i][1])*(i+1))		
+		d1A = np.maximum(d1A, (labels[0] == goodObjs[i][1])*(i+1))
 		# d1A[goodObjs[i][0]] = np.maximum(d1A[goodObjs[i][0]], (d[goodObjs[i][0]]>0)*8000)
 
 	return d1A, goodObjs
@@ -107,11 +107,11 @@ def extract_people_clusterMethod(img):
 def extract_people(im, minPersonPixThresh=5000, gradThresh=None):
 	'''
 	---Paramaters---
-	im : 
-	mask : 
-	minPersonPixThresh : 
-	gradThresh : 
-	gradientFilter : 
+	im :
+	mask :
+	minPersonPixThresh :
+	gradThresh :
+	gradientFilter :
 
 	---Returns---
 	mask :
@@ -124,7 +124,7 @@ def extract_people(im, minPersonPixThresh=5000, gradThresh=None):
 	else:
 		gradients = np.gradient(im)
 		mag = np.sqrt(gradients[0]**2+gradients[1]**2)
-		mask *= mag<gradThresh
+		mask *= mag < gradThresh
 
 		# grad_g = np.max(np.abs(np.gradient(im.astype(np.int16))), 0)
 		# grad_bin = (np.abs(grad_g) < gradThresh)
@@ -140,8 +140,8 @@ def extract_people(im, minPersonPixThresh=5000, gradThresh=None):
 	dv = [float(c[1].stop-c[1].start) for c in connComps]
 	areas = [float(c[0].stop-c[0].start)*float(c[1].stop-c[1].start)for c in connComps]
 	# Filter
-	usrTmp = [(c,l,px) for c,l,px,ratio,area in zip(connComps,range(1, maxLabel+1), px_count, ratios, areas) 
-				if ratio < 2 and 
+	usrTmp = [(c,l,px) for c,l,px,ratio,area in zip(connComps,range(1, maxLabel+1), px_count, ratios, areas)
+				if ratio < 2 and
 					px > minPersonPixThresh and
 					px/area > 0.2
 			]
@@ -173,7 +173,7 @@ def getMeanImage(depthImgs):
 	inds = nd.distance_transform_edt(mean_<500, return_distances=False, return_indices=True)
 	i2 = np.nonzero(mean_<500)
 	i3 = inds[:, i2[0], i2[1]]
-	mean_[i2] = mean_[i3[0], i3[1]] # For all errors, set to avg 
+	mean_[i2] = mean_[i3[0], i3[1]] # For all errors, set to avg
 
 	return mean_
 
@@ -200,7 +200,7 @@ def removeNoise(im, thresh=500):
 
 
 class BaseBackgroundModel:
-	
+
 	def __init__(self, depthIm):
 		self.backgroundModel = depthIm
 
@@ -208,7 +208,7 @@ class BaseBackgroundModel:
 		self.currentIm = depthIm.copy()
 
 	def getModel(self):
-		return self.backgroundModel		
+		return self.backgroundModel
 
 	def getForeground(self, thresh=50):
 		return (np.abs(self.backgroundModel - self.currentIm)*(self.currentIm!=0)) > thresh
@@ -225,7 +225,7 @@ class AdaptiveMixtureOfGaussians:
 		self.LearningRate = learningRate
 		self.DecayRate = decayRate
 		self.VarianceInit = variance
-		self.CurrentGaussianCount = 1		
+		self.CurrentGaussianCount = 1
 
 		self.Means = np.zeros([xRez,yRez,self.MaxGaussians])
 		self.Variances = np.empty([xRez,yRez,self.MaxGaussians])
@@ -248,7 +248,7 @@ class AdaptiveMixtureOfGaussians:
 
 		self.currentIm = im
 		self.currentIm[im == 0] = im.max()
-		mask = im != 0		
+		mask = im != 0
 
 		''' Check deviations '''
 		self.Deviations = ((self.Means - im[:,:,np.newaxis])**2 / self.Variances) * mask[:,:,None]
@@ -298,8 +298,8 @@ class AdaptiveMixtureOfGaussians:
 			tmpOwn 					= Ownership==m
 			# print "Own:",np.sum(tmpOwn)
 
-			self.Weights[:,:,m]		= self.Weights[:,:,m] 	+ self.LearningRate*(tmpOwn - self.Weights[:,:,m]) - self.LearningRate*self.DecayRate			
-			tmpWeight 				= tmpOwn*(self.LearningRate/self.Weights[:,:,m])			
+			self.Weights[:,:,m]		= self.Weights[:,:,m] 	+ self.LearningRate*(tmpOwn - self.Weights[:,:,m]) - self.LearningRate*self.DecayRate
+			tmpWeight 				= tmpOwn*(self.LearningRate/self.Weights[:,:,m])
 			tmpMask = (self.Weights[:,:,m]<=0.001)
 			tmpWeight[tmpMask] = 0
 
@@ -329,7 +329,7 @@ class AdaptiveMixtureOfGaussians:
 		# embed()
 		self.backgroundModel = np.max(self.Means, 2)
 		# self.backgroundModel = np.nanmax(self.Means, 2)
-		
+
 		'''This'''
 		# tmp = np.argmax(self.Weights,2).ravel()
 		# self.backgroundModel = self.Means[:,:,tmp]
@@ -341,21 +341,9 @@ class AdaptiveMixtureOfGaussians:
 	def getModel(self):
 		return self.backgroundModel
 
-	# def getForeground(self, thresh=100):
-	# 	# mask = self.currentIm!=0
-	# 	residual = np.abs(self.currentIm - self.backgroundModel)*(self.currentIm!=0)
-	# 	# residual = self.backgroundModel
-	# 	# residual *= mask
-	# 	foreground = residual > thresh
-	# 	foreground = nd.binary_closing(foreground, iterations=1)
-	# 	# import cv2
-	# 	# cv2.imshow("res", residual/residual.max())
-	# 	return foreground
-
 
 class MedianModel:
 
-	
 	def __init__(self, depthIm, n_images=50, fill_image=False):
 		self.fill_image = fill_image
 		if fill_image:
@@ -390,17 +378,14 @@ class MedianModel:
 
 class StaticModel(BaseBackgroundModel):
 
-	def __init__(self, depthIm):
+	def __init__(self, depthIm=None):
 		self.backgroundModel = depthIm
 
-	# def update(self,depthIm):
-	# 	self.currentIm = depthIm.copy()
-
-	# def getModel(self):
-	# 	return self.backgroundModel		
+	def update(self,depthIm):
+		self.currentIm = depthIm
 
 	# def getForeground(self, thresh=50):
-	# 	return (np.abs(self.backgroundModel - self.currentIm)*(self.currentIm!=0)*(self.backgroundModel!=0)) > thresh
+		# return (np.abs(self.backgroundModel - self.currentIm)*(self.currentIm!=0)*(self.backgroundModel!=0)) > thresh
 
 ''' Likelihood based on optical flow'''
 

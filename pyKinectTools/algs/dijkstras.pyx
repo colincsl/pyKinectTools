@@ -6,9 +6,8 @@ cimport cython
 cimport numpy as cnp
 cnp.import_array()
 
-# from python_ref cimport Py_INCREF, Py_DECREF
-
 from libcpp.vector cimport vector
+from libc.math cimport floor
 
 cdef extern from "math.h":
 	int abs(int x)
@@ -18,26 +17,26 @@ cdef extern from "math.h":
 ctypedef cnp.uint16_t UINT16
 ctypedef cnp.int16_t INT16
 ctypedef cnp.uint8_t UINT8
-# ctypedef cnp.float64_t FLOAT
+ctypedef cnp.float64_t FLOAT
 
 
 cdef inline int int_max(int a, int b): return a if a >= b else b
 cdef inline int int_min(int a, int b): return a if a <= b else b
-cdef inline void ind2dim(int ind, int current[2], int width, int height): 
+cdef inline void ind2dim(int ind, int current[2], int width, int height):
 	current[0] = int(ind/float(width))
 	current[1] = ind - width*current[0]
 	return
-cdef inline int dim2ind(int i, int j, int width, int height): 
+cdef inline int dim2ind(int i, int j, int width, int height):
 	return (i*width+j)
 
 # @cython.profile(True)
 @cython.boundscheck(False)
 @cython.wraparound(False)
 @cython.infer_types(True)
-cpdef inline list graph_dijkstras(cnp.ndarray[UINT16, ndim=2, mode="c"] distsMat, 
-							cnp.ndarray[UINT8, ndim=2, mode="c"] visitMat, 
-							cnp.ndarray[UINT16, ndim=2, mode="c"] depthMat, 
-							cnp.ndarray[INT16, ndim=1, mode="c"] current_, 
+cpdef inline list graph_dijkstras(cnp.ndarray[UINT16, ndim=2, mode="c"] distsMat,
+							cnp.ndarray[UINT8, ndim=2, mode="c"] visitMat,
+							cnp.ndarray[UINT16, ndim=2, mode="c"] depthMat,
+							cnp.ndarray[INT16, ndim=1, mode="c"] current_,
 							int xy_scale):
 	'''
 	Inputs:
@@ -74,9 +73,9 @@ cpdef inline list graph_dijkstras(cnp.ndarray[UINT16, ndim=2, mode="c"] distsMat
 	# print current[0], current[1]
 
 	''' Set border to OUTOFBOUNDS '''
-	visitMat_c[0, :] = OUTOFBOUNDS	
+	visitMat_c[0, :] = OUTOFBOUNDS
 	visitMat_c[height-1:,] = OUTOFBOUNDS
-	visitMat_c[:,0] = OUTOFBOUNDS	
+	visitMat_c[:,0] = OUTOFBOUNDS
 	visitMat_c[:,width-1] = OUTOFBOUNDS
 
 	''' --- Main --- '''
@@ -146,7 +145,7 @@ cpdef inline list graph_dijkstras(cnp.ndarray[UINT16, ndim=2, mode="c"] distsMat
 
 	''' Get max value '''
 	cdef int maxVal=0
-	cdef int maxCoord[2]	
+	cdef int maxCoord[2]
 	for y in range(height):
 		for x in range(width):
 			if visitMat_c[y,x] == VISITED and distsMat_c[y,x] > maxVal and distsMat_c[y,x] < MAXVALUE:
@@ -214,8 +213,8 @@ cpdef inline list graph_dijkstras(cnp.ndarray[UINT16, ndim=2, mode="c"] distsMat
 @cython.wraparound(False)
 @cython.infer_types(True)
 cpdef inline distance_map(cnp.ndarray[UINT16, ndim=2, mode="c"] distsMat,
-							cnp.ndarray[UINT8, ndim=2, mode="c"] visitMat, 
-							cnp.ndarray[UINT16, ndim=2, mode="c"] depthMat, 
+							cnp.ndarray[UINT8, ndim=2, mode="c"] visitMat,
+							cnp.ndarray[UINT16, ndim=2, mode="c"] depthMat,
 							cnp.ndarray[INT16, ndim=1, mode="c"] current_,
 							int xy_scale):
 	'''
@@ -245,9 +244,9 @@ cpdef inline distance_map(cnp.ndarray[UINT16, ndim=2, mode="c"] distsMat,
 	currentInd = dim2ind(current[0], current[1], width, height)
 
 	''' Set border to OUTOFBOUNDS '''
-	visitMat[0, :] = OUTOFBOUNDS	
+	visitMat[0, :] = OUTOFBOUNDS
 	visitMat[height-1:,] = OUTOFBOUNDS
-	visitMat[:,0] = OUTOFBOUNDS	
+	visitMat[:,0] = OUTOFBOUNDS
 	visitMat[:,width-1] = OUTOFBOUNDS
 
 	# print "A"
@@ -358,10 +357,10 @@ DOESN'T WORK RIGHT NOW. EVERYTIME YOU INSERT IT REBUILDS A VECTOR... SO DO SOMET
 # 		else:
 # 			while True:
 # 				if (i_high - i_low) < 2:
-# 					i_mid = i_low + 1					
+# 					i_mid = i_low + 1
 # 					self.queue_u.insert(self.queue_u.begin()+i_mid,u)
 # 					self.queue_v.insert(self.queue_v.begin()+i_mid,v)
-# 					self.queue_values.insert(self.queue_values.begin()+i_mid,value)					
+# 					self.queue_values.insert(self.queue_values.begin()+i_mid,value)
 # 					break
 # 				else:
 # 					i_mid = (i_low + i_high) / 2
@@ -445,7 +444,7 @@ cpdef inline list geodesic_map_MPI(cnp.ndarray[UINT16, ndim=2, mode="c"] cost_ma
 
 
 	''' Set border to OUTOFBOUNDS '''
-	depth_mat[0,:,2] = 0	
+	depth_mat[0,:,2] = 0
 	depth_mat[height-1:,2] = 0
 	depth_mat[:,0,2] = 0
 	depth_mat[:,width-1,2] = 0
@@ -484,7 +483,7 @@ cpdef inline list geodesic_map_MPI(cnp.ndarray[UINT16, ndim=2, mode="c"] cost_ma
 									cost_map[current[0]+i, current[1]+j] = int(current_cost+delta_cost)
 									queue_u.insert(queue_u.begin(), int(current[0]+i))
 									queue_v.insert(queue_v.begin(), int(current[1]+j))
-			
+
 		cost_map[cost_map==MAXVALUE] = 0
 		extrema_ind = np.argmax(cost_map)
 		extrema.append(np.unravel_index(extrema_ind, [height, width]))
@@ -534,7 +533,7 @@ cpdef inline cnp.ndarray[UINT16, ndim=2, mode="c"] geodesic_trail(cnp.ndarray[UI
 						# else:
 							# min_step_cost = cost_map[current_uv[0]+i,current_uv[1]+j]
 							# min_step[0] = i
-							# min_step[1] = j							
+							# min_step[1] = j
 		if min_step[0] == 0 and min_step[1] == 0:
 			break
 		current_uv[0] += min_step[0]
@@ -546,5 +545,71 @@ cpdef inline cnp.ndarray[UINT16, ndim=2, mode="c"] geodesic_trail(cnp.ndarray[UI
 	return np.array(trail, dtype=np.int16)
 
 
+
+
+@cython.boundscheck(False)
+@cython.wraparound(False)
+@cython.infer_types(True)
+cpdef inline cnp.ndarray[FLOAT, ndim=3, mode="c"] relative_distance_features(\
+									cnp.ndarray[FLOAT, ndim=3, mode="c"] depth_mat, \
+									cnp.ndarray[FLOAT, ndim=2, mode="c"] markers, \
+									cnp.ndarray[FLOAT, ndim=3, mode="c"] feature_map):
+	'''
+	Inputs:
+		depthMat
+	Outputs:
+	'''
+	cdef int r, c, m
+	cdef int rows = depth_mat.shape[0]
+	cdef int cols = depth_mat.shape[1]
+	cdef int marker_count = markers.shape[0]
+
+	for r in xrange(rows):
+		for c in xrange(cols):
+			for m in xrange(marker_count):
+				if depth_mat[r,c,2] != 0:
+					# print depth_mat[r,c],markers[m]
+					feature_map[r,c,m] = sqrt(pow(depth_mat[r,c,0]-markers[m,0],2)+\
+												pow(depth_mat[r,c,1]-markers[m,1],2)+
+												pow(depth_mat[r,c,2]-markers[m,2],2)
+											)
+
+
+	return feature_map
+
+
+@cython.boundscheck(False)
+@cython.wraparound(False)
+@cython.infer_types(True)
+cpdef inline cnp.ndarray[UINT8, ndim=3, mode="c"] local_histograms(\
+									cnp.ndarray[UINT8, ndim=2, mode="c"] image, \
+									int n_bins, int patch_size, int max_bound):
+	'''
+	Inputs:
+	Outputs:
+	'''
+	assert patch_size%2 == 1, "patch_size must be odd"
+
+	cdef int r, c, rr, cc
+	cdef int rows = image.shape[0]
+	cdef int cols = image.shape[1]
+	cdef int patch_offset = (patch_size-1)/2
+	cdef int bin_size = max_bound/n_bins + 1
+	cdef cnp.ndarray[UINT8, ndim=3, mode="c"] output = np.zeros([rows, cols, n_bins], np.uint8)
+
+	## Slower method
+	# for r in xrange(patch_offset, rows-patch_offset):
+	# 	for c in xrange(patch_offset, cols-patch_offset):
+	# 		for rr in xrange(-patch_offset, patch_offset+1):
+	# 			for cc in xrange(-patch_offset, patch_offset+1):
+	# 				bin = image[r+rr,c+cc]/bin_size
+	# 				output[r,c,bin] += 1
+
+	for r in xrange(patch_offset, rows-patch_offset):
+		for c in xrange(patch_offset, cols-patch_offset):
+			bin = image[r,c]/bin_size
+			output[r-patch_offset:r+patch_offset+1, c-patch_offset:c+patch_offset+1, bin] += 1
+
+	return output
 
 

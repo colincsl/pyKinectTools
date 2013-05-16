@@ -3,24 +3,21 @@ Main file for displaying depth/color/skeleton information and extracting feature
 '''
 
 import os
-# import optparse
 from time import time
 import cPickle as pickle
 import numpy as np
 import scipy.misc as sm
 import scipy.ndimage as nd
-import skimage
-# from skimage import feature, color
+import cv2
+# import skimage
 
 from pyKinectTools.utils.Utils import createDirectory
 from pyKinectTools.utils.SkeletonUtils import  kinect_to_msr_skel, plotUsers
 from pyKinectTools.utils.VideoViewer import VideoViewer
-# from pyKinectTools.utils.DepthUtils import world2depth, depthIm2XYZ
+from pyKinectTools.utils.DepthUtils import *# world2depth, depthIm2XYZ
 from pyKinectTools.utils.MultiCameraUtils import multiCameraTimeline, formatFileString
-# from pyKinectTools.utils.FeatureUtils import saveFeatures, loadFeatures, learnICADict, learnNMFDict, displayComponents
 from pyKinectTools.algs.BackgroundSubtraction import AdaptiveMixtureOfGaussians, MedianModel, fillImage, extract_people, StaticModel
-from pyKinectTools.algs.FeatureExtraction import calculateBasicPose, computeUserFeatures, computeFeaturesWithSkels
-
+from pyKinectTools.dataset_readers.BasePlayer import BasePlayer
 vv = VideoViewer()
 
 ''' Debugging '''
@@ -41,8 +38,8 @@ keys_frame_right = 316
 ''' Using OpenCV
 keys_ESC = 1048603
 keys_right_arrow = 1113939
-keys_left_arrow = 1113937 
-keys_down_arrow = 1113940 
+keys_left_arrow = 1113937
+keys_down_arrow = 1113940
 keys_space = 1048608
 keys_i = 1048681
 keys_help = 1048680
@@ -50,20 +47,18 @@ keys_frame_left = 1048673
 keys_frame_right = 1048691
 '''
 
-class KinectPlayer:
+class KinectPlayer(BasePlayer):
 
-	def __init__(self, base_dir='./', device=0, get_depth=True, get_color=False, 
-				get_skeleton=False, bg_subtraction=False, fill_images=False):
-		
-		self.enable_bg_subtraction = bg_subtraction
-		self.fill_images = fill_images
-		self.base_dir = base_dir
+	def __init__(self, device=0, **kwargs):
+		super(KinectPlayer, self).__init__(**kwargs)
+
 		self.dev = device
 		self.deviceID = "device_{0:d}".format(self.dev)
 
-		self.get_depth = get_depth
-		self.get_color = get_color
-		self.get_skeleton =get_skeleton
+		# Get calibration
+		self.camera_model = CameraModel(pyKinectTools.configs.__path__[0]+"/Kinect_Color_Param.yml")
+		self.kinect_transform = get_kinect_transform(pyKinectTools.configs.__path__[0]+"/Kinect_Transformation.txt")
+		self.camera_model.set_transform(self.kinect_transform)
 
 		self.ret = 0
 		self.day_dirs = os.listdir(self.base_dir+'depth/')
@@ -83,6 +78,7 @@ class KinectPlayer:
 		self.colorIm = None
 		self.users = None
 		self.backgroundModel = None
+		self.bgSubtraction = None
 		self.foregroundMask = None
 		self.prevcolorIm = None
 
@@ -97,23 +93,26 @@ class KinectPlayer:
 			# self.bgSubtraction = MedianModel(self.depthIm)
 			self.backgroundModel = self.bgSubtraction.getModel()
 			return
-		
 		self.bgSubtraction.update(self.depthIm)
 		self.backgroundModel = self.bgSubtraction.getModel()
-		self.foregroundMask = self.bgSubtraction.getForeground(thresh=500)
+		self.foregroundMask = self.bgSubtraction.getForeground(thresh=200)
+
 
 	def next(self, frames=1):
 		'''
 		frames : skip (this-1) frames
 		'''
-		try:
+		# try:
+		if 1:
 			for i in xrange(frames):
 				self.player.next()
 				if self.enable_bg_subtraction:
 					self.update_background()
+			# print 'Yay'
 			return True
-		except:
-			return False
+		# except:
+			# print ''
+			# return False
 
 	# ''' Or get CoM + orientation '''
 	# def calculate_basic_features(self):
@@ -145,38 +144,38 @@ class KinectPlayer:
 			return -1
 
 
-	def get_n_skeletons(self, n):
-		'''
-		In MSR format
-		'''
-		if n == -1:
-			n = np.inf
+	# def get_n_skeletons(self, n):
+	# 	'''
+	# 	In MSR format
+	# 	'''
+	# 	if n == -1:
+	# 		n = np.inf
 
-		depthIms = []
-		skels_world = []
-		
-		try:
-			while depthIms == [] or len(depthIms) < n:
-				self.next()
-				self.update_background()
-				if len(self.users.keys()) > 0:
-					s = self.users.keys()[0]
-					pts = np.array(self.users[s]['jointPositions'].values())
-					if np.all(pts[0] != -1):
-						pts = kinect_to_msr_skel(pts)
-						skels_world += [pts]
+	# 	depthIms = []
+	# 	skels_world = []
 
-						# depth = self.depthIm.astype(np.int16)
-						# mask = self.foregroundMask
-						depth = self.get_person()
-						depthIms += [depth]
-						# colorIms += [color]
-		except:
-			print "No skeletons remaining."
-		
-		return depthIms, skels_world
+	# 	try:
+	# 		while depthIms == [] or len(depthIms) < n:
+	# 			self.next()
+	# 			self.update_background()
+	# 			if len(self.users.keys()) > 0:
+	# 				s = self.users.keys()[0]
+	# 				pts = np.array(self.users[s]['jointPositions'].values())
+	# 				if np.all(pts[0] != -1):
+	# 					pts = kinect_to_msr_skel(pts)
+	# 					skels_world += [pts]
 
-	def visualize(self, show_skel=False):
+	# 					# depth = self.depthIm.astype(np.int16)
+	# 					# mask = self.foregroundMask
+	# 					depth = self.get_person()
+	# 					depthIms += [depth]
+	# 					# colorIms += [color]
+	# 	except:
+	# 		print "No skeletons remaining."
+
+	# 	return depthIms, skels_world
+
+	def visualize(self, color=True, depth=True, show_skel=False):
 		# depth, color, mask
 		self.tmpSecond = self.depthFile.split("_")[-3]
 		if len(self.tmpSecond) == 0:
@@ -186,21 +185,13 @@ class KinectPlayer:
 		if show_skel:
 			self.ret = plotUsers(self.depthIm, self.users)
 
-		if self.get_depth:
+		if self.get_depth and depth:
 			vv.imshow("Depth "+self.deviceID, (self.depthIm-1000)/5000.)
-			vv.putText("Depth "+self.deviceID, "Day "+self.day_dir+" Time "+self.hour_dir+":"+self.minute_dir+":"+self.tmpSecond, (5,220), size=15)					
-			vv.putText("Depth "+self.deviceID, "Play speed: "+str(self.play_speed)+"x", (5,15), size=15)													
-			# vv.putText("Depth "+self.deviceID, str(int(self.framerate))+" fps", (275,15), size=15)													
-			# vv.imshow("Depth", self.depthIm/6000.)
-			
-		if self.get_color:
+			vv.putText("Depth "+self.deviceID, "Day "+self.day_dir+" Time "+self.hour_dir+":"+self.minute_dir+":"+self.tmpSecond, (5,220), size=15)
+			vv.putText("Depth "+self.deviceID, "Play speed: "+str(self.play_speed)+"x", (5,15), size=15)
+
+		if self.get_color and color:
 			vv.imshow("Color "+self.deviceID, self.colorIm)
-			# vv.putText("Color "+self.deviceID, self.colorIm, "Day "+self.day_dir+" Time "+self.hour_dir+":"+self.minute_dir+" Dev#"+str(self.dev), (10,220))					
-			# vv.imshow("Color", self.colorIm)
-			# vv.imshow("Color", self.colorIm)
-			# if self.get_mask:
-			# vv.imshow("I", self.colorIm*self.foregroundMask[:,:,np.newaxis])
-			# vv.imshow("I_masked", self.colorIm + (255-self.colorIm)*(((self.foregroundMask)[:,:,np.newaxis])))
 
 		self.playback_control()
 
@@ -220,9 +211,9 @@ class KinectPlayer:
 			self.frame_id = camera.frame_id
 			self.next()
 		elif int(camera.second) < int(self.second):
-			pass			
+			pass
 		else:
-			self.next()	
+			self.next()
 
 		if camera.play_speed > self.play_speed:
 			self.play_speed = camera.play_speed
@@ -240,7 +231,7 @@ class KinectPlayer:
 
 		self.new_date_entered = False
 		if self.ret > 0:
-			# player_controls(ret)					
+			# player_controls(ret)
 			# print "Ret is",self.ret
 
 			if self.ret == keys_ESC:
@@ -282,7 +273,7 @@ class KinectPlayer:
 
 		self.day_index = 0
 		while self.day_index < len(self.day_dirs):
-			
+
 			if self.new_date_entered:
 				try:
 					self.day_index = self.day_dirs.index(self.day_new)
@@ -336,7 +327,7 @@ class KinectPlayer:
 					self.minute_dir = self.minute_dirs[self.minute_index]
 
 					# Prevent from reading hidden files
-					if self.minute_dir[0] == '.': 
+					if self.minute_dir[0] == '.':
 						continue
 
 					depth_files = []
@@ -349,6 +340,8 @@ class KinectPlayer:
 					''' Sort files '''
 					if self.get_depth:
 						depthTmp = os.listdir(self.base_dir+'depth/'+self.day_dir+'/'+self.hour_dir+'/'+self.minute_dir+'/'+self.deviceID)
+						depthTmp = [x for x in depthTmp if x[0]!='.']
+						# embed()
 						tmpSort = [int(x.split('_')[-3])*100 + int(formatFileString(x.split('_')[-2])) for x in depthTmp]
 						depthTmp = np.array(depthTmp)[np.argsort(tmpSort)].tolist()
 						depth_files.append([x for x in depthTmp if x.find('.png')>=0])
@@ -368,11 +361,10 @@ class KinectPlayer:
 
 					# Seconds
 					if self.new_date_entered:
-						fileSeconds = [x.split("_")[4] for x in depth_files[0]] 
+						fileSeconds = [x.split("_")[4] for x in depth_files[0]]
 						self.frame_id = next(i for i in xrange(len(fileSeconds)) if fileSeconds[i] == self.second_new)
 
 					while self.frame_id < len(depth_files[0]):
-
 						self.depthFile = depth_files[0][self.frame_id]
 						self.second = self.depthFile.split("_")[4]
 						''' Load Depth '''
@@ -383,7 +375,7 @@ class KinectPlayer:
 						if self.get_color:
 							colorFile = 'color_'+self.depthFile[6:-4]+'.jpg'
 							self.colorIm = sm.imread(self.base_dir+'color/'+self.day_dir+'/'+self.hour_dir+'/'+self.minute_dir+'/'+self.deviceID+'/'+colorFile)
-							self.colorIm = self.colorIm[:,:,[2,1,0]]
+							self.colorIm = self.colorIm[:,:,[1,0,2]]
 							# self.colorIm_g = skimage.img_as_ubyte(skimage.color.rgb2gray(self.colorIm))
 							# self.colorIm_lab = skimage.color.rgb2lab(self.colorIm).astype(np.uint8)
 
@@ -391,23 +383,29 @@ class KinectPlayer:
 						if self.get_skeleton:
 							skelFile = 'skel_'+self.depthFile[6:-4]+'_.dat'
 							if os.path.isfile(self.base_dir+'skel/'+self.day_dir+'/'+self.hour_dir+'/'+self.minute_dir+'/'+self.deviceID+'/'+skelFile):
-								with open(self.base_dir+'skel/'+self.day_dir+'/'+self.hour_dir+'/'+self.minute_dir+'/'+self.deviceID+'/'+skelFile, 'rb') as inFile:
-									self.users = pickle.load(inFile)				
+								skel_filename = self.base_dir+'skel/'+self.day_dir+'/'+self.hour_dir+'/'+self.minute_dir+'/'+self.deviceID+'/'+skelFile
+								try:
+									# with open(skel_filename, 'rb') as inFile:
+										# self.users = pickle.load(inFile)
+									# self.users = [x for x in pickle.load(open(skel_filename)).values()]
+									self.users = np.array([x['jointPositions'].values() for x in pickle.load(open(skel_filename)).values()])
+								except:
+									print 'Error loading skeleton. PyOpenNI may not be installed'
 							else:
 								print "No user file:", skelFile
-							coms = [self.users[x]['com'] for x in self.users.keys() if self.users[x]['com'][2] > 0.0]
+							# coms = [x['com'] for x in self.users if x['com'][2] > 0.0]
+							# coms = [self.users[x]['com'] for x in self.users.keys() if self.users[x]['com'][2] > 0.0]
 							jointCount = 0
-							for i in self.users.keys():
-								user = self.users[i]
+							for i in self.users:
+								user = i#self.users[i]
 						timestamp = self.depthFile[:-4].split('_')[1:] # Day, hour, minute, second, millisecond, Frame number in this second
-						self.depthIm = self.depthIm.astype(np.float).clip(0,3500)
+						self.depthIm = self.depthIm.astype(np.float).clip(0,4500)
 						# self.depthIm = np.minimum(self.depthIm.astype(np.float), 5000)
-						
 						if self.fill_images:
 							fillImage(self.depthIm)
 
 						yield
-							
+
 						self.frame_id += self.play_speed
 
 						# End seconds
@@ -418,7 +416,7 @@ class KinectPlayer:
 						elif self.frame_id < 0:
 							self.minute_index -= 1
 							break
-				
+
 					# End hours
 					if self.ret == keys_ESC or self.new_date_entered:
 						break
@@ -453,13 +451,13 @@ def display_help():
 	print ""
 	print "Playback commands: enter these in the image viewer"
 	print "--------------------"
-	print "h 				help menu"										
+	print "h 				help menu"
 	print "i				interupt with debugger"
 	print "a 				previous frame"
 	print "s 				next frame"
-	print "spacebar 			pick new time/date [enter in terminal]"								
+	print "spacebar 			pick new time/date [enter in terminal]"
 	print "left arrow key			rewind faster"
 	print "right arrow key			fast forward faster"
 	print "down arrow key			pause"
-	print "escape key			exit"								
+	print "escape key			exit"
 

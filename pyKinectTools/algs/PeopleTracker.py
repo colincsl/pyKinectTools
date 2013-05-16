@@ -138,7 +138,7 @@ def showLabeledImage(data, ind_j, dir_, rgb=0):
 		# imgD=img[:,::-1, :]
 		imgD=img
 	else:
-		img = getDepthImage(dir_+data['data']['filename'][ind_j])
+		img = get_depthImage(dir_+data['data']['filename'][ind_j])
 		imgD = constrain(img, 500, 5000)
 		imgD = np.dstack([imgD, imgD, imgD])
 

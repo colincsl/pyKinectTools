@@ -93,7 +93,7 @@ if 0:
 		figure(lab)
 		for i in xrange(len(labelInds[lab])):
 			subplot(2,int(len(labelInds[lab])/2),i)	
-			img = DepthReader.getDepthImage(dir_+p[labelInds[lab][i]]['data']['filename'][0])
+			img = DepthReader.get_depthImage(dir_+p[labelInds[lab][i]]['data']['filename'][0])
 			imshow(img)
 			axis('off')
 			title(labelNames[lab])
@@ -133,7 +133,7 @@ if 0:
 	# Play segment
 	tmp = [y for x,y in zip(p, range(len(p))) if x['elapsed'] > 600] # time outliers
 	i = tmp[1]
-	# img = DepthReader.getDepthImage(dir_+p[i]['data']['filename'][0])
+	# img = DepthReader.get_depthImage(dir_+p[i]['data']['filename'][0])
 	# imshow(img)
 	speed = 2
 	for j in xrange(0, len(p[i]['data']['filename']), speed):
@@ -256,7 +256,7 @@ if 0:
 	cv2.namedWindow("win")
 	for i in uInds:
 		for filename in p[i]['data']['filename']:
-			im = getDepthImage(dir_+filename)
+			im = get_depthImage(dir_+filename)
 			# imshow(im)
 			cv2.imshow("win", im.astype(np.float)/im.max())
 			cv2.waitKey(1)

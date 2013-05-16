@@ -19,7 +19,7 @@ from pyKinectTools.utils.MultiCameraUtils import multiCameraTimeline, formatFile
 from pyKinectTools.utils.FeatureUtils import saveFeatures, loadFeatures, learnICADict, learnNMFDict, displayComponents
 from pyKinectTools.algs.HistogramOfOpticalFlow import getFlow, hof, splitIm
 from pyKinectTools.algs.BackgroundSubtraction import AdaptiveMixtureOfGaussians, fillImage, extract_people
-from pyKinectTools.algs.FeatureExtraction import calculateBasicPose, plotUsers, computeUserFeatures, computeFeaturesWithSkels
+from pyKinectTools.algs.FeatureExtraction import calculateBasicPose, computeUserFeatures, computeFeaturesWithSkels
 
 vv = VideoViewer()
 

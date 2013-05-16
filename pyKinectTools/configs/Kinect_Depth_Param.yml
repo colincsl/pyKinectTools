@@ -1,0 +1,30 @@
+# %YAML:1.0
+Number of cameras: 1
+Reference camera: 1
+Number of images: 0
+MeanError: 0.
+SDError: 0.
+MaxError: 0.
+#  ************************
+Camera_1:
+   path: "."
+   imgWidth: 640
+   imgHeight: 480
+   K: !!opencv-matrix
+      rows: 3
+      cols: 3
+      dt: f
+      data: [ 594.21434211923247, 0., 339.30780975300314, 0., 591.04053696870778,
+          242.73913761751615, 0., 0., 1. ]
+   Dist: !!opencv-matrix
+      rows: 1
+      cols: 4
+      dt: f
+      data: [ 0.19607373, -0.36734107, -2.47962005e-003,
+          -1.89774996e-003 ]
+   PosRel: !!opencv-matrix
+      rows: 1
+      cols: 6
+      dt: f
+      data: [ 0., 0., 0., 0., 0., 0. ]
+#  ************************

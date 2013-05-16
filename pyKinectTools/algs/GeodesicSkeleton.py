@@ -17,7 +17,7 @@ def geodesic_extrema_MPI(im_pos, centroid=None, iterations=1, visualize=False, b
 	if centroid==None:
 		centroid = np.array(nd.center_of_mass(im_pos[:,:,2]), dtype=np.int16)
 	if box is not None:
-		im_pos = im_pos[box]	
+		im_pos = im_pos[box]
 	im_pos = np.ascontiguousarray(im_pos, dtype=np.int16)
 
 	if visualize:
@@ -25,33 +25,17 @@ def geodesic_extrema_MPI(im_pos, centroid=None, iterations=1, visualize=False, b
 		extrema = dgn.geodesic_map_MPI(cost_map, im_pos, np.array(centroid, dtype=np.int16), iterations, 1)
 		cost_map = np.array(extrema[-1])
 		extrema = extrema[:-1]
+		extrema = np.array([x for x in extrema])
 		return extrema, cost_map
 	else:
 		extrema = np.array(dgn.geodesic_extrema_MPI(im_pos, np.array(centroid, dtype=np.int16), iterations))
-		return extrema#[:,[1,0]]
-
-# def geodesic_extrema_MPI(im, centroid=None, iterations=1, visualize=False, box=None):
-# 	if centroid==None:
-# 		centroid = np.array(nd.center_of_mass(im), dtype=np.int)
-# 	im_pos = depthIm2PosIm(im).astype(np.int16)
-# 	if box is not None:
-# 		im_pos = im_pos[box]	
-
-# 	if visualize:
-# 		cost_map = np.zeros([im.shape[0], im.shape[1]], dtype=np.uint16)
-# 		extrema = dgn.geodesic_map_MPI(cost_map, im_pos, np.array(centroid, dtype=np.int16), iterations, 1)
-# 		cost_map = extrema[-1]
-# 		extrema = extrema[:-1]
-# 		return extrema, cost_map
-# 	else:
-# 		extrema = dgn.geodesic_extrema_MPI(im_pos, np.array(centroid, dtype=np.int16), iterations)
-# 		return extrema
+		return extrema
 
 def connect_extrema(im_pos, target, markers, visualize=False):
 	'''
 	im_pos : XYZ positions of each point in image formation (n x m x 3)
 	'''
-	height, width,_ = im_pos.shape	
+	height, width,_ = im_pos.shape
 	centroid = np.array(target)
 
 	im_pos = np.ascontiguousarray(im_pos.astype(np.int16))
@@ -86,8 +70,8 @@ def connect_extrema(im_pos, target, markers, visualize=False):
 def distance_map(im, centroid, scale=1):
 	'''
 	---Parameters---
-	im_depth : 
-	centroid : 
+	im_depth :
+	centroid :
 	---Returns---
 	distance_map
 	'''
@@ -111,7 +95,7 @@ def distance_map(im, centroid, scale=1):
 	centroid[0] = centroid[0] if centroid[0] > 0 else 1
 	centroid[0] = centroid[0] if centroid[0] < im.shape[0]-1 else im.shape[0]-2
 	centroid[1] = centroid[1] if centroid[1] > 0 else 1
-	centroid[1] = centroid[1] if centroid[1] < im.shape[1]-1 else im.shape[1]-2	
+	centroid[1] = centroid[1] if centroid[1] < im.shape[1]-1 else im.shape[1]-2
 
 	# Scale depth image
 	im_depth_scaled = np.ascontiguousarray(np.array( (im_depth-depth_min)*scale_to, dtype=np.uint16))
@@ -119,7 +103,7 @@ def distance_map(im, centroid, scale=1):
 	im_depth_scaled *= mask
 
 	# Initialize all but starting point as max
-	distance_map = np.zeros([objSize[0],objSize[1]], dtype=np.uint16)+max_value	
+	distance_map = np.zeros([objSize[0],objSize[1]], dtype=np.uint16)+max_value
 	distance_map[centroid[0], centroid[1]] = 0
 
 	# Set which pixels are in/out of bounds
@@ -137,8 +121,8 @@ def distance_map(im, centroid, scale=1):
 def generateKeypoints(im, centroid, iterations=10, scale=6):
 	'''
 	---Parameters---
-	im_depth : 
-	centroid : 
+	im_depth :
+	centroid :
 	---Returns---
 	extrema
 	distance_map
@@ -178,4 +162,17 @@ def drawTrail(im, trail, value=255):
 	for i,j in trail:
 		im[i,j] = value
 	return im
+
+
+''' --- Other functions --- '''
+
+def relative_marker_positions(im_pos, markers):
+	feature_map = np.zeros([im_pos.shape[0], im_pos.shape[1], len(markers)], dtype=np.float)
+	dgn.relative_distance_features(np.ascontiguousarray(im_pos), np.ascontiguousarray(markers), feature_map)
+	return feature_map
+
+def local_histograms(im, n_bins=2, max_bound=255, patch_size=5):
+	output = dgn.local_histograms(np.ascontiguousarray(im), n_bins, patch_size, max_bound)
+	return output
+
 

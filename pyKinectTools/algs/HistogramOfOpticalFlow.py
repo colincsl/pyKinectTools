@@ -13,7 +13,7 @@ def getFlow(imPrev, imNew):
     flow = cv2.calcOpticalFlowFarneback(imPrev, imNew, flow=None, pyr_scale=.5, levels=3, winsize=9, iterations=1, poly_n=3, poly_sigma=1.1, flags=cv2.OPTFLOW_FARNEBACK_GAUSSIAN)
     return flow
 
-def getDepthFlow(imPrev, imNew):
+def get_depthFlow(imPrev, imNew):
     # Should actually go much more than 1 pixel!!!
     flow = np.zeros_like(imPrev)+999
     # flow = np.repeat(flow, 2, 2)

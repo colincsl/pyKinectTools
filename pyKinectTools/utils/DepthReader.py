@@ -76,7 +76,7 @@ def getFileListTimes(fileNames):
 
 # 	return img
 
-def getDepthImage(depthFilename):
+def get_depthImage(depthFilename):
 	x = open(depthFilename).read()
 	return np.fromstring(x, dtype=np.uint16, sep=" ").reshape([480, 640])[:,::-1]	
 

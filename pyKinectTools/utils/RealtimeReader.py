@@ -1,6 +1,7 @@
 
 from pyKinectTools.algs.BackgroundSubtraction import *
 from pyKinectTools.utils.DepthUtils import *
+import pyKinectTools.configs
 from openni import *
 import time
 
@@ -26,7 +27,7 @@ class User:
                 for j in self.joints:
                     self.jointPositions[j] = -1
                     self.jointPositionsConfidence[j] = -1
-                    self.jointOrientations[j] = -1                    
+                    self.jointOrientations[j] = -1
                     self.jointOrientationsConfidence[j] = -1
 
 
@@ -65,8 +66,8 @@ class RealTimeDevice:
         bgModel = []
         bgModel8 = []
 
-        # def __init__(self, device=-1, ctx=[], getSkel=True):
-        def __init__(self, device=-1, ctx=None, getDepth=True, getColor=True, getSkel=True):            
+        # def __init__(self, device=-1, ctx=[], get_skeleton=True):
+        def __init__(self, device=-1, ctx=None, get_depth=True, get_color=True, get_skeleton=True):
 
                 self.deviceNumber = device
                 if ctx is not None:
@@ -77,14 +78,14 @@ class RealTimeDevice:
                 if device == -1:
                     self.ctx.init()
                 else:
-                    self.ctx.init_from_xml_file_by_device_id('../configs/SamplesConfig.xml', self.deviceNumber)
+                    self.ctx.init_from_xml_file_by_device_id(pyKinectTools.configs.__path__[0]+'/SamplesConfig.xml', self.deviceNumber)
                     print "New context created for depth device. (#", self.deviceNumber, ")"
 
-                    if getDepth:
+                    if get_depth:
                         self.depth = self.ctx.find_existing_node(NODE_TYPE_DEPTH)
-                    if getColor:
+                    if get_color:
                         self.color = self.ctx.find_existing_node(NODE_TYPE_IMAGE)
-                    if getSkel:
+                    if get_skeleton:
                         self.user = self.ctx.find_existing_node(NODE_TYPE_USER)
 
                     ''' Change viewpoint if both depth and color are used '''
@@ -122,9 +123,9 @@ class RealTimeDevice:
 
                 try:
                     self.color = ImageGenerator()
-                    self.color.create(self.ctx)      
+                    self.color.create(self.ctx)
                 except:
-                    print "Color module can not load." 
+                    print "Color module can not load."
 
                 if self.depth is not None:
                     self.depth.alternative_view_point_cap.set_view_point(self.color)
@@ -172,7 +173,7 @@ class RealTimeDevice:
 
             if self.color is not None:
                     # from IPython import embed
-                    # embed()                
+                    # embed()
                     self.colorIm = np.frombuffer(self.color.get_raw_image_map_bgr(), np.uint8).reshape([self.color.res[1],self.color.res[0], 3])
 
             if self.user is not None:
@@ -238,7 +239,7 @@ class RealTimeDevice:
         def calibration_start(self, src, id):
             print "3/4 Calibration started for user {}." .format(id)
             if id not in self.userIDs:
-                self.userIDs.append(id)            
+                self.userIDs.append(id)
                 self.skel_cap.request_calibration(id, True)
 
         def calibration_complete(self, src, id, status):
