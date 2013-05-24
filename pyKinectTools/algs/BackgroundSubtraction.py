@@ -198,15 +198,17 @@ class BaseBackgroundModel(object):
 
 	backgroundModel = None
 	fill_image = False
+	algorithm = ''
+	currentIm = None
 
 	def __init__(self, depthIm=None, fill_image=False):
 
 		if depthIm is not None:
-			self.backgroundModel = depthIm.copy()
+			self.currentIm = depthIm.copy()
 		self.fill_image = fill_image
 
 	def update(self,depthIm):
-		self.currentIm = depthIm.copy()
+		self.currentIm = depthIm#.copy()
 
 	def getModel(self):
 		return self.backgroundModel
@@ -223,6 +225,7 @@ class AdaptiveMixtureOfGaussians(BaseBackgroundModel):
 	def __init__(self, im, maxGaussians=5, learningRate=0.05, decayRate=0.25, variance=100**2, **kwargs):
 		super(AdaptiveMixtureOfGaussians, self).__init__(**kwargs)
 
+		self.algorithm = 'Adaptive Mixture of Gaussians'
 		xRez, yRez = im.shape
 		self.MaxGaussians = maxGaussians
 		self.LearningRate = learningRate
@@ -346,10 +349,11 @@ class AdaptiveMixtureOfGaussians(BaseBackgroundModel):
 
 
 class MedianModel(BaseBackgroundModel):
-
+	
 	def __init__(self, depthIm, n_images=50, **kwargs):
 		super(MedianModel, self).__init__(**kwargs)
 
+		self.algorithm = 'Median Model'
 		if self.fill_image:
 			self.prevDepthIms = fill_image(depthIm.copy())[:,:,None]
 		else:
@@ -379,6 +383,7 @@ class MeanModel(BaseBackgroundModel):
 	def __init__(self, depthIm, n_images=50, **kwargs):
 		super(MeanModel, self).__init__(**kwargs)
 
+		self.algorithm = 'Mean Model'
 		if self.fill_image:
 			self.prevDepthIms = fill_image(depthIm.copy())[:,:,None]
 		else:
@@ -406,6 +411,7 @@ class StaticModel(BaseBackgroundModel):
 
 	def __init__(self, **kwargs):
 		super(StaticModel, self).__init__(**kwargs)
+		self.algorithm = 'Static Model'
 
 	def update(self,depthIm):
 		self.currentIm = depthIm
@@ -414,88 +420,14 @@ class BoxModel(BaseBackgroundModel):
 
 	def __init__(self, max_depth=3000, **kwargs):
 		super(BoxModel, self).__init__(**kwargs)
+		self.algorithm = 'Box Model'
 		self.max_depth = max_depth
-
+		if self.currentIm is not None:
+			self.backgroundModel = np.ones_like(self.currentIm)*max_depth
+	
 	def update(self,depthIm):
-		self.currentIm = depthIm
-		self.backgroundModel = depthIm*(depthIm > self.max_depth)
+		self.currentIm = depthIm#.copy()
+		if self.backgroundModel is None:
+			self.backgroundModel = np.ones_like(self.currentIm)*self.max_depth
 
 
-
-
-# ''' Likelihood based on optical flow'''
-# backgroundProb[foregroundMask == 0] = 1.
-# prevDepthIms[:,:,-1] = 5000.
-
-# if backgroundProbabilities is None:
-# 	backgroundProbabilities = backgroundProb[:,:,np.newaxis]
-# else:
-# 	backgroundProbabilities = np.dstack([backgroundProbabilities, backgroundProb])
-
-# cv2.imshow("flow_color", flow[:,:,0]/float(flow[:,:,0].max()))
-# cv2.imshow("Prob", backgroundProbabilities.mean(-1) / backgroundProbabilities.mean(-1).max())
-# tmp = np.sum(backgroundProbabilities*prevDepthIms[:,:,1:],2) / np.sum(backgroundProbabilities,2)
-# # print tmp.min(), tmp.max()
-# cv2.imshow("BG_Prob", tmp/tmp.max())
-
-# backgroundProbabilities -= .01
-# backgroundProbabilities = np.maximum(backgroundProbabilities, 0)
-
-# prob = .5
-# # backgroundModel = tmp#(tmp > prob)*tmp + (tmp < prob)*5000
-# backgroundModel = np.median(prevDepthIms, 2)
-# cv2.imshow("BG model", backgroundModel/5000.)
-
-
-
-
-# backgroundProb = np.exp(-flowMag)
-
-
-
-
-
-
-
-
-
-
-
-# else:
-# 	mask = np.abs(backgroundModel.astype(np.int16) - depthIm) < 50
-# 	mask[depthIm < 500] = 0
-
-# 	depthBG = depthIm.copy()
-# 	depthBG[~mask] = 0
-# 	if backgroundTemplates.shape[2] < backgroundCount or np.random.rand() < bgPercentage:
-# 		# mask = np.abs(backgroundTemplates[0].astype(np.int16) - depthIm) < 20
-# 		backgroundTemplates = np.dstack([backgroundTemplates, depthBG])
-# 		backgroundModel = backgroundTemplates.sum(-1) / np.maximum((backgroundTemplates>0).sum(-1), 1)
-# 		backgroundModel = nd.maximum_filter(backgroundModel, np.ones(2))
-# 	if backgroundTemplates.shape[2] > backgroundCount:
-# 		# backgroundTemplates.pop(0)
-# 		backgroundTemplates = backgroundTemplates[:,:,1:]
-
-# 	depthIm[mask] = 0
-
-
-''' Background model #2 '''
-# mask = None
-# if backgroundModel is None:
-# 	backgroundModel = depthIm.copy()
-# 	backgroundTemplates = depthIm[:,:,np.newaxis].copy()
-# else:
-# 	mask = np.abs(backgroundModel.astype(np.int16) - depthIm)
-# 	mask[depthIm < 500] = 0
-
-# 	depthBG = depthIm.copy()
-# 	# depthBG[~mask] = 0
-# 	if backgroundTemplates.shape[2] < backgroundCount or np.random.rand() < bgPercentage:
-# 		# mask = np.abs(backgroundTemplates[:,:,0].astype(np.int16) - depthIm)# < 20
-# 		backgroundTemplates = np.dstack([backgroundTemplates, depthBG])
-# 		backgroundModel = backgroundTemplates.sum(-1) / np.maximum((backgroundTemplates>0).sum(-1), 1)
-# 		# backgroundModel = nd.maximum_filter(backgroundModel, np.ones(2))
-# 	if backgroundTemplates.shape[2] > backgroundCount:
-# 		backgroundTemplates = backgroundTemplates[:,:,1:]
-
-	# depthIm[mask] = 0

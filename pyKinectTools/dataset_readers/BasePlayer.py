@@ -12,10 +12,12 @@ class BasePlayer(object):
 	users = None
 	backgroundModel = None
 	foregroundMask = None
+	mask = None
 	prevcolorIm = None
 
 	def __init__(self, base_dir='./', get_depth=True, get_color=False,
-				get_skeleton=False, bg_subtraction=False, fill_images=False):
+				get_skeleton=False, bg_subtraction=False, fill_images=False,
+				background_model=None, background_param=None):
 
 		self.base_dir = base_dir
 		self.deviceID = '[]'
@@ -27,6 +29,10 @@ class BasePlayer(object):
 		self.enable_bg_subtraction = bg_subtraction
 		self.fill_images = fill_images
 
+		if background_model is not None:
+			print 'Setting up background model:', background_model
+			self.set_bg_model(background_model, background_param)
+
 
 	def update_background(self):
 		try:
@@ -34,7 +40,7 @@ class BasePlayer(object):
 			self.mask = self.background_model.get_foreground()
 			# self.mask = self.get_person()
 		except:
-			self.mask = 1
+			self.mask = None
 
 	def set_background(self, im):
 		self.background_model.backgroundModel = im
@@ -53,7 +59,6 @@ class BasePlayer(object):
 		elif bg_type == 'static':
 			if param==None:
 				param = self.depthIm
-			# self.bgSubtraction = StaticModel()
 			self.bgSubtraction = StaticModel(depthIm=param)
 		elif bg_type == 'mean':
 			self.bgSubtraction = MeanModel(depthIm=self.depthIm)
@@ -70,7 +75,9 @@ class BasePlayer(object):
 		pass
 
 	def get_person(self, edge_thresh=200):
-		mask, _, _, _ = extract_people(self.foregroundMask, minPersonPixThresh=5000, gradThresh=edge_thresh)
+		mask, _, _, _ = extract_people(self.foregroundMask, minPersonPixThresh=5000, gradThresh=None)
+		# mask, _, _, _ = extract_people(self.mask, minPersonPixThresh=5000, gradThresh=None)
+		# mask, _, _, _ = extract_people(self.mask, minPersonPixThresh=5000, gradThresh=edge_thresh)
 		mask = erosion(mask, np.ones([3,3], np.uint8))
 		return mask
 

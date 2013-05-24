@@ -8,6 +8,7 @@ import cPickle as pickle
 import numpy as np
 import scipy.misc as sm
 import scipy.ndimage as nd
+import traceback
 
 from pyKinectTools.utils.Utils import createDirectory
 from pyKinectTools.utils.SkeletonUtils import  kinect_to_msr_skel, plotUsers
@@ -57,6 +58,7 @@ keys_frame_right = 1048691
 class KinectPlayer(BasePlayer):
 
 	def __init__(self, device=0, **kwargs):
+
 		super(KinectPlayer, self).__init__(**kwargs)
 
 		self.dev = device
@@ -81,44 +83,32 @@ class KinectPlayer(BasePlayer):
 		self.frame_prev = 0
 		self.frame_prev_time = time()
 
-		self.depthIm = None
-		self.colorIm = None
-		self.users = None
-		self.backgroundModel = None
-		self.bgSubtraction = None
-		self.foregroundMask = None
-		self.prevcolorIm = None
-
 		self.player = self.run()
 		self.next()
 
 	def update_background(self):
 		'''Background model'''
-		if self.backgroundModel is None:
-			self.bgSubtraction = StaticModel(depthIm=self.depthIm)
-			# self.bgSubtraction = AdaptiveMixtureOfGaussians(self.depthIm, maxGaussians=5, learningRate=0.01, decayRate=0.001, variance=300**2)
-			# self.bgSubtraction = MedianModel(self.depthIm)
-			self.backgroundModel = self.bgSubtraction.getModel()
-			return
 		self.bgSubtraction.update(self.depthIm)
 		self.backgroundModel = self.bgSubtraction.getModel()
-		self.foregroundMask = self.bgSubtraction.get_foreground(thresh=500)
+		self.foregroundMask = self.bgSubtraction.get_foreground(thresh=50)
+		self.mask = self.bgSubtraction.get_foreground(thresh=50)
 
 
 	def next(self, frames=1):
 		'''
 		frames : skip (this-1) frames
 		'''
-		# try:
-		if 1:
+		try:
+		# if 1:
 			for i in xrange(frames):
 				self.player.next()
 				if self.enable_bg_subtraction:
 					self.update_background()
 			return True
-		# except:
-			# print ''
-			# return False
+		except:
+			traceback.print_exc(file=sys.stdout)
+			print 'Error getting next frame. Could be end of file'
+			return False
 
 	# ''' Or get CoM + orientation '''
 	# def calculate_basic_features(self):
@@ -149,9 +139,12 @@ class KinectPlayer(BasePlayer):
 			if colorize:
 				tmp = depthIm.reshape(-1)
 				# Normalize by min/max
-				min_ = tmp[tmp>0].min()
-				max_ = float(tmp.max())
-				tmp[tmp>0] = (tmp[tmp>0]-min_) / (max_-min_)*255.
+				if depth_bounds is None:
+					min_ = tmp[tmp>0].min()
+					max_ = float(tmp.max())
+					tmp[tmp>0] = (tmp[tmp>0]-min_) / (max_-min_)
+				else:
+					tmp *= 255.
 				# Recolor
 				tmp = colormap._lut[tmp.astype(np.uint8)]
 				depthIm = tmp.reshape([self.depthIm.shape[0], self.depthIm.shape[1], 4])[:,:,:3]
