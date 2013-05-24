@@ -9,7 +9,8 @@ import cPickle as pickle
 import numpy as np
 from skimage import color
 
-from pyKinectTools.utils.KinectPlayer import KinectPlayer, display_help
+# from rgbdActionDatasets.dataset_readers.KinectPlayer import KinectPlayer, display_help
+from pyKinectTools.dataset_readers.KinectPlayer import KinectPlayer, display_help
 from pyKinectTools.utils.DepthUtils import world2depth, depthIm2XYZ, skel2depth, depth2world
 from pyKinectTools.utils.SkeletonUtils import display_skeletons, transform_skels, kinect_to_msr_skel
 
@@ -20,13 +21,8 @@ np.seterr(all='ignore')
 # -------------------------MAIN------------------------------------------
 
 def main(visualize=True):
-	# Init both cameras
-	# fill = True
-	fill = False
-	get_color = True
-	get_skel = False
-	n_cameras = 2
-	cam = KinectPlayer(base_dir='./', device=1, bg_subtraction=True, get_depth=True, get_color=get_color, get_skeleton=get_skel, fill_images=fill)
+	n_cameras = 1
+	cam = KinectPlayer(base_dir='./', device=1, bg_subtraction=True, get_depth=True, get_color=True, get_skeleton=False, fill_images=False)
 	if n_cameras == 2:
 		cam2 = KinectPlayer(base_dir='./', device=2, bg_subtraction=True, get_depth=True, get_color=get_color, get_skeleton=get_skel, fill_images=fill)
 	# Transformation matrix from first to second camera
@@ -38,18 +34,19 @@ def main(visualize=True):
 		transform = False
 		pass
 
-	ii = 0
+	current_frame = 0
 	all_joint_ims_z = []
 	all_joint_ims_c = []
-	# embed()
+	framerate = 1
 	while cam.next():
-		print ii
+		print "Frame ", current_frame
 		# Update frames
 		if n_cameras == 2:
 			cam2.next()
 			# cam2.sync_cameras(cam)
-		if ii%10 != 0:
-			ii += 1
+		current_frame+=1
+		if current_frame%framerate != 0:
+			# current_frame += 1
 			continue
 
 		# Transform skels from cam1 to cam2
@@ -60,7 +57,7 @@ def main(visualize=True):
 
 		# if len(cam_skels) == 0:
 		# 	continue
-		ii+=1
+
 
 		# Save images
 		if 0:
@@ -77,26 +74,25 @@ def main(visualize=True):
 				all_joint_ims_c += [joint_ims_c]
 
 		if 1:
-			if transform:
-				pass
+			# if transform:
 				# cam2_skels = transform_skels(cam_skels, transform_c1_to_c2, 'image')
 
-			try:
+			# try:
 				# depth = cam2.get_person()
 				# if learn:
 				# 	rf.add_frame(depth, cam2_skels[0])
 				# else:
 				# 	rf.infer_pose(depth)
-
-				if visualize:
-					# cam2.depthIm = display_skeletons(cam2.depthIm, cam2_skels[0], (5000,), skel_type='Low')
-					# skel1 = kinect_to_msr_skel(skel2depth(cam_skels[0], [240,320]))
-					# cam.depthIm = display_skeletons(cam.depthIm, skel1, (5000,), skel_type='Low')
-					cam.visualize(color=True, depth=True)
-					if n_cameras == 2:
-						cam2.visualize(color=True, depth=True)
-			except:
-				pass
+			# except:
+				# pass
+			if visualize:
+				# cam2.depthIm = display_skeletons(cam2.depthIm, cam2_skels[0], (5000,), skel_type='Low')
+				# skel1 = kinect_to_msr_skel(skel2depth(cam_skels[0], [240,320]))
+				# cam.depthIm = display_skeletons(cam.depthIm, skel1, (5000,), skel_type='Low')
+				# embed()
+				cam.visualize(color=True, depth=True, text=True, colorize=True, depth_bounds=[2000,3500])
+				if n_cameras == 2:
+					cam2.visualize(color=True, depth=True)
 
 
 	embed()
@@ -107,12 +103,12 @@ def main(visualize=True):
 if __name__=="__main__":
 
 	parser = optparse.OptionParser()
-	parser.add_option('-v', '--visualize', dest='viz', action="store_true", default=False, help='Enable visualization')
-	parser.add_option('-l', '--learn', dest='learn', action="store_true", default=False, help='Training phase')
-	parser.add_option('-i', '--infer', dest='infer', action="store_true", default=False, help='Training phase')
+	parser.add_option('-v', '--visualize', dest='viz', action="store_true", default=True, help='Enable visualization')
+	# parser.add_option('-l', '--learn', dest='learn', action="store_true", default=False, help='Training phase')
+	# parser.add_option('-i', '--infer', dest='infer', action="store_true", default=False, help='Training phase')
 	(opt, args) = parser.parse_args()
 
-	main()
+	main(opt.viz)
 
 	# if len(args) > 0:
 	# 	print "Wrong input argument"

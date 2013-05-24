@@ -29,7 +29,7 @@ class Features:
 		self.labels = labels
 		self.segmentsTouched = []
 
-		self.calculateFeatures()		
+		self.calculateFeatures()
 		return self.img, self.coms, self.bases, self.segmentsTouched
 
 	def addFeatures(self, strList = []):
@@ -72,7 +72,7 @@ class Features:
 				# following is unnecessary unless axis has already been painted on the image
 				# inds2 = [x for x in inds2 if x[2] != 0]
 				xyz = np.array(depth2world(np.array(inds2)))
-				inds2 = np.transpose(inds2)				
+				inds2 = np.transpose(inds2)
 				self.xyz.append(xyz)
 				self.indices.append(inds2)
 
@@ -136,7 +136,7 @@ class Features:
 				ax.scatter(spineLine[:,0], spineLine[:,1], spineLine[:,2], 'g')
 				xlabel('x')
 				ylabel('y')
-			
+
 			if len(spineLine_xyd) > 0:
 				# Make sure all points are within bounds
 				inds = [x for x in range(len(spineLine_xyd[0])) if (spineLine_xyd[0, x] >= 0 and spineLine_xyd[0, x] < 480 and spineLine_xyd[1, x] >= 0 and spineLine_xyd[1, x] < 640)]
@@ -197,7 +197,7 @@ class Features:
 	def extractClassificationFeatures(self, pData, featureLimits):
 		# Recognition features
 		com = pData['com']
-		allCOMs = pData['data']['com']		
+		allCOMs = pData['data']['com']
 		center = np.array([-346.83551756, -16.10465379, 3475.0]) # new footage
 		comRad = np.sqrt(np.sum((com - center)**2))
 		comX = com[0]
@@ -205,10 +205,10 @@ class Features:
 		comZ = com[2]
 
 		frameCount = len(allCOMs)
-		pTime = pData['elapsed']		
+		pTime = pData['elapsed']
 
 		if pTime < 5 or frameCount < 5:
-			return -1		
+			return -1
 
 		'''Get arclength'''
 		arclength = 0
@@ -253,7 +253,7 @@ class Features:
 		a2 = np.maximum(ang1, ang2)
 		# Ensure Y vector is pointing up
 		validPoints = np.abs(h1[:,1])>.5  # Was previously set as h0
-		ang1 = ang1[validPoints]; 
+		ang1 = ang1[validPoints];
 		a1 = a1[validPoints]
 		ang1Hist, ang1HistInds = np.histogram(a1, 12, [-180, 180])
 		ang1Hist = ang1Hist[:6]+ang1Hist[6:] #Collapse both directions
@@ -289,7 +289,7 @@ class Features:
 			features.append(ornFeatures[i])
 		for i in xrange(ornHist.shape[0]):
 			features.append(ornHist[i])
-		
+
 		return features
 
 
@@ -309,7 +309,7 @@ class Features:
 # 	c = np.array([com[ind][0] - x, com[ind][1] - y])
 # 	current = [c[0], c[1]]
 # 	xyz = featureExt.xyz[ind]
-	
+
 # 	t = time.time()
 # 	trailSets = []
 # 	for i in xrange(15):
@@ -318,10 +318,10 @@ class Features:
 # 			# pdb.set_trace()
 # 			dists = np.sqrt(np.maximum(0, np.sum((xyz-com_xyz)**2, 1)))
 # 			inds = featureExt.indices[ind]
-			
-# 			distsMat = np.zeros([obj2Size[0],obj2Size[1]], dtype=uint16)		
+
+# 			distsMat = np.zeros([obj2Size[0],obj2Size[1]], dtype=uint16)
 # 			distsMat = ((-mask)*499)
-# 			distsMat[inds[0,:]-x, inds[1,:]-y] = dists 		
+# 			distsMat[inds[0,:]-x, inds[1,:]-y] = dists
 # 			objTmp = distsMat
 
 # 			dists2 = np.empty([obj2Size[0]-2,obj2Size[1]-2,4], dtype=int16)
@@ -332,7 +332,7 @@ class Features:
 # 			dists2 = np.abs(dists2)
 
 
-# 			dists2Tot = np.zeros([obj2Size[0],obj2Size[1]], dtype=int16)+9999		
+# 			dists2Tot = np.zeros([obj2Size[0],obj2Size[1]], dtype=int16)+9999
 # 			maxDists = np.max(dists2, 2)
 # 			distThresh = 30
 # 			outline = np.nonzero(maxDists>distThresh)
@@ -343,7 +343,7 @@ class Features:
 # 			dists2Tot[current[0], current[1]] = 0
 # 			for t in trailSets:
 # 				for i in t:
-# 					dists2Tot[i[0], i[1]] = 0			
+# 					dists2Tot[i[0], i[1]] = 0
 
 # 			visitMat = np.zeros_like(dists2Tot, dtype=uint8)
 # 			visitMat[-mask] = 255
@@ -413,9 +413,9 @@ from IPython import embed
 def computeUserFeatures(colorIm, depthIm, flow, bounding_box, timestamp, mask, window_size=[96,72], split_boxes=[4,3], visualise=False):
 
 	assert colorIm.shape[0:2] == depthIm.shape and flow.shape[0:2] == depthIm.shape, "Wrong dimensions when computing features"
-	
+
 	features = {'time':timestamp, 'bounding_box':bounding_box}
-	
+
 	''' Get bounding box in xyz coords '''
 	corner1 = depth2world(np.array([bounding_box[0].start,bounding_box[1].start, depthIm[bounding_box[0].start,bounding_box[1].start]]))
 	corner2 = depth2world(np.array([bounding_box[0].stop,bounding_box[1].stop, depthIm[bounding_box[0].stop,bounding_box[1].stop]]))
@@ -438,7 +438,7 @@ def computeUserFeatures(colorIm, depthIm, flow, bounding_box, timestamp, mask, w
 
 	''' Resize images '''
 	colorUserIm = sm.imresize(colorUserIm, [window_size[0],window_size[1],3])
-	depthUserIm = sm.imresize(depthUserIm, window_size)	
+	depthUserIm = sm.imresize(depthUserIm, window_size)
 	flowUserImTmp0 = sm.imresize(flowUserIm[:,:,0], window_size)
 	flowUserImTmp1 = sm.imresize(flowUserIm[:,:,1], window_size)
 	flowUserIm = np.dstack([flowUserImTmp0,flowUserImTmp0])
@@ -448,7 +448,7 @@ def computeUserFeatures(colorIm, depthIm, flow, bounding_box, timestamp, mask, w
 	features['com'] = com
 	features['com_px'] = depth2world(com)
 	features['orn'] = ornBasis
-	
+
 	''' Get color histogram '''
 	colorHistograms = [np.histogram(colorUserIm[:,:,i], bins=20, range=(0,255))[0] for i in range(3)]
 	features['colorHistograms'] = colorHistograms
@@ -477,10 +477,10 @@ def computeUserFeatures(colorIm, depthIm, flow, bounding_box, timestamp, mask, w
 
 	features['hog'] = splitHogArrays
 	features['hof'] = splitHofArrays
-		
+
 	if visualise:
 		features['hogIm'] = hogIm
-		features['hofIm'] = hofIm	
+		features['hofIm'] = hofIm
 
 	return  features
 
@@ -495,7 +495,7 @@ def computeFeaturesWithSkels(image, users=None, flow=None, device=2, computeHog=
 	features = {}
 
 	# Head, Left hand, right hand
-	bodyIndicies = [0, 5, 8] 
+	bodyIndicies = [0, 5, 8]
 
 	for u in users.keys():
 		xyz = users[u]['com']
@@ -524,7 +524,7 @@ def computeFeaturesWithSkels(image, users=None, flow=None, device=2, computeHog=
 				uImg = np.minimum(uImg, 100)
 				# uImg /= (np.max(uImg)/255.)
 
-				fillImage(uImg)
+				fill_image(uImg)
 				if not vis:
 					hogArray = feature.hog(uImg, visualise=False)
 				else:

@@ -22,7 +22,7 @@ from skimage.draw import line, circle
 from skimage.color import rgb2gray,gray2rgb, rgb2lab
 from skimage.feature import local_binary_pattern, match_template, peak_local_max
 
-from pyKinectTools.utils.KinectPlayer import KinectPlayer, display_help
+from pyKinectTools.dataset_readers.KinectPlayer import KinectPlayer, display_help
 from pyKinectTools.utils.DepthUtils import *
 from pyKinectTools.utils.SkeletonUtils import display_skeletons, transform_skels, kinect_to_msr_skel, msr_to_kinect_skel
 from pyKinectTools.dataset_readers.MHADPlayer import MHADPlayer

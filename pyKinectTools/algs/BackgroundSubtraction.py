@@ -146,11 +146,6 @@ def extract_people(im, minPersonPixThresh=5000, gradThresh=None):
 					px/area > 0.2
 			]
 
-	# if usrTmp != []:
-		# print len(usrTmp), "users"
-	# for i in range(len(px_count)):
-		# if px_count[i] > minPersonPixThresh:
-			# print px_count[i], np.array(px_count[i])/np.array(areas[i]), ratios[i]
 	if len(usrTmp) > 0:
 		userBoundingBoxes, userLabels, px_count = zip(*usrTmp)
 	else:
@@ -177,7 +172,7 @@ def getMeanImage(depthImgs):
 
 	return mean_
 
-def fillImage(im, tol=None):
+def fill_image(im, tol=None):
 	## Close holes in images
 	inds = nd.distance_transform_edt(im==0, return_distances=False, return_indices=True)
 	i2 = np.nonzero(im==0)
@@ -199,10 +194,16 @@ def removeNoise(im, thresh=500):
 	return im
 
 
-class BaseBackgroundModel:
+class BaseBackgroundModel(object):
 
-	def __init__(self, depthIm):
-		self.backgroundModel = depthIm
+	backgroundModel = None
+	fill_image = False
+
+	def __init__(self, depthIm=None, fill_image=False):
+
+		if depthIm is not None:
+			self.backgroundModel = depthIm.copy()
+		self.fill_image = fill_image
 
 	def update(self,depthIm):
 		self.currentIm = depthIm.copy()
@@ -210,15 +211,17 @@ class BaseBackgroundModel:
 	def getModel(self):
 		return self.backgroundModel
 
-	def getForeground(self, thresh=50):
-		return (np.abs(self.backgroundModel - self.currentIm)*(self.currentIm!=0)) > thresh
+	def get_foreground(self, thresh=500):
+		max_bg = self.backgroundModel.max()
+		return (np.abs(self.backgroundModel - self.currentIm)*(self.currentIm!=0)*(self.currentIm<max_bg)) > thresh
 
 
 
 ''' Adaptive Mixture of Gaussians '''
-class AdaptiveMixtureOfGaussians:
+class AdaptiveMixtureOfGaussians(BaseBackgroundModel):
 
-	def __init__(self, im, maxGaussians=5, learningRate=0.05, decayRate=0.25, variance=100**2):
+	def __init__(self, im, maxGaussians=5, learningRate=0.05, decayRate=0.25, variance=100**2, **kwargs):
+		super(AdaptiveMixtureOfGaussians, self).__init__(**kwargs)
 
 		xRez, yRez = im.shape
 		self.MaxGaussians = maxGaussians
@@ -342,12 +345,13 @@ class AdaptiveMixtureOfGaussians:
 		return self.backgroundModel
 
 
-class MedianModel:
+class MedianModel(BaseBackgroundModel):
 
-	def __init__(self, depthIm, n_images=50, fill_image=False):
-		self.fill_image = fill_image
-		if fill_image:
-			self.prevDepthIms = fillImage(depthIm.copy())[:,:,None]
+	def __init__(self, depthIm, n_images=50, **kwargs):
+		super(MedianModel, self).__init__(**kwargs)
+
+		if self.fill_image:
+			self.prevDepthIms = fill_image(depthIm.copy())[:,:,None]
 		else:
 			self.prevDepthIms = depthIm.copy()[:,:,None]
 		self.backgroundModel = self.prevDepthIms[:,:,0]
@@ -357,7 +361,7 @@ class MedianModel:
 
 		# Add to set of images
 		if self.fill_image:
-			self.currentIm = fillImage(depthIm.copy())
+			self.currentIm = fill_image(depthIm.copy())
 		else:
 			self.currentIm = depthIm.copy()
 		self.prevDepthIms = np.dstack([self.prevDepthIms, self.currentIm])
@@ -369,26 +373,57 @@ class MedianModel:
 
 		self.backgroundModel = np.median(self.prevDepthIms, -1)
 
-	# def getModel(self):
-		# return self.backgroundModel
 
-	# def getForeground(self, thresh=50):
-		# return (np.abs(self.backgroundModel - self.currentIm)*(self.currentIm!=0)*(self.backgroundModel!=0)) > thresh
+class MeanModel(BaseBackgroundModel):
 
+	def __init__(self, depthIm, n_images=50, **kwargs):
+		super(MeanModel, self).__init__(**kwargs)
+
+		if self.fill_image:
+			self.prevDepthIms = fill_image(depthIm.copy())[:,:,None]
+		else:
+			self.prevDepthIms = depthIm.copy()[:,:,None]
+		self.backgroundModel = self.prevDepthIms[:,:,0]
+		self.n_images = n_images
+
+	def update(self,depthIm):
+
+		# Add to set of images
+		if self.fill_image:
+			self.currentIm = fill_image(depthIm.copy())
+		else:
+			self.currentIm = depthIm.copy()
+		self.prevDepthIms = np.dstack([self.prevDepthIms, self.currentIm])
+
+		# Check if too many (or few) images
+		imCount = self.prevDepthIms.shape[2]
+		if imCount > self.n_images:
+			self.prevDepthIms = self.prevDepthIms[:,:,-self.n_images:]
+
+		self.backgroundModel = np.mean(self.prevDepthIms, -1)
 
 class StaticModel(BaseBackgroundModel):
 
-	def __init__(self, depthIm=None):
-		self.backgroundModel = depthIm
+	def __init__(self, **kwargs):
+		super(StaticModel, self).__init__(**kwargs)
 
 	def update(self,depthIm):
 		self.currentIm = depthIm
 
-	# def getForeground(self, thresh=50):
-		# return (np.abs(self.backgroundModel - self.currentIm)*(self.currentIm!=0)*(self.backgroundModel!=0)) > thresh
+class BoxModel(BaseBackgroundModel):
 
-''' Likelihood based on optical flow'''
+	def __init__(self, max_depth=3000, **kwargs):
+		super(BoxModel, self).__init__(**kwargs)
+		self.max_depth = max_depth
 
+	def update(self,depthIm):
+		self.currentIm = depthIm
+		self.backgroundModel = depthIm*(depthIm > self.max_depth)
+
+
+
+
+# ''' Likelihood based on optical flow'''
 # backgroundProb[foregroundMask == 0] = 1.
 # prevDepthIms[:,:,-1] = 5000.
 

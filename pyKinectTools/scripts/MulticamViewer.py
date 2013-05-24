@@ -12,9 +12,9 @@ import scipy.ndimage as nd
 from skimage import color
 from skimage.segmentation import felzenszwalb
 import cv2
-from pyKinectTools.utils.KinectPlayer import KinectPlayer, display_help
+from pyKinectTools.dataset_readers.KinectPlayer import KinectPlayer, display_help
 from pyKinectTools.utils.DepthUtils import *#world2depth, depthIm2XYZ, skel2depth, depth2world
-# from pyKinectTools.algs.BackgroundSubtraction import AdaptiveMixtureOfGaussians, fillImage, extract_people
+# from pyKinectTools.algs.BackgroundSubtraction import AdaptiveMixtureOfGaussians, fill_image, extract_people
 from pyKinectTools.algs.BackgroundSubtraction import extract_people
 from pyKinectTools.utils.SkeletonUtils import display_skeletons
 from pyKinectTools.algs.GeodesicSkeleton import *
@@ -31,11 +31,11 @@ def main(get_depth, get_color, get_skeleton, visualize):
 	fill = False
 	get_color = True
 	# VP = KinectPlayer(base_dir='./', device=device, get_depth=get_depth, get_color=get_color, get_skeleton=get_skeleton, get_mask=get_mask)
-	# VP = KinectPlayer(base_dir='./', device=1, bg_subtraction=True, get_depth=get_depth, get_color=get_color, get_skeleton=get_skeleton, fill_images=fill)	
-	VP = KinectPlayer(base_dir='./', device=2, bg_subtraction=True, get_depth=True, get_color=True, get_skeleton=False, fill_images=fill)	
+	# VP = KinectPlayer(base_dir='./', device=1, bg_subtraction=True, get_depth=get_depth, get_color=get_color, get_skeleton=get_skeleton, fill_images=fill)
+	VP = KinectPlayer(base_dir='./', device=2, bg_subtraction=True, get_depth=True, get_color=True, get_skeleton=False, fill_images=fill)
 	cam_count = 1
 	if cam_count == 2:
-		VP2 = KinectPlayer(base_dir='./', device=2, bg_subtraction=True, get_depth=True, get_color=True, get_skeleton=False, fill_images=fill)	
+		VP2 = KinectPlayer(base_dir='./', device=2, bg_subtraction=True, get_depth=True, get_color=True, get_skeleton=False, fill_images=fill)
 		# Transformation matrix from first to second camera
 		# data = pickle.load(open("./Registration.dat", 'r'))
 		# transform_c1_to_c2 = data['transform']
@@ -129,12 +129,12 @@ def main(get_depth, get_color, get_skeleton, visualize):
 if __name__=="__main__":
 
 	parser = optparse.OptionParser()
-	parser.add_option('-s', '--skel', dest='skel', action="store_true", default=False, help='Enable skeleton')	
-	parser.add_option('-d', '--depth', dest='depth', action="store_true", default=False, help='Enable depth images')		
-	parser.add_option('-c', '--color', dest='color', action="store_true", default=False, help='Enable color images')	
+	parser.add_option('-s', '--skel', dest='skel', action="store_true", default=False, help='Enable skeleton')
+	parser.add_option('-d', '--depth', dest='depth', action="store_true", default=False, help='Enable depth images')
+	parser.add_option('-c', '--color', dest='color', action="store_true", default=False, help='Enable color images')
 	parser.add_option('-m', '--mask', dest='mask', action="store_true", default=False, help='Enable enternal mask')
 	parser.add_option('-a', '--anonomize', dest='save', action="store_true", default=False, help='Save anonomized RGB image')
-	parser.add_option('-f', '--calcFeatures', dest='bgSubtraction', action="store_true", default=False, help='Enable feature extraction')		
+	parser.add_option('-f', '--calcFeatures', dest='bgSubtraction', action="store_true", default=False, help='Enable feature extraction')
 	parser.add_option('-v', '--visualize', dest='viz', action="store_true", default=False, help='Enable visualization')
 	parser.add_option('-i', '--dev', dest='dev', type='int', default=0, help='Device number')
 	(opt, args) = parser.parse_args()

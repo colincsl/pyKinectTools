@@ -7,7 +7,7 @@ Conference paper: [CVPR]
 Journal Paper: [PAMI]
 
 -Learning-
-For each training image calculate 500 features per pixel location and run a decision forest. 
+For each training image calculate 500 features per pixel location and run a decision forest.
 The class of each pixel depends on the closest labeled joint location as determined by the geodesic distances
 
 -Inference-
@@ -38,7 +38,7 @@ from pyKinectTools.algs.BackgroundSubtraction import extract_people
 from pyKinectTools.algs.MeanShift import mean_shift
 from pyKinectTools.algs.GeodesicSkeleton import generateKeypoints, distance_map
 # from pyKinectTools.utils.VideoViewer import VideoViewer
-from pyKinectTools.utils.KinectPlayer import KinectPlayer
+from pyKinectTools.dataset_readers.KinectPlayer import KinectPlayer
 
 from IPython import embed
 from pylab import *
@@ -47,7 +47,7 @@ from skimage.draw import circle
 
 N_MSR_JOINTS = 20
 MSR_JOINTS = range(N_MSR_JOINTS)
-WHOLE_JOINTS = [0, 3, 4, 5, 7, 8, 9, 11, 13, 15, 17, 19] # Low 
+WHOLE_JOINTS = [0, 3, 4, 5, 7, 8, 9, 11, 13, 15, 17, 19] # Low
 UPPER_JOINTS = [0, 3, 4, 5, 7, 8, 9, 11]
 
 if 0:
@@ -55,7 +55,7 @@ if 0:
 	SKEL_DISPLAY_MODE = "Upperbody"
 if 0:
 	SKEL_JOINTS = WHOLE_JOINTS
-	SKEL_DISPLAY_MODE = "Kinect"	
+	SKEL_DISPLAY_MODE = "Kinect"
 if 1:
 	SKEL_JOINTS = WHOLE_JOINTS
 	SKEL_DISPLAY_MODE = "Low"
@@ -90,11 +90,11 @@ class RFPose:
 		'''
 		self.rf = RFClassifier(n_estimators=3,
 							criterion='entropy',\
-		 					max_depth=20, 
+		 					max_depth=20,
 		 					max_features='auto',\
 		  					oob_score=False,\
-		  					n_jobs=-1, 
-		  					random_state=None, 
+		  					n_jobs=-1,
+		  					random_state=None,
 		  					verbose=1,\
 		  					min_samples_leaf=1)
 
@@ -111,7 +111,7 @@ class RFPose:
 			files = os.listdir('Saved_Params/')
 			filename = 'Saved_Params/' + files[-1]
 			print "Loaded classifier file:",filename
-	
+
 		data =  pickle.load(open(filename))
 		self.rf = data['rf']
 		self.offsets = data['offsets']
@@ -140,7 +140,7 @@ class RFPose:
 			im_predict /= float(im_predict.max()/255.)
 			im_predict = im_predict.astype(np.uint8)
 			# im_predict = display_skeletons(im_predict, skel_pos, (255,0,0), SKEL_DISPLAY_MODE)
-			im_predict = display_skeletons(im_predict, skel_pos_pred, (0,255,0), SKEL_DISPLAY_MODE)				
+			im_predict = display_skeletons(im_predict, skel_pos_pred, (0,255,0), SKEL_DISPLAY_MODE)
 
 			cv2.putText(im_predict, "Blue=Truth", (10, 210), cv2.FONT_HERSHEY_DUPLEX, .5, (int(im_predict.max()/2), 0, 0))
 			cv2.putText(im_predict, "Green=Predict", (10, 230), cv2.FONT_HERSHEY_DUPLEX, .5, (0, int(im_predict.max()/2), 0))
@@ -151,7 +151,7 @@ class RFPose:
 
 
 
-		return skel_pos_pred, im_predict		
+		return skel_pos_pred, im_predict
 
 
 
@@ -175,7 +175,7 @@ def pose_mean_shift(im_predict):
 			else:
 				pos_pred += [[-1]]
 		else:
-			pos_pred += [[-1]]				
+			pos_pred += [[-1]]
 
 	skel_pos_pred = np.zeros([N_MSR_JOINTS,2], dtype=np.int16)
 	for i in xrange(len(SKEL_JOINTS)):
@@ -231,7 +231,7 @@ def calculate_rf_features(im, offsets_1, offsets_2, mask=None):
 	min_z = depths.min()
 	im[-bg_mask] -= min_z
 	# embed()
-	''' 
+	'''
 	For each index get the feature offsets
 			f(u) = depth(u + offset_1/depth(u)) - depth(u + offset_2/depth(u))
 	'''
@@ -283,7 +283,7 @@ def pts_to_surface(skel, im_depth, thresh=10):
 	# embed()
 	# If pixel if outside of mask, find the closest 'in' neighbor
 	if len(out_of_bounds) > 0:
-		from sklearn.neighbors import NearestNeighbors  
+		from sklearn.neighbors import NearestNeighbors
 		NN = NearestNeighbors(n_neighbors=1)
 		inds = np.array(np.nonzero(im_depth)).T
 		NN.fit(inds)
@@ -321,7 +321,7 @@ def get_per_pixel_joints(im_depth, skel, alg='geodesic', radius=5):
 	im_depth[mag>edge_thresh] = 0
 
 	joints_out_of_bounds = np.abs(im_depth[skel[:,0], skel[:,1]] - skel[:,2]) > 100
-	
+
 	# Only look at major joints
 	for i, j in zip(SKEL_JOINTS, range(N_SKEL_JOINTS)):
 		if skel[i] in joints_out_of_bounds:
@@ -335,7 +335,7 @@ def get_per_pixel_joints(im_depth, skel, alg='geodesic', radius=5):
 			# if j == 0:
 			# 	pts, min_map = generateKeypoints(np.ascontiguousarray(im_depth), centroid=[x,y], iterations=10, scale=6)
 
-			im_dist = distance_map(np.ascontiguousarray(im_depth), centroid=[x,y], scale=6)					
+			im_dist = distance_map(np.ascontiguousarray(im_depth), centroid=[x,y], scale=6)
 			distance_ims[:,:,j] = im_dist
 
 			if 0:
@@ -370,7 +370,7 @@ def get_per_pixel_joints(im_depth, skel, alg='geodesic', radius=5):
 		closest_pos_all = np.argsort(distance_ims, -1).astype(np.uint8)
 	elif alg == 'circular':
 		closest_pos = np.zeros_like(im_depth)
-	
+
 	#Change all background pixels
 	# mask = im_depth!=0
 	# mask = (distance_ims.max(-1)<32000)
@@ -397,7 +397,7 @@ def get_per_pixel_joints(im_depth, skel, alg='geodesic', radius=5):
 		# euclid_dists = distance.squareform(distance.pdist(depth2world(skel_XYZ, [240,320])))
 		euclid_dists = distance.squareform(distance.pdist(skel_XYZ))
 		geo_dists = np.zeros_like(euclid_dists)
-		
+
 		for i in xrange(len(SKEL_JOINTS)):
 			p = pos_order[i]
 			# If a joint is behind it, don't care -- set to infinity
@@ -432,7 +432,7 @@ def get_per_pixel_joints(im_depth, skel, alg='geodesic', radius=5):
 		show()
 
 	# embed()
-	
+
 	# closest_pos_e[im_depth==0] = N_MSR_JOINTS+1
 
 	# closest_pos2[-mask] = N_MSR_JOINTS+1
@@ -441,7 +441,7 @@ def get_per_pixel_joints(im_depth, skel, alg='geodesic', radius=5):
 
 	# figure(1); imshow(closest_arg);
 	# figure(3); imshow(closest_pos2)
-	
+
 	# # Reorder
 	# im_order = np.zeros_like(im_depth)-1
 	# for p in range(len(pos_order)):
@@ -452,7 +452,7 @@ def get_per_pixel_joints(im_depth, skel, alg='geodesic', radius=5):
 	# figure(100)
 	# imshow(closest_pos)
 	# figure(101)
-	# imshow(im_depth)	
+	# imshow(im_depth)
 	# show()
 	# embed()
 	return closest_pos
@@ -462,14 +462,14 @@ def learn_frame(im_depth, skel_pos, offsets_1, offsets_2):
 
 	''' Get frame data '''
 	skel_pos = pts_to_surface(skel_pos, im_depth, thresh=50)
-	
+
 	''' Compute features and labels '''
 	im_labels = get_per_pixel_joints(im_depth, skel_pos, 'geodesic')
 	im_labels[(im_depth==0)*(im_labels>N_MSR_JOINTS)] = N_MSR_JOINTS+1
 	# im_labels[(im_depth>0)*(im_labels==255)] = N_MSR_JOINTS+1
 	mask = (im_labels<N_MSR_JOINTS)
 	pixel_loc = np.nonzero(mask)
-	pixel_labels = im_labels[pixel_loc]	
+	pixel_labels = im_labels[pixel_loc]
 	# embed()
 	features = calculate_rf_features(im_depth, offsets_1, offsets_2, mask=mask)
 
@@ -478,7 +478,7 @@ def learn_frame(im_depth, skel_pos, offsets_1, offsets_2):
 		im_labels = np.repeat(im_labels[:,:,None], 3, -1)
 		im_labels = display_skeletons(im_labels, skel_pos, (20,), skel_type='Low')
 		cv2.putText(im_labels, "Blue=Truth", (10, 210), cv2.FONT_HERSHEY_DUPLEX, .5, (int(im_labels.max()/2), 0, 0))
-		cv2.putText(im_labels, "Green=Predict", (10, 230), cv2.FONT_HERSHEY_DUPLEX, .5, (0, int(im_labels.max()/2), 0))					
+		cv2.putText(im_labels, "Green=Predict", (10, 230), cv2.FONT_HERSHEY_DUPLEX, .5, (0, int(im_labels.max()/2), 0))
 		cv2.imshow("feature_space", im_labels/im_labels.max().astype(np.float))
 		ret = cv2.waitKey(10)
 		if ret > 0: exit
@@ -538,7 +538,7 @@ def main_learn():
 	if 1:
 		# VP = KinectPlayer(base_dir='/Users/colin/Data/Office_25Feb2013/', device=2, get_depth=True, get_color=False, get_skeleton=True, get_mask=False)
 		# VP = KinectPlayer(base_dir='/Users/colin/Data/Room_close_26Feb13/', device=1, get_depth=True, get_color=False, get_skeleton=True, get_mask=False)
-		
+
 		# Scrap first 50 frames
 		# depthIms, skels_world = VP.get_n_skeletons(50)
 		depthIms, skels_world = VP.get_n_skeletons(400)
@@ -580,9 +580,9 @@ def main_learn():
 				else:
 					all_features = np.vstack([all_features, all_data[0]])
 					all_labels = np.hstack([all_labels, all_data[1]])
-			
+
 		else:
-			for n_set in chunks(names, 100):		
+			for n_set in chunks(names, 100):
 				print "Computing with multiple threads. Current feature count:", len(all_features)
 				all_data = Parallel(n_jobs=-1, verbose=True, pre_dispatch=2)( delayed(learn_frame)(n, offsets_1, offsets_2) for n in n_set )
 				# Account for bad frames
@@ -597,11 +597,11 @@ def main_learn():
 	print "Starting forest"
 	rf = RFClassifier(n_estimators=6,
 						criterion='entropy',\
-	 					max_depth=20, 
+	 					max_depth=20,
 	 					max_features='auto',\
 	  					oob_score=False,\
-	  					n_jobs=-1, 
-	  					random_state=None, 
+	  					n_jobs=-1,
+	  					random_state=None,
 	  					verbose=1,\
 	  					min_samples_leaf=1)
 
@@ -645,7 +645,7 @@ def infer_pose(im_depth, rf, offsets_1, offsets_2):
 			else:
 				pos_pred += [[-1]]
 		else:
-			pos_pred += [[-1]]				
+			pos_pred += [[-1]]
 
 	skel_pos_pred = np.zeros([N_MSR_JOINTS,2], dtype=np.int16)
 	for i in xrange(len(SKEL_JOINTS)):
@@ -674,8 +674,8 @@ def main_infer(rf_name=None):
 	depthIms = []
 	skels_world = []
 	if 1:
-		# VP = KinectPlayer(base_dir='/Users/colin/Data/Office_25Feb2013/', device=2, get_depth=True, get_color=False, get_skeleton=True, get_mask=False)	
-		VP = KinectPlayer(base_dir='/Users/colin/Data/Room_close_26Feb13/', device=1, get_depth=True, get_color=False, get_skeleton=True, get_mask=False)	
+		# VP = KinectPlayer(base_dir='/Users/colin/Data/Office_25Feb2013/', device=2, get_depth=True, get_color=False, get_skeleton=True, get_mask=False)
+		VP = KinectPlayer(base_dir='/Users/colin/Data/Room_close_26Feb13/', device=1, get_depth=True, get_color=False, get_skeleton=True, get_mask=False)
 		_,_ = VP.get_n_skeletons(50)
 		depthIms, skels_world = VP.get_n_skeletons(100)
 		# depthIms = np.array(depthIms)[:,:,::-1]
@@ -734,7 +734,7 @@ def main_infer(rf_name=None):
 				im_predict = display_skeletons(im_predict, skel_pos, (255,0,0), SKEL_DISPLAY_MODE)
 				im_predict = display_skeletons(im_predict, skel_pos_pred, (0,255,0), SKEL_DISPLAY_MODE)
 				im_predict = display_skeletons(im_predict, skel_pos, (255,0,0), SKEL_DISPLAY_MODE)
-				im_predict = display_skeletons(im_predict, skel_pos_pred, (0,255,0), SKEL_DISPLAY_MODE)				
+				im_predict = display_skeletons(im_predict, skel_pos_pred, (0,255,0), SKEL_DISPLAY_MODE)
 
 				# embed()
 				# max_ = (im_predict * (im_predict < 255)).max()
@@ -756,14 +756,14 @@ def main_infer(rf_name=None):
 		# 	print "Frame failed:", i
 		# 	break
 
-	embed()	
+	embed()
 
 
 if __name__ == '__main__':
 	import optparse
 	parser = optparse.OptionParser()
-	parser.add_option('-l', '--learn', dest='learn', action="store_true", default=False, help='Enable skeleton')	
-	parser.add_option('-i', '--infer', dest='infer', action="store_true", default=False, help='Enable skeleton')	
+	parser.add_option('-l', '--learn', dest='learn', action="store_true", default=False, help='Enable skeleton')
+	parser.add_option('-i', '--infer', dest='infer', action="store_true", default=False, help='Enable skeleton')
 	(opt, args) = parser.parse_args()
 
 	if opt.learn:

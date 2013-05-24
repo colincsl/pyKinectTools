@@ -15,7 +15,11 @@ def geodesic_extrema_MPI(im_pos, centroid=None, iterations=1, visualize=False, b
 	im : im_pos (NxMx3)
 	'''
 	if centroid==None:
-		centroid = np.array(nd.center_of_mass(im_pos[:,:,2]), dtype=np.int16)
+		try:
+			centroid = np.array(nd.center_of_mass(im_pos[:,:,2]), dtype=np.int16)
+		except:
+			return np.array([])
+
 	if box is not None:
 		im_pos = im_pos[box]
 	im_pos = np.ascontiguousarray(im_pos, dtype=np.int16)

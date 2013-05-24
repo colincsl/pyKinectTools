@@ -332,39 +332,108 @@ import os
 import cPickle as pickle
 import pyflann
 from copy import deepcopy
+from sklearn.cluster import KMeans
+
+from pyKinectTools_algs_Pose_Tracking import query_error
+
+# def pose_query(markers, trees, search_joints):
+	# error = query_error(markers, trees, np.array(search_joints, dtype=np.int16))
+	# return error
+
+def pose_query(markers, trees, search_joints):
+	'''
+	'''
+	trees = trees[:,search_joints]
+	err = np.empty([trees.shape[0], len(search_joints),len(markers)])
+
+	# min_err = np.empty([trees.shape[0],len(markers)])
+	for i in range(len(markers)):
+		# err = pairwise_distances(trees.reshape([-1,3]), markers[i], 'l2').reshape([trees.shape[0], len(search_joints)])
+		err[:,:,i] = pairwise_distances(trees.reshape([-1,3]), markers[i], 'l2').reshape([trees.shape[0], len(search_joints)])
+		# min_err[:,i] = np.min(err[:,:,i], -1)
+
+	# Find one-to-one mapping
+	n_joints = trees.shape[1]
+	min_err = np.empty([trees.shape[0],n_joints])
+	for i in range(n_joints):
+		tmp = err[:,i,:].argmin(1)
+		min_err[:,i] = (err[:,i,:].min(1)).copy()
+		err[tmp,i] = np.inf
+
+	return min_err.sum(-1)
+
+
 class PoseDatabase:
 
-	def __init__(self, filename, learn=True, append=False, search_joints=None, flann=False, scale=1.0):
+	keys = None
+	constraint_links = np.array([
+		[0,1], [2,5],#Head to torso, shoulders, head to shoulders
+		[2,3],[3,4], # Left arm
+		[2,1],[5,1], # shoudlers to hips
+		[5,6],[6,7], # Right arm
+		[8,9],[9,10], #Left foot
+		[11,12],[12,13], #Right foot
+		[8,11] #Bridge hips
+		])
+
+	# Learned on first 50 frames
+	joint_lengths = np.array([
+		400,
+		270,
+		270,
+		290,
+		240,
+		245,
+		250,
+		290,
+		415,
+		395,
+		415,
+		380,
+		160
+		])
+
+	def __init__(self, filename, learn=True, append=False, search_joints=None, flann=False, scale=1.0, n_clusters=-1):
 		'''
 		search_joints :
 		'''
 		self.filename = filename
-		self.keys = None
-		# embed()
+		self.search_joints = search_joints
+
 		if os.path.exists(filename) and (append or not learn):
 			data_raw = pickle.load(open(filename))
 			if len(data_raw) == 2:
 				self.keys = np.array([x.reshape(-1) for x in data_raw[1] if x.shape[0]==9])
-				data = np.array([x*scale for x,y in zip(data_raw[0], data_raw[1]) if y.shape[0]==9])
+				# data = np.array([x*scale for x,y in zip(data_raw[0], data_raw[1]) if y.shape[0]==9])
+				data = np.array(data_raw[0])*scale
 			else:
 				data = np.array(data_raw)*scale
-			self.database = data
 
-			if self.keys is not None:
+			if not learn and n_clusters != -1 and n_clusters < len(data):
+				kmeans = KMeans(n_clusters=n_clusters)
+				kmeans.fit(data.reshape([-1,42]))
+				data = kmeans.cluster_centers_.reshape([-1,14,3])
+
+			# if self.keys is not None:
 				# db_tmp=np.array(self.database).reshape(-1, 14*3)
 				# self.db_flann = pyflann.FLANN()
 				# self.db_flann.build_index(self.keys)
-				self.db_flann = cKDTree(self.keys)
+				# self.db_flann = cKDTree(self.keys)
 				# self.db_flann.build_index(self.keys)
-			if 1:
-				self.trees = []
-				for d in data:
-					if np.all(d!=0):
-						if search_joints is not None:
-							# print d, d.shape
-							self.trees += [cKDTree(d[search_joints])]
-						else:
-							self.trees += [cKDTree(d)]
+
+			self.torso_center = np.median(data, 0)[1]
+			# embed()
+			data = data - data[:,1][:,None,:] + self.torso_center
+
+			self.database = data
+			self.trees = []
+			for d in data:
+				if np.all(d!=0):
+					if search_joints is not None:
+						# print d, d.shape
+						self.trees += [cKDTree(d[search_joints])]
+					else:
+						self.trees += [cKDTree(d)]
 			self.count = len(data)
 			self.error = np.zeros(self.count)
 		else:
@@ -374,31 +443,35 @@ class PoseDatabase:
 			self.error = np.zeros(0)
 
 	def update(self, pose, keys=None):
-		self.database += [deepcopy(pose)]
+		if type(self.database)==np.ndarray:
+			self.database = self.database.tolist()
+			# self.database = np.vstack([self.database, deepcopy(pose)])
+		pose = self.filter_pose(pose)
+		if pose is not -1:
+			self.database += [deepcopy(pose)-pose[1]+self.torso_center]
 		if keys is not None:
 			self.keys += [deepcopy(keys)]
 
-	# Dimensionality must be constant for flann
-	def query_flann(self, pose, knn=1, return_error=False):
-		inds, error = self.db_flann.nn_index(pose.reshape([1,-1]), knn)
-		output = self.database[inds]
-		if return_error:
-			return np.array(output, copy=True), error
-		else:
-			return np.array(output, copy=True)
+	# # Dimensionality must be constant for flann
+	# def query_flann(self, pose, knn=1, return_error=False):
+	# 	inds, error = self.db_flann.nn_index(pose.reshape([1,-1]), knn)
+	# 	output = self.database[inds]
+	# 	if return_error:
+	# 		return np.array(output, copy=True), error
+	# 	else:
+	# 		return np.array(output, copy=True)
 
-	def query_tree(self, pose, knn=1, return_error=False):
-		# embed()
-		error,inds = self.db_flann.query(pose.reshape([1,-1]), knn)
-		output = self.database[inds]
-		if return_error:
-			return np.array(output, copy=True)[0], error[0]
-		else:
-			return np.array(output, copy=True)[0]
+	# def query_tree(self, pose, knn=1, return_error=False):
+	# 	# embed()
+	# 	error,inds = self.db_flann.query(pose.reshape([1,-1]), knn)
+	# 	output = self.database[inds]
+	# 	if return_error:
+	# 		return np.array(output, copy=True)[0], error[0]
+	# 	else:
+	# 		return np.array(output, copy=True)[0]
 
 	def query(self, pose, knn=1, return_error=False):
-		# for i,tree in enumerate(self.trees):
-			# self.error[i] = tree.query(pose)[0].sum()
+
 		self.error = np.array([tree.query(pose)[0].sum() for tree in self.trees])
 
 		error_sorted = np.argsort(self.error)
@@ -411,22 +484,6 @@ class PoseDatabase:
 			# return np.array(output, copy=True), error_sorted[:knn]
 		else:
 			return np.array(output, copy=True)
-
-	def weighted_query(self, markers, marker_types=None, knn=1):
-
-		self.error = np.array([tree.query(markers)[0].sum() for i,tree in enumerate(self.trees)])
-		# for i,tree in enumerate(self.trees):
-		# 	self.error[i] = tree.query(markers)[0].sum()
-
-		# output = []
-		# error_sorted = np.argsort(self.error)
-		# for i in xrange(knn):
-		# 	output += [self.database[error_sorted[i]]]
-		# if knn > 0:
-		# 	output = np.mean(output,0)
-		# output = deepcopy(self.database[np.argmin(self.error)])
-		return deepcopy(np.array(output))
-
 
 	def reverse_query(self, pose):
 		tree = cKDTree(pose)
@@ -442,13 +499,54 @@ class PoseDatabase:
 		pickle.dump([self.database, self.keys], open(self.filename, 'w'))
 
 
+	def visualize():
+		# for i,p in enumerate(np.array(self.database)[:200*10:200]):
+		# 	im = np.zeros([480,640], np.uint8)+255
+		# 	subplot(1,10,i+1)
+		# 	p_tmp = cam.camera_model.world2im(p+[0,0,2500])
+		# 	im = display_skeletons(im, p_tmp, skel_type='Kinect', color=(0,0,0))
+		# 	imshow(im[:,150:450])
+		# 	axis('off')
+		# 	gray()
 
-# class HierarchicalBoundingBoxes:
+		im = np.zeros([480,640,3], np.int16)#+255
+		torso = self.database[0][1]
+		error = np.empty(14)
+		for i,p in enumerate(np.array(self.database)[::1]):
+			p = self.filter_pose(p, max_error=200)
+			if p is -1:
+				continue
+			p_tmp = cam.camera_model.world2im(p-p[1]+torso+[0,0,2500])
+			im = display_skeletons(im, p_tmp, skel_type='Kinect', color=(i,i,i))
+			# imshow(im[:,150:500])
+			# axis('off')
+			cv2.imshow('i',im/float(im.max()))
+			im = display_skeletons(im, p_tmp, skel_type='Kinect', color=(0,i,0))
+			cv2.waitKey(10)
 
-# 	n_levels = 1
-# 	bounding_boxes = []
-# 	def __init__(self):
-# 		pass
+	def filter_pose(self, pose, max_error=100):
+		error = np.empty(14)
+		for ii,c in enumerate(self.constraint_links):
+			error[ii] = np.abs(np.sqrt(np.sum((pose[c[0]]-pose[c[1]])**2, -1)) - self.joint_lengths[ii])
+		if np.max(error) > max_error:
+			print 'n', np.max(error)
+			return -1
+		else:
+			print np.max(error)
+			return pose
+
+	# d = []
+	# for p in self.database:
+	# 	p = self.filter_pose(p, 200)
+	# 	if p is not -1:
+	# 		d += [p]
+
+	# Learn link lengths
+	# tmp = np.zeros(14)
+	# for p in self.database[:50]:
+	# 	for i,c in enumerate(constraint_links):
+	# 		tmp[i] += (np.sqrt(np.sum((p[c[0]]-p[c[1]])**2, -1)))
+
 
 
 

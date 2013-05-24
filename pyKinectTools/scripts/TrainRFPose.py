@@ -9,7 +9,7 @@ import cPickle as pickle
 import numpy as np
 from skimage import color
 
-from pyKinectTools.utils.KinectPlayer import KinectPlayer, display_help
+from pyKinectTools.dataset_readers.KinectPlayer import KinectPlayer, display_help
 from pyKinectTools.utils.DepthUtils import world2depth, depthIm2XYZ, skel2depth, depth2world
 from pyKinectTools.utils.SkeletonUtils import display_skeletons, transform_skels, kinect_to_msr_skel
 # from pyKinectTools.algs.GeodesicSkeleton import generateKeypoints, distance_map
@@ -26,7 +26,7 @@ def main(visualize=False, learn=False):
 	# fill = True
 	fill = False
 	get_color = True
-	cam = KinectPlayer(base_dir='./', device=1, bg_subtraction=True, get_depth=True, get_color=get_color, get_skeleton=True, fill_images=fill)	
+	cam = KinectPlayer(base_dir='./', device=1, bg_subtraction=True, get_depth=True, get_color=get_color, get_skeleton=True, fill_images=fill)
 	cam2 = KinectPlayer(base_dir='./', device=2, bg_subtraction=True, get_depth=True, get_color=get_color, get_skeleton=True, fill_images=fill)
 	# Transformation matrix from first to second camera
 	data = pickle.load(open("Registration.dat", 'r'))
@@ -55,9 +55,9 @@ def main(visualize=False, learn=False):
 		# Get rid of bad skels
 		cam_skels = [s for s in cam_skels if np.all(s[0] != -1)]
 
-		if len(cam_skels) == 0: 
+		if len(cam_skels) == 0:
 			continue
-		ii+=1	
+		ii+=1
 
 		# Save images
 		if 1:

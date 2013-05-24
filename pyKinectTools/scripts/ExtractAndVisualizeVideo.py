@@ -18,7 +18,7 @@ from pyKinectTools.utils.DepthUtils import world2depth, depthIm2XYZ
 from pyKinectTools.utils.MultiCameraUtils import multiCameraTimeline, formatFileString
 from pyKinectTools.utils.FeatureUtils import saveFeatures, loadFeatures, learnICADict, learnNMFDict, displayComponents
 from pyKinectTools.algs.HistogramOfOpticalFlow import getFlow, hof, splitIm
-from pyKinectTools.algs.BackgroundSubtraction import AdaptiveMixtureOfGaussians, fillImage, extract_people
+from pyKinectTools.algs.BackgroundSubtraction import AdaptiveMixtureOfGaussians, fill_image, extract_people
 from pyKinectTools.algs.FeatureExtraction import calculateBasicPose, computeUserFeatures, computeFeaturesWithSkels
 
 vv = VideoViewer()
@@ -49,8 +49,8 @@ keys_frame_right = 316
 ''' Using OpenCV
 keys_ESC = 1048603
 keys_right_arrow = 1113939
-keys_left_arrow = 1113937 
-keys_down_arrow = 1113940 
+keys_left_arrow = 1113937
+keys_down_arrow = 1113940
 keys_space = 1048608
 keys_i = 1048681
 keys_help = 1048680
@@ -88,7 +88,7 @@ def main(get_depth, get_color, get_skeleton, get_mask, calculate_features, visua
 
 	day_index = 0
 	while day_index < len(day_dirs):
-		
+
 		if new_date_entered:
 			try:
 				day_index = day_dirs.index(day_new)
@@ -142,7 +142,7 @@ def main(get_depth, get_color, get_skeleton, get_mask, calculate_features, visua
 				minute_dir = minute_dirs[minute_index]
 
 				# Prevent from reading hidden files
-				if minute_dir[0] == '.': 
+				if minute_dir[0] == '.':
 					continue
 
 				depth_files = []
@@ -202,7 +202,7 @@ def main(get_depth, get_color, get_skeleton, get_mask, calculate_features, visua
 							skelFile = 'skel_'+depthFile[6:-4]+'_.dat'
 							if os.path.isfile('skel/'+dayDir+'/'+hourDir+'/'+minute_dir+'/'+deviceID+'/'+skelFile):
 								with open('skel/'+dayDir+'/'+hourDir+'/'+minute_dir+'/'+deviceID+'/'+skelFile, 'rb') as inFile:
-									users = pickle.load(inFile)				
+									users = pickle.load(inFile)
 							else:
 								print "No user file:", skelFile
 							coms = [users[x]['com'] for x in users.keys() if users[x]['com'][2] > 0.0]
@@ -212,7 +212,7 @@ def main(get_depth, get_color, get_skeleton, get_mask, calculate_features, visua
 
 						timestamp = depthFile[:-4].split('_')[1:] # Day, hour, minute, second, millisecond, Frame number in this second
 						depthIm = np.minimum(depthIm.astype(np.float), 5000)
-						fillImage(depthIm)
+						fill_image(depthIm)
 
 						'''Background model'''
 						if backgroundModel is None:
@@ -225,20 +225,20 @@ def main(get_depth, get_color, get_skeleton, get_mask, calculate_features, visua
 							bgSubtraction.update(depthIm)
 
 						backgroundModel = bgSubtraction.getModel()
-						foregroundMask = bgSubtraction.getForeground(thresh=50)
+						foregroundMask = bgSubtraction.get_foreground(thresh=50)
 
 						''' Find people '''
 						if get_skeleton:
 							ret = plotUsers(depthIm, users, device=deviceID, vis=True)
 						if get_mask:
 							foregroundMask, userBoundingBoxes, userLabels = extract_people(depthIm, foregroundMask, minPersonPixThresh=1500, gradientFilter=True, gradThresh=100)
-						
+
 						''' Calculate user features '''
 						if calculate_features and get_color:
 							''' Color Optical Flow '''
 							flow = getFlow(prevColorIm, colorIm_g)
 							prevColorIm = colorIm_g.copy()
-							
+
 							userCount = len(userBoundingBoxes)
 							for i in xrange(userCount):
 								userBox = userBoundingBoxes[i]
@@ -261,13 +261,13 @@ def main(get_depth, get_color, get_skeleton, get_mask, calculate_features, visua
 							if len(tmpSecond) == 0:
 								tmpSecond = '0'+tmpSecond
 							if get_depth:
-								vv.imshow("Depth", depthIm/6000.)								
-								vv.putText("Depth", "Day "+dayDir+" Time "+hourDir+":"+minute_dir+":"+tmpSecond, (5,220), size=15)					
-								vv.putText("Depth", "Play speed: "+str(play_speed)+"x", (5,15), size=15)													
-								vv.putText("Depth", str(int(framerate))+" fps", (275,15), size=15)													
-								
+								vv.imshow("Depth", depthIm/6000.)
+								vv.putText("Depth", "Day "+dayDir+" Time "+hourDir+":"+minute_dir+":"+tmpSecond, (5,220), size=15)
+								vv.putText("Depth", "Play speed: "+str(play_speed)+"x", (5,15), size=15)
+								vv.putText("Depth", str(int(framerate))+" fps", (275,15), size=15)
+
 							if get_color:
-								vv.putText(colorIm, "Day "+dayDir+" Time "+hourDir+":"+minute_dir+" Dev#"+str(dev), (10,220))					
+								vv.putText(colorIm, "Day "+dayDir+" Time "+hourDir+":"+minute_dir+" Dev#"+str(dev), (10,220))
 								vv.imshow("I_orig", colorIm)
 								if get_mask:
 									# vv.imshow("I", colorIm*foregroundMask[:,:,np.newaxis])
@@ -322,7 +322,7 @@ def main(get_depth, get_color, get_skeleton, get_mask, calculate_features, visua
 
 						new_date_entered = False
 						if ret > 0:
-							# player_controls(ret)							
+							# player_controls(ret)
 							# print "Ret is",ret
 
 							if ret == keys_ESC:
@@ -355,7 +355,7 @@ def main(get_depth, get_color, get_skeleton, get_mask, calculate_features, visua
 								frame_id += 1
 							elif ret == keys_help:
 								display_help()
-							
+
 						frame_id += play_speed
 
 					if save_anonomized and get_mask:
@@ -377,7 +377,7 @@ def main(get_depth, get_color, get_skeleton, get_mask, calculate_features, visua
 					elif frame_id < 0:
 						minute_index -= 1
 						break
-			
+
 				# End hours
 				if ret == keys_ESC or new_date_entered:
 					break
@@ -420,15 +420,15 @@ def display_help():
 	print ""
 	print "Playback commands: enter these in the image viewer"
 	print "--------------------"
-	print "h 				help menu"										
+	print "h 				help menu"
 	print "i				interupt with debugger"
 	print "a 				previous frame"
 	print "s 				next frame"
-	print "spacebar 			pick new time/date [enter in terminal]"								
+	print "spacebar 			pick new time/date [enter in terminal]"
 	print "left arrow key			rewind faster"
 	print "right arrow key			fast forward faster"
 	print "down arrow key			pause"
-	print "escape key			exit"								
+	print "escape key			exit"
 
 
 
@@ -436,12 +436,12 @@ def display_help():
 if __name__=="__main__":
 
 	parser = optparse.OptionParser()
-	parser.add_option('-s', '--skel', dest='skel', action="store_true", default=False, help='Enable skeleton')	
-	parser.add_option('-d', '--depth', dest='depth', action="store_true", default=False, help='Enable depth images')		
-	parser.add_option('-c', '--color', dest='color', action="store_true", default=False, help='Enable color images')	
+	parser.add_option('-s', '--skel', dest='skel', action="store_true", default=False, help='Enable skeleton')
+	parser.add_option('-d', '--depth', dest='depth', action="store_true", default=False, help='Enable depth images')
+	parser.add_option('-c', '--color', dest='color', action="store_true", default=False, help='Enable color images')
 	parser.add_option('-m', '--mask', dest='mask', action="store_true", default=False, help='Enable enternal mask')
 	parser.add_option('-a', '--anonomize', dest='save', action="store_true", default=False, help='Save anonomized RGB image')
-	parser.add_option('-f', '--calcFeatures', dest='bgSubtraction', action="store_true", default=False, help='Enable feature extraction')		
+	parser.add_option('-f', '--calcFeatures', dest='bgSubtraction', action="store_true", default=False, help='Enable feature extraction')
 	parser.add_option('-v', '--visualize', dest='viz', action="store_true", default=False, help='Enable visualization')
 	parser.add_option('-i', '--dev', dest='dev', type='int', default=0, help='Device number')
 	(opt, args) = parser.parse_args()

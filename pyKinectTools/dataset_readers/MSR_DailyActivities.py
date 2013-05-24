@@ -8,7 +8,7 @@ from pyKinectTools.utils.SkeletonUtils import msr_to_kinect_skel
 # from IPython import embed
 # from pyKinectTools.utils.VideoViewer import VideoViewer
 from pyKinectTools.dataset_readers.BasePlayer import BasePlayer
-from pyKinectTools.algs.BackgroundSubtraction import fillImage
+from pyKinectTools.algs.BackgroundSubtraction import fill_image
 # vv = VideoViewer()
 
 from IPython import embed
@@ -35,11 +35,11 @@ def create_MSR_filenames(actions, subjects, positions):
 	indicies = [i for i in it.product(actions, subjects, positions)]
 	for i in indicies:
 		filenames += ["a{0:02d}_s{1:02d}_e{2:02d}_".format(i[0],i[1],i[2])]
-	
+
 	return filenames
 
 def read_MSR_depth_ims(depth_file, resize='VGA'):
-	''' Extracts depth images and masks from the MSR Daily Activites dataset 
+	''' Extracts depth images and masks from the MSR Daily Activites dataset
 	---Parameters---
 	depth_file : filename for set of depth images (.bin file)
 	'''
@@ -54,7 +54,7 @@ def read_MSR_depth_ims(depth_file, resize='VGA'):
 	''' Get depth/mask image data '''
 	data = file_.read()
 
-	''' 
+	'''
 	Depth images and mask images are stored together per row.
 	Thus we need to extract each row of size n_cols+n_rows
 	'''
@@ -73,7 +73,7 @@ def read_MSR_depth_ims(depth_file, resize='VGA'):
 	return depthIms, maskIms
 
 def read_MSR_color_ims(color_file, resize='VGA'):
-	''' Extracts color images from the MSR Daily Activites dataset 
+	''' Extracts color images from the MSR Daily Activites dataset
 	---Parameters---
 	color_file : filename for color video (.avi file)
 	resize : reduces the image size from 640x480 to 320x240
@@ -90,7 +90,7 @@ def read_MSR_color_ims(color_file, resize='VGA'):
 
 	for f in xrange(framecount):
 		valid, color = colorCapture.read()
-		if not valid: 
+		if not valid:
 			break
 
 		if resize == 'QVGA':
@@ -105,7 +105,7 @@ def read_MSR_color_ims(color_file, resize='VGA'):
 
 
 def read_MSR_skeletons(skeleton_file, world_coords=True, im_coords=True, resolution=[240,320]):
-	''' Extracts skeletons from the MSR Daily Activites dataset 
+	''' Extracts skeletons from the MSR Daily Activites dataset
 	---Parameters---
 	skeleton_file : filename for color video (.avi file)
 	resize : reduces the image size from 640x480 to 320x240
@@ -122,13 +122,13 @@ def read_MSR_skeletons(skeleton_file, world_coords=True, im_coords=True, resolut
 	data = np.zeros([frameCount, joint_count*4*2])
 
 	for i in range(0,frameCount):
-		ind = i*(joint_count*2*4+1) + 2	
+		ind = i*(joint_count*2*4+1) + 2
 		data[i,:] = data_raw[ind+1:ind+20*4*2+1]
 
 	''' Get rid of confidence variable (it's useless for this data)	'''
-	data = data.reshape([frameCount, 40, 4])	
+	data = data.reshape([frameCount, 40, 4])
 	data = data[:,:,:3]
-	
+
 	if world_coords:
 		skels_world = data[:,::2,:]
 		''' Put in millimeters instead of meters'''
@@ -136,7 +136,7 @@ def read_MSR_skeletons(skeleton_file, world_coords=True, im_coords=True, resolut
 		# skels_world[:,:,2] *= 1000.
 	if im_coords:
 		skels_im = data[:,1::2,:].astype(np.float)
-		''' These coords are normalized, so we must rescale by the image size '''		
+		''' These coords are normalized, so we must rescale by the image size '''
 		skels_im *= np.array(resolution+[1])
 		''' The depth values in the image coordinates doesn't make sense (~20,000!).
 			So replace them with the values from the world coordinates'''
@@ -157,10 +157,10 @@ def read_MSR_skeletons(skeleton_file, world_coords=True, im_coords=True, resolut
 
 class MSRPlayer(BasePlayer):
 
-	def __init__(self, base_dir='./', get_depth=True, get_color=True, 
+	def __init__(self, base_dir='./', get_depth=True, get_color=True,
 				get_skeleton=True, bg_subtraction=False, fill_images=False,
 				actions=[1], subjects=[1], positions=[2]):
-		
+
 		self.enable_bg_subtraction = bg_subtraction
 		self.fill_images = fill_images
 		self.base_dir = base_dir
@@ -203,9 +203,9 @@ class MSRPlayer(BasePlayer):
 			return False
 
 	def run(self):
-		
+
 		# Read data from new file
-		while len(self.filenames) > 0:		
+		while len(self.filenames) > 0:
 			if len(self.filenames) > 0 and self.depth_stack is None:
 					print 'New video'
 					name = self.filenames.pop()
@@ -216,7 +216,7 @@ class MSRPlayer(BasePlayer):
 					self.color_stack = read_MSR_color_ims(color_file)
 					self.skel_stack,_ = read_MSR_skeletons(skeleton_file)
 					# Offset!
-					self.skel_stack[:,:,1] -= 75 
+					self.skel_stack[:,:,1] -= 75
 					framecount = np.min([self.depth_stack.shape[-1],self.color_stack.shape[-1]])
 
 			for i in xrange(framecount):
@@ -226,17 +226,17 @@ class MSRPlayer(BasePlayer):
 				else:
 					self.depthIm = depthIm_to_colorIm(self.depth_stack[:,:,i])
 				# self.depthIm = self.depth_stack[:,:,i]
-				self.colorIm = self.color_stack[:,:,:,i]			
+				self.colorIm = self.color_stack[:,:,:,i]
 				self.users = [msr_to_kinect_skel(self.skel_stack[i])]
-				
+
 				# tmp = depthIm_to_colorIm(self.depthIm * mask)
 
 				self.mask = (self.depthIm > 0).astype(np.uint8)
 				self.mask = closing(self.mask, np.ones([3,3], np.uint8))
 				self.mask = erosion(self.mask, np.ones([3,3], np.uint8))
-				self.depthIm = fillImage(self.depthIm)*(self.mask)
-				
-				self.update_background()				
+				self.depthIm = fill_image(self.depthIm)*(self.mask)
+
+				self.update_background()
 
 				yield
 
@@ -255,7 +255,7 @@ class MSRPlayer(BasePlayer):
 	# 	depthIms = []
 	# 	colorIms = []
 	# 	skels_world = []
-		
+
 	# 	try:
 	# 		while depthIms == [] or len(depthIms) < n:
 	# 			self.next()
@@ -274,7 +274,7 @@ class MSRPlayer(BasePlayer):
 	# 						colorIms += [color]
 	# 	except:
 	# 		print "No skeletons remaining."
-		
+
 	# 	return depthIms, colorIms, skels_world
 
 	def visualize(self, show_skel=False):
@@ -285,12 +285,12 @@ class MSRPlayer(BasePlayer):
 
 		if self.get_depth:
 			cv2.imshow("Depth", (self.depthIm-1000)/2000.)
-			# cv2.putText(self.deviceID, (5,220), (255,255,255), size=15)					
+			# cv2.putText(self.deviceID, (5,220), (255,255,255), size=15)
 			# vv.imshow("Depth", self.depthIm/6000.)
-			
+
 		if self.get_color:
 			cv2.imshow("Color "+self.deviceID, self.colorIm)
-			# vv.putText("Color "+self.deviceID, self.colorIm, "Day "+self.day_dir+" Time "+self.hour_dir+":"+self.minute_dir+" Dev#"+str(self.dev), (10,220))					
+			# vv.putText("Color "+self.deviceID, self.colorIm, "Day "+self.day_dir+" Time "+self.hour_dir+":"+self.minute_dir+" Dev#"+str(self.dev), (10,220))
 			# vv.imshow("Color", self.colorIm)
 			# vv.imshow("Color", self.colorIm)
 			# if self.get_mask:

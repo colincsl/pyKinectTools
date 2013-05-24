@@ -9,9 +9,6 @@ from pyKinectTools.utils.Utils import createDirectory
 from pyKinectTools.utils.SkeletonUtils import display_skeletons
 import cPickle as pickle
 
-# DIR = '/Users/colin/Data/April4_Wall_P3/'
-# DIR = '/home/clea/Data/WICU_12Feb2012/'
-
 
 DIR = os.path.expanduser('~')+'/Data/Kinect_Recorder/'
 
@@ -143,7 +140,7 @@ def main(device_id, record, base_dir, frame_difference_percent, get_skeleton, an
 
 							backgroundModel = bgSubtraction.getModel()
 							cv2.imshow("BG Model", backgroundModel/backgroundModel.max())
-							foregroundMask = bgSubtraction.getForeground(thresh=100)
+							foregroundMask = bgSubtraction.get_foreground(thresh=100)
 							''' Find people '''
 							foregroundMask, _, _ = extract_people(depthRaw, foregroundMask, minPersonPixThresh=5000, gradientFilter=True, gradThresh=15)
 						else:
@@ -256,7 +253,7 @@ if __name__ == "__main__":
 	parser = optparse.OptionParser(usage="Usage: python %prog [devID] [view toggle] [frame_difference_percent]")
 	parser.add_option('-d', '--device', dest='dev', type='int', default=1, help='Device# (eg 1,2,3)')
 	parser.add_option('-v', '--view', dest='viz', action="store_true", default=False, help='View video while recording')
-	parser.add_option('-f', '--framediff', type='int', dest='frameDiffPercent', default=3, help='Frame Difference percent for dynamic framerate capture')
+	parser.add_option('-f', '--framediff', type='int', dest='frameDiffPercent', default=0, help='Frame Difference percent for dynamic framerate capture')
 	parser.add_option('-s', '--skel', action="store_true", dest='skel', default=False, help='Turn on skeleton capture')
 	parser.add_option('-a', '--anonomize', dest='anonomize', action="store_true", default=False, help='Turn on anonomization')
 	parser.add_option('-i', '--dir', dest='dir', default=DIR, help='Save directory')

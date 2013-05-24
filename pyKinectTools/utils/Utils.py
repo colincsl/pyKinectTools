@@ -7,6 +7,12 @@ def createDirectory(new_dir):
 			tmp_string = "/".join(new_dir.split('/')[:p])
 			if not os.path.isdir(tmp_string):
 				try:
-					os.mkdir(tmp_string) 
+					os.mkdir(tmp_string)
 				except:
-					print "error making dir:", tmp_string 
+					print "error making dir:", tmp_string
+
+def formatFileString(x):
+	if len(x) == 1:
+		return x+'0'
+	else:
+		return x

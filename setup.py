@@ -15,12 +15,14 @@ import numpy as np
 
 ext_modules = [
 				Extension("pyKinectTools_algs_Dijkstras", ["pyKinectTools/algs/dijkstras.pyx"],language='c++'),
+				Extension("pyKinectTools_algs_Pose_Tracking", ["pyKinectTools/algs/cPoseTracking.pyx"],language='c++'),
+				Extension("pyKinectTools_algs_local_occupancy_pattern", ["pyKinectTools/algs/LocalOccupancyPattern.pyx"],language='c++'),
 				]
 # _Dijkstras
-# Extension("pyKinectTools.NeighborSuperpixels", ["pyKinectTools/algs/NeighborSuperpixels.pyx"])				
+# Extension("pyKinectTools.NeighborSuperpixels", ["pyKinectTools/algs/NeighborSuperpixels.pyx"])
 # Extension("pyKinectTools.algs.Dijkstras", ["pyKinectTools/algs/dijkstras_new.pyx"],)
-# Extension("pyKinectTools.algs.NeighborSuperpixels", ["pyKinectTools/algs/NeighborSuperpixels.pyx"])				
-# Extension("pyKinectTools.algs.dijkstrasGraph", ["pyKinectTools/algs/dijkstras.pyx"])				
+# Extension("pyKinectTools.algs.NeighborSuperpixels", ["pyKinectTools/algs/NeighborSuperpixels.pyx"])
+# Extension("pyKinectTools.algs.dijkstrasGraph", ["pyKinectTools/algs/dijkstras.pyx"])
 
 for e in ext_modules:
 	e.pyrex_directives = {
@@ -43,8 +45,10 @@ setup(
 	packages= [	"pyKinectTools",
 				"pyKinectTools.algs",
 				"pyKinectTools.utils",
-				"pyKinectTools.dataset_readers",
-				],	
+				"pyKinectTools.configs",
+				"pyKinectTools.dataset_readers"
+				],
+	package_data={'':['*.xml', '*.png', '*.yml', '*.txt']},
 	ext_modules = ext_modules
 )
 

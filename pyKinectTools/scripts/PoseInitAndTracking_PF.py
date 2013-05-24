@@ -2,8 +2,9 @@
 Main file for training multi-camera pose
 """
 
-#import os
+import sys
 import time
+import traceback
 import itertools as it
 from joblib import Parallel, delayed
 import cPickle as pickle
@@ -22,17 +23,16 @@ from skimage.draw import line, circle
 from skimage.color import rgb2gray,gray2rgb, rgb2lab
 from skimage.feature import local_binary_pattern, match_template, peak_local_max
 
-from pyKinectTools.utils.KinectPlayer import KinectPlayer, display_help
+from RGBDActionDatasets.dataset_readers.KinectPlayer import KinectPlayer, display_help
+from RGBDActionDatasets.dataset_readers.RealtimePlayer import RealtimePlayer
+# from pyKinectTools.dataset_readers.KinectPlayer import KinectPlayer, display_help
+# from pyKinectTools.dataset_readers.RealtimePlayer import RealtimePlayer
+from RGBDActionDatasets.dataset_readers.MHADPlayer import MHADPlayer
+# from pyKinectTools.dataset_readers.MHADPlayer import MHADPlayer
 from pyKinectTools.utils.DepthUtils import *
 from pyKinectTools.utils.SkeletonUtils import display_skeletons, transform_skels, kinect_to_msr_skel, msr_to_kinect_skel
-from pyKinectTools.dataset_readers.MHADPlayer import MHADPlayer
 from pyKinectTools.algs.GeodesicSkeleton import *
 from pyKinectTools.algs.PoseTracking import *
-from pyKinectTools.algs.LocalOccupancyPattern import *
-from pyKinectTools.algs.IterativeClosestPoint import IterativeClosestPoint
-
-from sklearn.linear_model import SGDClassifier
-from sklearn.kernel_approximation import AdditiveChi2Sampler
 
 from IPython import embed
 np.seterr(all='ignore')
@@ -40,37 +40,50 @@ np.seterr(all='ignore')
 # -------------------------MAIN------------------------------------------
 
 def main(visualize=False, learn=False, actions=None, subjects=None, n_frames=220):
-	learn = True
-	learn = False
-	if actions is []:
-		actions = [2]
-	if subjects is []:
-		subjects = [2]
-	# actions = [1]
-	# actions = [1, 2, 3, 4, 5]
-	# subjects = [1]
-	if 0:
-		MHAD = True
-		cam = MHADPlayer(base_dir='/Users/colin/Data/BerkeleyMHAD/', kinect=1, actions=actions, subjects=subjects, reps=[1], get_depth=True, get_color=True, get_skeleton=True, fill_images=False)
+
+	# search_joints=[0,2,4,5,7,10,13]
+	search_joints=range(14)
+	interactive = True
+	interactive = False
+	save_results = False
+	if 1:
+		learn = False
 	else:
-		MHAD = False
+		learn = True
+		actions = [1, 2, 3, 4, 5]
+		subjects = [5]
+
+	if 0:
+		dataset = 'MHAD'
+		cam = MHADPlayer(base_dir='/Users/colin/Data/BerkeleyMHAD/', kinect=1, actions=actions, subjects=subjects, reps=[1], get_depth=True, get_color=True, get_skeleton=True, fill_images=False)
+	elif 1:
+		dataset = 'JHU'
 		cam = KinectPlayer(base_dir='./', device=1, bg_subtraction=True, get_depth=True, get_color=True, get_skeleton=True, fill_images=False)
 		bg = Image.open('/Users/colin/Data/JHU_RGBD_Pose/CIRL_Background_A.tif')
 		# bg = Image.open('/Users/colin/Data/JHU_RGBD_Pose/Wall_Background_A.tif')
 		# bg = Image.open('/Users/colin/Data/JHU_RGBD_Pose/Office_Background_A.tif')
+		# bg = Image.open('/Users/colin/Data/WICU_May2013_C2/WICU_C2_Background.tif')
 		# cam = KinectPlayer(base_dir='./', device=2, bg_subtraction=True, get_depth=True, get_color=True, get_skeleton=True, fill_images=False)
 		# bg = Image.open('/Users/colin/Data/JHU_RGBD_Pose/CIRL_Background_B.tif')
-		cam.bgSubtraction.backgroundModel = np.array(bg.getdata()).reshape([240,320]).clip(0, 4500)
+		cam.bgSubtraction.backgroundModel = np.array(bg.getdata()).reshape([240,320]).clip(0, 4500) - 000.
+	else:
+		# Realtime
+		dataset = 'RT'
+		cam = RealtimePlayer(device=0, edit=True, get_depth=True, get_color=True, get_skeleton=True)
+		# cam.set_bg_model('box', 2500)
+		tmp = cam.depthIm
+		tmp[tmp>4000] = 4000
+		cam.set_bg_model(bg_type='static', param=tmp)
+
+
 	height, width = cam.depthIm.shape
 	skel_previous = None
 
 	face_detector = FaceDetector()
 	hand_detector = HandDetector(cam.depthIm.shape)
-	# curve_detector = CurveDetector(cam.depthIm.shape)
 
 	# Video writer
 	video_writer = cv2.VideoWriter("/Users/colin/Desktop/test.avi", cv2.cv.CV_FOURCC('M','J','P','G'), 15, (640,480))
-	# video_writer = cv2.VideoWriter("/Users/colin/Desktop/test.avi", cv2.cv.CV_FOURCC('M','J','P','G'), 15, (320,240))
 
 	# Save Background model
 	# im = Image.fromarray(cam.depthIm.astype(np.int32), 'I')
@@ -78,20 +91,11 @@ def main(visualize=False, learn=False, actions=None, subjects=None, n_frames=220
 
 	# Setup pose database
 	append = True
-	append = False
+	# append = False
 	# pose_database = PoseDatabase("PoseDatabase.pkl", learn=learn, search_joints=[0,4,7,10,13], append=append)
-	pose_database = PoseDatabase("PoseDatabase.pkl", learn=learn, search_joints=[0,2,4,5,7,10,13], append=append, scale=1.2)
+	pose_database = PoseDatabase("PoseDatabase.pkl", learn=learn, search_joints=search_joints,
+									append=append, scale=1.1, n_clusters=-1)#1000
 	pose_prob = np.ones(len(pose_database.database), dtype=np.float)/len(pose_database.database)
-	# # Visualize database
-	# for i,p in enumerate(np.array(pose_database.database)[:200*10:200]):
-	# 	im = np.zeros([480,640], np.uint8)+255
-	# 	print i
-	# 	subplot(1,10,i+1)
-	# 	p_tmp = cam.camera_model.world2im(p+[0,0,2500])
-	# 	im = display_skeletons(im, p_tmp, skel_type='Kinect', color=(0,0,0))
-	# 	imshow(im[:,150:450])
-	# 	axis('off')
-	# 	gray()
 
 
 	# Setup Tracking
@@ -110,50 +114,64 @@ def main(visualize=False, learn=False, actions=None, subjects=None, n_frames=220
 	accuracy_all_track = []
 	joint_accuracy_db = []
 	joint_accuracy_track = []
-	# geo_accuracy = []
-	# color_accuracy = []
-	# lbp_accuracy = []
+	if not learn:
+		try:
+			results = pickle.load(open('Accuracy_Results.pkl'))
+		except:
+			results = { 'subject':[], 		'action':[],		'accuracy_all':[],
+						'accuracy_mean':[],	'joints_all':[],
+						'joint_mean':[],	'joint_median':[]}
 
 	frame_count = 0
-	frame_rate = 2
-	if not MHAD:
-		# cam.next(350)
-		# cam.next(600)
+	frame_rate = 1
+	if dataset == 'JHU':
+		cam.next(350)
 		# cam.next(700)
 		pass
 	frame_prev = 0
 	try:
 	# if 1:
 		while cam.next(frame_rate):# and frame_count < n_frames:
-			if frame_count - frame_prev > 100:
+			# Print every once in a while
+			if frame_count - frame_prev > 99:
 				print ""
 				print "Frame #{0:d}".format(frame_count)
 				frame_prev = frame_count
 
-			if not MHAD:
-				if len(cam.users) == 0:
-					continue
-				else:
-					# cam.users = [np.array(cam.users[0]['jointPositions'].values())]
-					if np.any(cam.users[0][0] == -1):
-						continue
-					cam.users[0][:,1] *= -1
-					cam.users_uv_msr = [cam.camera_model.world2im(cam.users[0], [240,320])]
+			if dataset in ['MHAD', 'JHU']:
+				users = deepcopy(cam.users)
+			else:
+				users = deepcopy(cam.user_skels)
+
+			ground_truth = False
+			if dataset in ['RT','JHU']:
+				if len(users) > 0:
+					if not np.any(users[0][0] == -1):
+						ground_truth = True
+						users[0][:,1] *= -1
+						cam.users_uv_msr = [cam.camera_model.world2im(users[0], cam.depthIm.shape)]
+			else:
+				ground_truth = True
 
 			# Apply mask to image
-			if MHAD:
-				mask = cam.get_person(2) > 0
-			else:
-				mask = cam.get_person() > 0
-				if np.all(mask==False):
-					continue
+			mask = cam.get_person(200) == 1 # > 0
+			# cv2.imshow('bg',(mask*255).astype(np.uint8))
+			cv2.imshow('bg',cam.colorIm)
+			# cv2.waitKey(1)
+			if type(mask)==bool or np.all(mask==False):
+				# print "No mask"
+				continue
+			# cv2.imshow('bg',cam.bgSubtraction.backgroundModel)
+			cv2.imshow('bg',(mask*255).astype(np.uint8))
 
 			im_depth =  cam.depthIm
-			cam.depthIm[cam.depthIm>3000] = 0
+			# if dataset in ['RT']:
+				# cam.depthIm[cam.depthIm>2500] = 0
 			im_color = cam.colorIm*mask[:,:,None]
 			cam.colorIm *= mask[:,:,None]
-			pose_truth = cam.users[0]
-			pose_truth_uv = cam.users_uv_msr[0]
+			if ground_truth:
+				pose_truth = users[0]
+				pose_truth_uv = cam.users_uv_msr[0]
 
 			# Get bounding box around person
 			box = nd.find_objects(mask)[0]
@@ -171,45 +189,44 @@ def main(visualize=False, learn=False, actions=None, subjects=None, n_frames=220
 
 			''' ---- Calculate Detectors ---- '''
 			# Face detection
-			face_detector.run(im_color[box])
+			# face_detector.run(im_color[box])
 			# Skin detection
-			hand_markers = hand_detector.run(im_color[box], n_peaks=3)
+			# hand_markers = hand_detector.run(im_color[box], n_peaks=3)
+			hand_markers = []
 			# Calculate Geodesic Extrema
-			im_pos = cam.camera_model.im2PosIm(cam.depthIm*mask)[box] * mask_box[:,:,None]
-			geodesic_markers = geodesic_extrema_MPI(im_pos, iterations=5, visualize=False)
-			_, geo_map = geodesic_extrema_MPI(im_pos, iterations=1, visualize=True)
-			geodesic_markers_pos = im_pos[geodesic_markers[:,0], geodesic_markers[:,1]]
+			im_pos = cam.camera_model.im2PosIm(cam.depthIm*mask)[box]
+			# geodesic_markers = geodesic_extrema_MPI(im_pos, iterations=5, visualize=False)
+			geodesic_markers = geodesic_extrema_MPI(im_pos, iterations=10, visualize=False)
+			if len(geodesic_markers) == 0:
+				print "No markers"
+				continue
 
+			# Concatenate markers
 			markers = list(geodesic_markers) + list(hand_markers) #+ list(lop_markers) + curve_markers
 			markers = np.array([list(x) for x in markers])
 			if np.any(markers==0):
+				print "Bad markers"
 				continue
 
 			''' ---- Database lookup ---- '''
 			time_t0 = time.time()
 			pts_mean = im_pos[(im_pos!=0)[:,:,2]].mean(0)
-			if learn:
-				# Normalize pose
-				pose_uv = pose_truth_uv
-
-				if np.any(pose_uv==0):
-					print "skip"
-					# print pose_uv
+			if learn and ground_truth:
+				# pose_uv = pose_truth_uv
+				if np.any(pose_truth_uv==0):
 					frame_count += frame_rate
-					continue
-				else:
-					print 'yay'
+					if not interactive:
+						continue
 
 				# Markers can be just outside of bounds
 				markers = list(geodesic_markers) + hand_markers
 				markers = np.array([list(x) for x in markers])
-				pose_database.update(pose_truth-pts_mean, keys=im_pos[markers[:,0],markers[:,1]]-pts_mean)
-				continue
-			else:
-				# Concatenate markers
-				markers = list(geodesic_markers) + hand_markers
-				markers = np.array([list(x) for x in markers])
-
+				# pose_database.update(pose_truth-pts_mean, keys=im_pos[markers[:,0],markers[:,1]]-pts_mean)
+				pose_database.update(pose_truth-pts_mean)
+				if not interactive:
+					continue
+			# else:
+			if 1:
 				# Normalize pose
 				pts = im_pos[markers[:,0], markers[:,1]]
 				pts = np.array([x for x in pts if x[0] != 0])
@@ -217,7 +234,9 @@ def main(visualize=False, learn=False, actions=None, subjects=None, n_frames=220
 
 				# Get closest pose
 				# Based on markers/raw positions
-				poses_obs, pose_error = pose_database.query(pts, knn=1, return_error=True)
+				# poses_obs, pose_error = pose_database.query(pts, knn=1, return_error=True)
+				pose_error = pose_query(pts, np.array(pose_database.database), search_joints=search_joints)
+				# pose_error = query_error(pts, pose_database.trees, search_joints=search_joints)
 
 				# Based on markers/keys:
 				# pts = im_pos[markers[:,0], markers[:,1]] - pts_mean
@@ -227,7 +246,6 @@ def main(visualize=False, learn=False, actions=None, subjects=None, n_frames=220
 
 				observation_variance = 100.
 				prob_obervation = np.exp(-pose_error / observation_variance) / np.sum(np.exp(-pose_error/observation_variance))
-
 
 				# subplot(2,2,1)
 				# plot(prob_obervation)
@@ -243,27 +261,34 @@ def main(visualize=False, learn=False, actions=None, subjects=None, n_frames=220
 				inference = 'Bayes'
 				# inference = 'PF'
 				if inference=='NN': # Nearest neighbor
+					poses_obs, _ = pose_database.query(pts, knn=1, return_error=True)
 					poses = [poses_obs[0]]
-					# print poses_obs
 
 				elif inference=='Bayes': # Bayes
 					if frame_count is 0:
+						poses_obs, _ = pose_database.query(pts, knn=1, return_error=True)
 						skel_previous = poses_obs[0].copy()
-					poses_m, pose_m_error = pose_database.query(skel_previous-pts_mean+(np.random.random([3,14])-.5).T*30, knn=5, return_error=True)
+					# poses_m, pose_m_error = pose_database.query(skel_previous-pts_mean, knn=1, return_error=True)
+					pose_m_error = pose_query(skel_previous-pts_mean, np.array(pose_database.database), search_joints=search_joints)
+					# poses_m, pose_m_error = pose_database.query(skel_previous-pts_mean+(np.random.random([3,14])-.5).T*30, knn=5, return_error=True)
 					motion_variance = 10000.
 					prob_motion = np.exp(-pose_m_error / motion_variance) / np.sum(np.exp(-pose_m_error/motion_variance))
 					pose_prob_new = prob_obervation*prob_motion
-					pose_prob = (pose_prob_new+pose_prob).T/2.
+					if pose_prob_new.shape == pose_prob.shape:
+						pose_prob = (pose_prob_new+pose_prob).T/2.
+					else:
+						pose_prob = pose_prob_new.T
 					prob_sorted = np.argsort(pose_prob)
+					poses = [pose_database.database[np.argmax(pose_prob)]]
 
-					poses = pose_database.database[prob_sorted[-1:]]
+					# poses = pose_database.database[prob_sorted[-1:]]
 
 				# Particle Filter
 				elif inference=='PF':
 					prob_sorted = np.argsort(pose_prob)
 					poses = pose_database.database[prob_sorted[-5:]]
 
-
+				## ICP
 				# im_pos -= pts_mean
 				# R,t = IterativeClosestPoint(pose, im_pos.reshape([-1,3])-pts_mean, max_iters=5, min_change=.001, pt_tolerance=10000)
 				# pose = np.dot(R.T, pose.T).T - t
@@ -274,7 +299,6 @@ def main(visualize=False, learn=False, actions=None, subjects=None, n_frames=220
 
 				poses += pts_mean
 			# print "DB time:", time.time() - time_t0
-			# embed()
 			''' ---- Tracker ---- '''
 			surface_map = nd.distance_transform_edt(-nd.binary_erosion(mask_box), return_distances=False, return_indices=True)
 
@@ -352,8 +376,8 @@ def main(visualize=False, learn=False, actions=None, subjects=None, n_frames=220
 						px_label = np.argmin(px_corr, -1)*mask_box
 						px_label_flat = px_label[mask_box].flatten()
 
-						cv2.imshow('gMap', (px_corr.argmin(-1)+1)/15.*mask_box)
-						cv2.waitKey(1)
+						# cv2.imshow('gMap', (px_corr.argmin(-1)+1)/15.*mask_box)
+						# cv2.waitKey(1)
 
 						# Project distance to joint's radius
 						px_joint_displacement = im_pos[mask_box] - skel_current[px_label_flat]
@@ -454,30 +478,18 @@ def main(visualize=False, learn=False, actions=None, subjects=None, n_frames=220
 				skel_current_uv = pose_uv.copy()
 				skel_previous_uv = pose_uv.copy()
 
-
 			''' ---- Accuracy ---- '''
-			# embed()
-			if not learn:
-				# pose_truth = cam.users[0]
-				error_db = pose_truth - pose
+			if ground_truth:
 				error_track = pose_truth - skel_previous
-				# print "Error", error
-				error_l2_db = np.sqrt(np.sum(error_db**2, 1))
+				error_track *= np.any(pose_truth!=0, 1)[:,None]
 				error_l2_track = np.sqrt(np.sum(error_track**2, 1))
-				joint_accuracy_db += [error_l2_db]
 				joint_accuracy_track += [error_l2_track]
-				accuracy_db = np.sum(error_l2_db < 150) / 14.
 				accuracy_track = np.sum(error_l2_track < 150) / 14.
-				# print "Current db:", accuracy_db, error_l2_db.mean()
-				# print "Current track:", accuracy_track, error_l2_track.mean()
-				# print "Running avg (track):", np.mean(accuracy_all_track)
+				print "Current track:", accuracy_track, error_l2_track.mean()
+				print "Running avg (track):", np.mean(accuracy_all_track)
 				# print "Joint avg (overall track):", np.mean(joint_accuracy_track)
-				# print ""
-				accuracy_all_db += [accuracy_db]
+				print ""
 				accuracy_all_track += [accuracy_track]
-				# print "Running avg:", np.mean(accuracy_all)
-				# print "Joint avg (per-joint):", np.mean(joint_accuracy_all, -1)
-				# print "Joint avg (overall):", np.mean(joint_accuracy_all)
 
 			''' --- Visualization --- '''
 
@@ -488,11 +500,10 @@ def main(visualize=False, learn=False, actions=None, subjects=None, n_frames=220
 			# display_markers(cam.colorIm, curve_markers, box, color=(0,100,100))
 			# display_markers(cam.colorIm, lop_markers, box, color=(0,0,200))
 
-			cam.colorIm = display_skeletons(cam.colorIm, pose_truth_uv, skel_type='Kinect', color=(0,255,0))
-			# cam.colorIm = display_skeletons(cam.colorIm, pose_uv, skel_type='Kinect')
+			if ground_truth:
+				cam.colorIm = display_skeletons(cam.colorIm, pose_truth_uv, skel_type='Kinect', color=(0,255,0))
 			cam.colorIm = display_skeletons(cam.colorIm, skel_current_uv, skel_type='Kinect', color=(255,0,0))
 			cam.visualize(color=True, depth=False)
-			# cam.visualize(color=True, depth=True)
 
 			# ------------------------------------------------------------
 
@@ -501,19 +512,34 @@ def main(visualize=False, learn=False, actions=None, subjects=None, n_frames=220
 
 			frame_count += frame_rate
 	except:
+		traceback.print_exc(file=sys.stdout)
 		pass
 
 
-	print "-- Results for subject {:d} action {:d}".format(subjects[0],actions[0])
-	print "Running avg (db):", np.mean(accuracy_all_db)
-	print "Running avg (track):", np.mean(accuracy_all_track)
-	print "Joint avg (overall db):", np.mean(joint_accuracy_db)
-	print "Joint avg (overall track):", np.mean(joint_accuracy_track)
+	try:
+		print "-- Results for subject {:d} action {:d}".format(subjects[0],actions[0])
+	except:
+		pass
+	# print "Running avg (db):", np.mean(accuracy_all_db)
+	print "Running mean (track):", np.mean(accuracy_all_track)
+	# print "Joint avg (overall db):", np.mean(joint_accuracy_db)
+	print "Joint mean (overall track):", np.mean(joint_accuracy_track)
+	print "Joint median (overall track):", np.median(joint_accuracy_track)
 	# print 'Done'
 
 	embed()
 	if learn:
 		pose_database.save()
+	elif save_results:
+		# Save results:
+		results['subject'] += [subjects[0]]
+		results['action'] += [actions[0]]
+		results['accuracy_all'] += [accuracy_all_track]
+		results['accuracy_mean'] += [np.mean(accuracy_all_track)]
+		results['joints_all'] += [joint_accuracy_track]
+		results['joint_mean'] += [np.mean(joint_accuracy_track)]
+		results['joint_median'] += [np.median(joint_accuracy_track)]
+		pickle.dump(results, open('/Users/colin/Data/BerkeleyMHAD/Accuracy_Results.pkl', 'w'))
 
 
 

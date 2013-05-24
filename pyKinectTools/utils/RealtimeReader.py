@@ -53,6 +53,8 @@ class RealTimeDevice:
         depthIm8 = []
         color = None
         colorIm = []
+        infrared = None
+        infraredIm = []
 
         user = None
         users = {}
@@ -66,8 +68,7 @@ class RealTimeDevice:
         bgModel = []
         bgModel8 = []
 
-        # def __init__(self, device=-1, ctx=[], get_skeleton=True):
-        def __init__(self, device=-1, ctx=None, get_depth=True, get_color=True, get_skeleton=True):
+        def __init__(self, device=-1, ctx=None, get_depth=True, get_color=True, get_skeleton=True, get_infrared=False, config_file=None):
 
                 self.deviceNumber = device
                 if ctx is not None:
@@ -78,8 +79,10 @@ class RealTimeDevice:
                 if device == -1:
                     self.ctx.init()
                 else:
-                    self.ctx.init_from_xml_file_by_device_id(pyKinectTools.configs.__path__[0]+'/SamplesConfig.xml', self.deviceNumber)
-                    print "New context created for depth device. (#", self.deviceNumber, ")"
+                    if config_file is None:
+                        config_file = pyKinectTools.configs.__path__[0]+'/SamplesConfig.xml'
+                    self.ctx.init_from_xml_file_by_device_id(config_file, self.deviceNumber)
+                    print "New context created for depth device. (#{0})".format(self.deviceNumber)
 
                     if get_depth:
                         self.depth = self.ctx.find_existing_node(NODE_TYPE_DEPTH)
@@ -87,6 +90,8 @@ class RealTimeDevice:
                         self.color = self.ctx.find_existing_node(NODE_TYPE_IMAGE)
                     if get_skeleton:
                         self.user = self.ctx.find_existing_node(NODE_TYPE_USER)
+                    if get_infrared:
+                        self.addIR()
 
                     ''' Change viewpoint if both depth and color are used '''
                     if self.depth is not None and self.color is not None:
@@ -120,7 +125,6 @@ class RealTimeDevice:
                         self.depth.alternative_view_point_cap.set_view_point(depthDevice.color)
 
         def addColor(self):
-
                 try:
                     self.color = ImageGenerator()
                     self.color.create(self.ctx)
@@ -130,8 +134,14 @@ class RealTimeDevice:
                 if self.depth is not None:
                     self.depth.alternative_view_point_cap.set_view_point(self.color)
 
-        def addUsers(self):
+        def addIR(self):
+                try:
+                    self.infrared = IRGenerator()
+                    self.infrared.create(self.ctx)
+                except:
+                    print "IR module can not load."
 
+        def addUsers(self):
             try:
                 self.user = UserGenerator()
                 self.user.create(self.ctx)
@@ -161,19 +171,14 @@ class RealTimeDevice:
         def stop(self):
             self.ctx.shutdown()
 
-        # @profile
         def update(self):
-            # ret = self.ctx.wait_any_update_all()
             ret = self.ctx.wait_and_update_all()
             assert ret == None, "Error updating depth device."
 
             if self.depth is not None:
                     self.depthIm = np.frombuffer(self.depth.get_raw_depth_map(), np.uint16).reshape([self.depth.res[1],self.depth.res[0]])
-                    #self.depthIm8 = constrain(self.depthIm, self.constrain[0], self.constrain[1])
 
             if self.color is not None:
-                    # from IPython import embed
-                    # embed()
                     self.colorIm = np.frombuffer(self.color.get_raw_image_map_bgr(), np.uint8).reshape([self.color.res[1],self.color.res[0], 3])
 
             if self.user is not None:
@@ -191,28 +196,8 @@ class RealTimeDevice:
                         else:
                             self.users[i].tracked = 0
 
-
-        def generateBackgroundModel(self):
-            '''Get set of 5 frames and create background model'''
-            depthImgs = []
-            depthStackInd = 0
-            for i in xrange(5):
-                ret = self.ctx.wait_one_update_all(self.depth)
-                assert ret == None, "Error getting depth map"
-
-                depthRawT = self.depth.get_tuple_depth_map()
-                im = np.array(depthRawT).reshape([self.depth.res[1],self.depth.res[0]])
-                depthImgs.append(im)
-                time.sleep(.2)
-
-            depthImgs = np.dstack(depthImgs)
-
-            self.bgModel = getMeanImage(depthImgs)
-
-            self.bgModel8 = constrain(self.bgModel, self.constrain[0], self.constrain[1])
-            self.bgModel8[self.bgModel8==self.bgModel8.max()] = 0
-
-
+            if self.infrared is not None:
+                self.infraredIm = np.array(self.infrared.get_tuple_ir_map(), np.uint8).reshape([self.infrared.res[1],self.infrared.res[0]])
 
         def new_user(self, src, id):
             print "1/4 User {} detected. Looking for pose..." .format(id)
@@ -229,7 +214,6 @@ class RealTimeDevice:
             if id in self.users:
                 del self.users[id]
             self.userIDs.remove(id)
-
 
         def pose_detected(self, src, pose, id):
             print "2/4 Detected pose {} on user {}. Requesting calibration..." .format(pose,id)
