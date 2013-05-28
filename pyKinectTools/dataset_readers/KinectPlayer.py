@@ -20,8 +20,9 @@ from pyKinectTools.dataset_readers.BasePlayer import BasePlayer
 import pyKinectTools.configs
 
 import matplotlib as mp
+import matplotlib.cm as cm
 # from pylab import *
-colormap = mp.cm.jet
+colormap = cm.jet
 colormap._init()
 
 # import cv2
