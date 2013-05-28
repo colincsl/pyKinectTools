@@ -1,5 +1,5 @@
 """
-Main file for training multi-camera pose
+Main file for viewing data
 """
 
 import os
@@ -9,10 +9,8 @@ import cPickle as pickle
 import numpy as np
 from skimage import color
 
-# from rgbdActionDatasets.dataset_readers.KinectPlayer import KinectPlayer, display_help
 from pyKinectTools.dataset_readers.KinectPlayer import KinectPlayer, display_help
-from pyKinectTools.utils.DepthUtils import world2depth, depthIm2XYZ, skel2depth, depth2world
-from pyKinectTools.utils.SkeletonUtils import display_skeletons, transform_skels, kinect_to_msr_skel
+# from pyKinectTools.utils.SkeletonUtils import display_skeletons, transform_skels, kinect_to_msr_skel
 
 """ Debugging """
 from IPython import embed
@@ -20,16 +18,19 @@ from IPython import embed
 # -------------------------MAIN------------------------------------------
 
 def main(visualize=True):
-	n_cameras = 1
+	# Setup kinect data player
 	cam = KinectPlayer(base_dir='./', device=1, bg_subtraction=False, get_depth=True, get_color=True, get_skeleton=False, fill_images=False)
 
 	framerate = 1
 	while cam.next(framerate):
+		cam.colorIm = cam.colorIm[:,:,[2,1,0]]
 		cam.visualize(color=True, depth=True, text=True, colorize=True, depth_bounds=[500,3500])
 
+	print 'Done'
+
+	# Pause at the end
 	embed()
 
-	print 'Done'
 
 if __name__=="__main__":
 

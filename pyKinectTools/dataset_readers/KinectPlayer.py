@@ -20,9 +20,8 @@ from pyKinectTools.dataset_readers.BasePlayer import BasePlayer
 import pyKinectTools.configs
 
 import matplotlib as mp
-from pylab import *
+# from pylab import *
 colormap = mp.cm.jet
-# colormap = mp.cm.hot
 colormap._init()
 
 # import cv2
@@ -58,7 +57,6 @@ keys_frame_right = 1048691
 class KinectPlayer(BasePlayer):
 
 	def __init__(self, device=0, **kwargs):
-
 		super(KinectPlayer, self).__init__(**kwargs)
 
 		self.dev = device
@@ -100,6 +98,7 @@ class KinectPlayer(BasePlayer):
 		'''
 		try:
 		# if 1:
+
 			for i in xrange(frames):
 				self.player.next()
 				if self.enable_bg_subtraction:
@@ -109,18 +108,6 @@ class KinectPlayer(BasePlayer):
 			traceback.print_exc(file=sys.stdout)
 			print 'Error getting next frame. Could be end of file'
 			return False
-
-	# ''' Or get CoM + orientation '''
-	# def calculate_basic_features(self):
-		# userCount = len(userBoundingBoxes)
-		# for i in xrange(userCount):
-		# 	userBox = userBoundingBoxes[i]
-		# 	userMask = foregroundMask==i+1
-		# 	com, ornBasis = calculateBasicPose(depthIm, userMask)
-		# 	coms.append(com)
-		# 	orns.append(ornBasis[1])
-		# 	allFeatures.append({'com':com, "orn":ornBasis, 'time':timestamp})
-
 
 
 	def visualize(self, color=True, depth=True, skel=False, text=False, colorize=False, depth_bounds=[1000,4000]):
@@ -243,7 +230,6 @@ class KinectPlayer(BasePlayer):
 
 		self.day_index = 0
 		while self.day_index < len(self.day_dirs):
-
 			if self.new_date_entered:
 				try:
 					self.day_index = self.day_dirs.index(self.day_new)
@@ -311,7 +297,6 @@ class KinectPlayer(BasePlayer):
 					if self.get_depth:
 						depthTmp = os.listdir(self.base_dir+'depth/'+self.day_dir+'/'+self.hour_dir+'/'+self.minute_dir+'/'+self.deviceID)
 						depthTmp = [x for x in depthTmp if x[0]!='.']
-						# embed()
 						tmpSort = [int(x.split('_')[-3])*100 + int(formatFileString(x.split('_')[-2])) for x in depthTmp]
 						depthTmp = np.array(depthTmp)[np.argsort(tmpSort)].tolist()
 						depth_files.append([x for x in depthTmp if x.find('.png')>=0])
@@ -322,6 +307,9 @@ class KinectPlayer(BasePlayer):
 						skelFiles.append([x for x in skelTmp if x.find('.dat')>=0])
 
 					if len(depth_files) == 0:
+						# or len(depth_files[0]) == 0:
+						# self.minute_index += 1
+						# print 'yay', self.minute_index, depth_files
 						continue
 
 					if self.play_speed >= 0 and self.ret != keys_frame_left:
