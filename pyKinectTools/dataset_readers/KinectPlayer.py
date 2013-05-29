@@ -21,7 +21,11 @@ import pyKinectTools.configs
 
 import matplotlib as mp
 import matplotlib.cm as cm
-# from pylab import *
+try:
+	from pylab import *
+	PYLAB_LOADED = True
+except:
+	PYLAB_LOADED = False
 colormap = cm.jet
 colormap._init()
 
@@ -124,7 +128,7 @@ class KinectPlayer(BasePlayer):
 			depthIm = self.depthIm
 			if depth_bounds is not None:
 				depthIm = (self.depthIm-depth_bounds[0])/float(depth_bounds[1]-depth_bounds[0])
-			if colorize:
+			if PYLAB_LOADED and colorize:
 				tmp = depthIm.reshape(-1)
 				# Normalize by min/max
 				if depth_bounds is None:
