@@ -24,7 +24,7 @@ def main(visualize=True):
 	framerate = 1
 	while cam.next(framerate):
 		# cam.colorIm = cam.colorIm[:,:,[2,1,0]]
-		cam.visualize(color=True, depth=True, text=True, colorize=True, depth_bounds=[0,5000])
+		cam.visualize(color=True, depth=True, text=True, colorize=False, depth_bounds=[0,5000])
 
 	print 'Done'
 

@@ -29,8 +29,8 @@ except:
 colormap = cm.jet
 colormap._init()
 
-# import cv2
-vv = VideoViewer()
+import cv2 as vv
+# vv = VideoViewer()
 
 ''' Debugging '''
 from IPython import embed
