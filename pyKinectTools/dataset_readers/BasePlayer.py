@@ -22,6 +22,9 @@ class BasePlayer(object):
 		self.base_dir = base_dir
 		self.deviceID = '[]'
 
+		if bg_subtraction and background_model is None:
+			raise Exception, "Must specify background_model"
+
 		self.get_depth = get_depth
 		self.get_color = get_color
 		self.get_skeleton =get_skeleton
@@ -54,6 +57,7 @@ class BasePlayer(object):
 			'median'
 			'adaptive_mog'
 		'''
+		self.enable_bg_subtraction = True
 		if bg_type == 'box':
 			self.bgSubtraction = BoxModel(param)
 		elif bg_type == 'static':

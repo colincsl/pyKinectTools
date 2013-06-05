@@ -29,8 +29,8 @@ except:
 colormap = cm.jet
 colormap._init()
 
-import cv2 as vv
-# vv = VideoViewer()
+# import cv2 as vv
+vv = VideoViewer()
 
 ''' Debugging '''
 from IPython import embed
@@ -61,7 +61,7 @@ keys_frame_right = 1048691
 
 class KinectPlayer(BasePlayer):
 
-	def __init__(self, device=0, **kwargs):
+	def __init__(self, device=1, **kwargs):
 		super(KinectPlayer, self).__init__(**kwargs)
 
 		self.dev = device
@@ -91,6 +91,7 @@ class KinectPlayer(BasePlayer):
 
 	def update_background(self):
 		'''Background model'''
+
 		self.bgSubtraction.update(self.depthIm)
 		self.backgroundModel = self.bgSubtraction.getModel()
 		self.foregroundMask = self.bgSubtraction.get_foreground(thresh=50)
@@ -124,6 +125,7 @@ class KinectPlayer(BasePlayer):
 		# ''' Find people '''
 		if skel:
 			self.ret = plotUsers(self.depthIm, self.users)
+
 		if depth and self.get_depth is not None:
 			depthIm = self.depthIm
 			if depth_bounds is not None:
@@ -141,6 +143,9 @@ class KinectPlayer(BasePlayer):
 				tmp = colormap._lut[tmp.astype(np.uint8)]
 				depthIm = tmp.reshape([self.depthIm.shape[0], self.depthIm.shape[1], 4])[:,:,:3]
 				depthIm[self.depthIm==0] *= 0
+
+			if depth_bounds is None and not colorize:
+				depthIm = (depthIm/float(depthIm.max())*255).astype(np.uint8)
 			vv.imshow("Depth "+self.deviceID, depthIm)
 			if text:
 				text_tmp = "Day {0} Time {1}:{2:02d}:{3:02d}".format(self.day_dir, self.hour_dir, int(self.minute_dir), int(self.tmpSecond))
