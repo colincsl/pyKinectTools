@@ -20,12 +20,16 @@ from pyKinectTools.dataset_readers.BasePlayer import BasePlayer
 import pyKinectTools.configs
 
 import matplotlib as mp
-from pylab import *
-colormap = mp.cm.jet
-# colormap = mp.cm.hot
+import matplotlib.cm as cm
+try:
+	from pylab import *
+	PYLAB_LOADED = True
+except:
+	PYLAB_LOADED = False
+colormap = cm.jet
 colormap._init()
 
-# import cv2
+# import cv2 as vv
 vv = VideoViewer()
 
 ''' Debugging '''
@@ -57,8 +61,7 @@ keys_frame_right = 1048691
 
 class KinectPlayer(BasePlayer):
 
-	def __init__(self, device=0, **kwargs):
-
+	def __init__(self, device=1, **kwargs):
 		super(KinectPlayer, self).__init__(**kwargs)
 
 		self.dev = device
@@ -88,6 +91,7 @@ class KinectPlayer(BasePlayer):
 
 	def update_background(self):
 		'''Background model'''
+
 		self.bgSubtraction.update(self.depthIm)
 		self.backgroundModel = self.bgSubtraction.getModel()
 		self.foregroundMask = self.bgSubtraction.get_foreground(thresh=50)
@@ -100,6 +104,7 @@ class KinectPlayer(BasePlayer):
 		'''
 		try:
 		# if 1:
+
 			for i in xrange(frames):
 				self.player.next()
 				if self.enable_bg_subtraction:
@@ -109,18 +114,6 @@ class KinectPlayer(BasePlayer):
 			traceback.print_exc(file=sys.stdout)
 			print 'Error getting next frame. Could be end of file'
 			return False
-
-	# ''' Or get CoM + orientation '''
-	# def calculate_basic_features(self):
-		# userCount = len(userBoundingBoxes)
-		# for i in xrange(userCount):
-		# 	userBox = userBoundingBoxes[i]
-		# 	userMask = foregroundMask==i+1
-		# 	com, ornBasis = calculateBasicPose(depthIm, userMask)
-		# 	coms.append(com)
-		# 	orns.append(ornBasis[1])
-		# 	allFeatures.append({'com':com, "orn":ornBasis, 'time':timestamp})
-
 
 
 	def visualize(self, color=True, depth=True, skel=False, text=False, colorize=False, depth_bounds=[1000,4000]):
@@ -132,11 +125,12 @@ class KinectPlayer(BasePlayer):
 		# ''' Find people '''
 		if skel:
 			self.ret = plotUsers(self.depthIm, self.users)
+
 		if depth and self.get_depth is not None:
 			depthIm = self.depthIm
 			if depth_bounds is not None:
 				depthIm = (self.depthIm-depth_bounds[0])/float(depth_bounds[1]-depth_bounds[0])
-			if colorize:
+			if PYLAB_LOADED and colorize:
 				tmp = depthIm.reshape(-1)
 				# Normalize by min/max
 				if depth_bounds is None:
@@ -149,6 +143,9 @@ class KinectPlayer(BasePlayer):
 				tmp = colormap._lut[tmp.astype(np.uint8)]
 				depthIm = tmp.reshape([self.depthIm.shape[0], self.depthIm.shape[1], 4])[:,:,:3]
 				depthIm[self.depthIm==0] *= 0
+
+			if depth_bounds is None and not colorize:
+				depthIm = (depthIm/float(depthIm.max())*255).astype(np.uint8)
 			vv.imshow("Depth "+self.deviceID, depthIm)
 			if text:
 				text_tmp = "Day {0} Time {1}:{2:02d}:{3:02d}".format(self.day_dir, self.hour_dir, int(self.minute_dir), int(self.tmpSecond))
@@ -243,7 +240,6 @@ class KinectPlayer(BasePlayer):
 
 		self.day_index = 0
 		while self.day_index < len(self.day_dirs):
-
 			if self.new_date_entered:
 				try:
 					self.day_index = self.day_dirs.index(self.day_new)
@@ -311,7 +307,6 @@ class KinectPlayer(BasePlayer):
 					if self.get_depth:
 						depthTmp = os.listdir(self.base_dir+'depth/'+self.day_dir+'/'+self.hour_dir+'/'+self.minute_dir+'/'+self.deviceID)
 						depthTmp = [x for x in depthTmp if x[0]!='.']
-						# embed()
 						tmpSort = [int(x.split('_')[-3])*100 + int(formatFileString(x.split('_')[-2])) for x in depthTmp]
 						depthTmp = np.array(depthTmp)[np.argsort(tmpSort)].tolist()
 						depth_files.append([x for x in depthTmp if x.find('.png')>=0])
@@ -322,6 +317,9 @@ class KinectPlayer(BasePlayer):
 						skelFiles.append([x for x in skelTmp if x.find('.dat')>=0])
 
 					if len(depth_files) == 0:
+						# or len(depth_files[0]) == 0:
+						# self.minute_index += 1
+						# print 'yay', self.minute_index, depth_files
 						continue
 
 					if self.play_speed >= 0 and self.ret != keys_frame_left:
