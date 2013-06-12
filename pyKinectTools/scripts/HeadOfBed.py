@@ -125,7 +125,7 @@ def main(visualize=True):
 		plane_im_out = plane_im_out.reshape([240,320,3])
 		# cv2.imshow("dd", plane_im/float(plane_im.max()))
 		cv2.imshow("dd", (plane_im_out/float(plane_im_out.max()))*100. + cam.colorIm/300.)
-		cv2.waitKey(50)
+		# cv2.waitKey(50)
 
 		# cam.visualize(color=True, depth=True, text=True, colorize=True, depth_bounds=[500,3500])
 		cam.visualize(color=False, depth=True, text=True, colorize=False, depth_bounds=[500,3500])
