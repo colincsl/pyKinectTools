@@ -3,6 +3,7 @@ Main file for viewing data
 """
 
 import os
+import time
 import optparse
 import time
 import cPickle as pickle
@@ -18,6 +19,9 @@ from IPython import embed
 
 try:
 	import serial
+	ser = serial.Serial(port='/dev/tty.usbmodemfa131', baudrate=9600)
+	# Turn on light
+	ser.write('3')
 except:
 	raise Exception, "Please install PySerial (pip install pyserial)"
 
@@ -26,6 +30,8 @@ except:
 def main(anonomization=False):
 	# Setup kinect data player
 	cam = KinectPlayer(base_dir='./', bg_subtraction=False, get_depth=True, get_color=True, get_skeleton=False)
+	recording_enabled = True
+	button_pressed = False
 
 	if anonomization:
 		''' bg_type can be:
@@ -43,8 +49,29 @@ def main(anonomization=False):
 	framerate = 1
 	while cam.next(framerate):
 
+		while ser.inWaiting() > 0:
+			button_current = ser.readline()
+			print button_current, button_pressed
+			if button_pressed != button_current and button_current:
+				recording_enabled = False
+				recording_time = time.time()
+				# Turn off light
+				ser.write('4')
+				print 'Off'
+			button_pressed = button_current
+
+		if not recording_enabled:
+			if time.time() - recording_time > 5:
+				recording_enabled = True
+				ser.write('3')
+				print 'On'
+			else:
+				continue
+
 		if anonomization and  cam.mask is not None:
-			mask = sm.imresize(cam.mask, [480,640]) == 0
+			mask = cam.mask == 0
+			if cam.colorIm.shape[:2] != cam.mask.shape:
+				mask = sm.imresize(mask, [480,640])
 			cam.colorIm *= mask[:,:,None]
 		cam.visualize(color=True, depth=True, text=True, colorize=True, depth_bounds=[0,5000])
 		# cam.visualize(color=True, depth=True, text=False, colorize=False, depth_bounds=None)
