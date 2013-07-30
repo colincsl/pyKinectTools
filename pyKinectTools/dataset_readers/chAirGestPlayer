@@ -5,7 +5,7 @@ import itertools as it
 from skimage.morphology import closing, erosion
 from pyKinectTools.utils.DepthUtils import skel2depth, depthIm_to_colorIm#world2depth, depthIm2XYZ, depth2world
 from pyKinectTools.utils.SkeletonUtils import msr_to_kinect_skel
-# from IPython import embed
+from IPython import embed
 # from pyKinectTools.utils.VideoViewer import VideoViewer
 from pyKinectTools.dataset_readers.BasePlayer import BasePlayer
 from pyKinectTools.algs.BackgroundSubtraction import fill_image
@@ -14,15 +14,15 @@ from pyKinectTools.algs.BackgroundSubtraction import fill_image
 from IPython import embed
 
 '''
-These functions read in the depth images, color images, and skeletons from the MSR Daily Activity dataset.
-http://research.microsoft.com/en-us/um/people/zliu/ActionRecoRsrc/default.htm
+These functions read in the depth images, color images, and skeletons from the Chairgest competition.
+//insert link
 '''
 
-def read_MSR_labels():
+def read_labels():
 	return ['drink', 'eat', 'read book', 'call cellphone', 'write on a paper', 'use laptop', 'use vacuum cleaner', 'cheer up', 'sit still', 'toss paper', 'play game', 'lie down on sofa', 'walk', 'play guitar', 'stand up', 'sit down']
 
 
-def create_MSR_filenames(actions, subjects, positions):
+def create_filenames(actions, subjects, positions):
 	'''
 	---Parameters---
 	actions : list of numbers 1-16
@@ -38,7 +38,7 @@ def create_MSR_filenames(actions, subjects, positions):
 
 	return filenames
 
-def read_MSR_depth_ims(depth_file, resize='VGA'):
+def read_depth_ims(depth_file, resize='VGA'):
 	''' Extracts depth images and masks from the MSR Daily Activites dataset
 	---Parameters---
 	depth_file : filename for set of depth images (.bin file)
@@ -72,7 +72,7 @@ def read_MSR_depth_ims(depth_file, resize='VGA'):
 
 	return depthIms, maskIms
 
-def read_MSR_color_ims(color_file, resize='VGA'):
+def read_color_ims(color_file, resize='VGA'):
 	''' Extracts color images from the MSR Daily Activites dataset
 	---Parameters---
 	color_file : filename for color video (.avi file)
@@ -104,7 +104,7 @@ def read_MSR_color_ims(color_file, resize='VGA'):
 
 
 
-def read_MSR_skeletons(skeleton_file, world_coords=True, im_coords=True, resolution=[240,320]):
+def read_skeletons(skeleton_file, world_coords=True, im_coords=True, resolution=[240,320]):
 	''' Extracts skeletons from the MSR Daily Activites dataset
 	---Parameters---
 	skeleton_file : filename for color video (.avi file)

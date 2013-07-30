@@ -7,3 +7,4 @@ algs/dijkstras/build/*
 *.DS_Store
 CopyDepth2Homewood.sh
 MANIFEST
+*/.idea/*

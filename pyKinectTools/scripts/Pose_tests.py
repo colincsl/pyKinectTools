@@ -33,10 +33,10 @@ class MultiChannelClassifier:
 		data = kernel.fit_transform(data)
 		self.channel_data += [data]
 		kernel_mean = data.mean()
-		
+
 		self.channel_names += [name]
 		self.channel_kernels += [kernel]
-		self.channel_means += [kernel_mean]		
+		self.channel_means += [kernel_mean]
 
 	def fit(self, classifier, labels, kernel=None):
 		"""
@@ -71,10 +71,10 @@ def recenter_image(im):
 	com = nd.center_of_mass(im)
 	if any(np.isnan(com)):
 		return im
-	
+
 	im_center = im[(com[0]-n_height/2):(com[0]+n_height/2)]
 	offset = [(n_height-im_center.shape[0]),(n_width-im_center.shape[1])]
-	
+
 	if offset[0]%2 > 0:
 		h_odd = 1
 	else:
@@ -82,8 +82,8 @@ def recenter_image(im):
 	if offset[1]%2 > 0:
 		w_odd = 1
 	else:
-		w_odd = 0			
-	
+		w_odd = 0
+
 	im[offset[0]/2:n_height-offset[0]/2-h_odd, offset[1]/2:n_width-offset[1]/2-w_odd] = im_center
 
 	return im
@@ -135,7 +135,7 @@ if 0:
 		# Find false positives in negative data
 		neg_data = X[-labels_head]
 		pred = svm_head.predict(neg_data)
-		# neg_data = 
+		# neg_data =
 		print pred.sum(), "errors in class", joint_class
 		# Retrain on all of the positives and the false positives in the negative samples
 		svm_head = SGDClassifier(n_iter=100, alpha=.0001)
@@ -146,7 +146,7 @@ def train(ims_rgb, ims_depth, labels):
 	"""
 	"""
 
-	# --------- Setup -------- 
+	# --------- Setup --------
 
 	# Joint options: head, shoulders, hands, feat
 	joint_set = ['head', 'hands']
@@ -155,19 +155,19 @@ def train(ims_rgb, ims_depth, labels):
 	image_set = ['gray', 'lab']
 	# Feature options: Gray_HOGs, Color_LBPs, Color_Histogram
 	feature_set = ['Gray_HOGs']
-	features = {}	
+	features = {}
 
 	model_params = {}
 	model_params = {'feature_set':feature_set, 'image_set':image_set, \
 				'joints':joint_set, 'patch_size':patch_size}
-	
+
 	n_samples = labels.shape[0]
 	height, width = ims_rgb[0].shape[:2]
 
 	mcc = MultiChannelClassifier()
 	# mcc.add_classifier(SGDClassifier(n_iter=100, alpha=.0001, n_jobs=-1))
 
-	#  --------- Conversions --------- 
+	#  --------- Conversions ---------
 
 	print 'Converting images'
 	if 'gray' in image_set:
@@ -178,7 +178,7 @@ def train(ims_rgb, ims_depth, labels):
 	print 'Relabeling classes'
 	joints = {'head':[0], 'shoulders':[2,5], 'hands':[4,7], 'feat':[10,13]}
 	classes = [joints[j] for j in joint_set]
-	
+
 	# Group into classes
 	labels_orig = labels.copy()
 	for c in xrange(n_samples):
@@ -192,7 +192,7 @@ def train(ims_rgb, ims_depth, labels):
 
 	# visualize_top_ims(ims_rgb, labels)
 
-	# --------- Calculate features --------- 
+	# --------- Calculate features ---------
 	print ""
 	print '--Starting feature calculations--'
 
@@ -215,7 +215,7 @@ def train(ims_rgb, ims_depth, labels):
 		model_params['hog_orientations'] = 9
 		hogs_c = Parallel(n_jobs=-1)(delayed(hog)(im, 5, (8,8), (3,3), False, False) for im in ims_depth)
 		hogs_c = np.array(hogs_c)
-		features['Depth_HOGs'] = hogs_c		
+		features['Depth_HOGs'] = hogs_c
 
 	if 'Color_LBPs' in feature_set:
 		print 'Calculating Color LBPs'
@@ -249,17 +249,17 @@ def train(ims_rgb, ims_depth, labels):
 	if 'Curvature' in feature_set:
 		print 'Calculating Geometric Curvature'
 		# TODO
-		# features['Geometric_Curvature'] = 
+		# features['Geometric_Curvature'] =
 
 	if 'Hand_Template' in feature_set:
 		print 'Calculating Hand Template features'
 		# TODO
-		# features['Hand_Template'] = 
+		# features['Hand_Template'] =
 
 	if 'Face_Template' in feature_set:
 		print 'Calculating Face Template features'
 		# TODO
-		# features['Face_Template'] = 
+		# features['Face_Template'] =
 
 
 	# Transfrom  pca/chi/rbf
@@ -275,7 +275,7 @@ def train(ims_rgb, ims_depth, labels):
 	training_data = chi2.fit_transform(data)
 	training_labels = labels
 
-	# --------- Classification --------- 
+	# --------- Classification ---------
 	print ""
 	print 'Starting classification training'
 	svm = SGDClassifier(n_iter=100, alpha=.0001, class_weight="auto", l1_ratio=0, fit_intercept=True, n_jobs=-1)
@@ -299,10 +299,10 @@ def train(ims_rgb, ims_depth, labels):
 		from sklearn.cross_validation import cross_val_score
 		params = {'alpha': [.0001],
 				'l1_ratio':[0.,.25,.5,.75,1.]}
-		grid_search = GridSearchCV(svm_both, param_grid=params, cv=2, verbose=3)	
+		grid_search = GridSearchCV(svm_both, param_grid=params, cv=2, verbose=3)
 		grid_search.fit(training_both_kernel, labels)
 
-	# --------- Save Model Information --------- 
+	# --------- Save Model Information ---------
 	model_params['Description'] = ''
 	with open('model_params.dat', 'w') as f:
 		pickle.dump(model_params, f)
@@ -317,13 +317,13 @@ def train(ims_rgb, ims_depth, labels):
 		n_joints = 14
 		rez = [480,640]
 		ims_depth = np.empty([n_frames*n_joints, patch_size, patch_size], dtype=np.uint16)
-		ims_rgb = np.empty([n_frames*n_joints, patch_size, patch_size, 3], dtype=np.uint8)		
+		ims_rgb = np.empty([n_frames*n_joints, patch_size, patch_size, 3], dtype=np.uint8)
 		labels = np.empty(n_frames*n_joints, dtype=np.int)
 	else:
 		model_params = pickle.load(open('model_params.dat', 'r'))
 		patch_size = model_params['patch_size']
 		svm = model_params['SVM']
-		filters = model_params['filters'] 
+		filters = model_params['filters']
 		filters *= filters > 0
 		n_filters = len(filters)
 
@@ -341,7 +341,7 @@ def train(ims_rgb, ims_depth, labels):
 					ims_depth[frame_count*n_joints+i] = im_depth[x-patch_size/2:x+patch_size/2, y-patch_size/2:y+patch_size/2]
 					labels[frame_count*n_joints+i] = i
 				else:
-					labels[frame_count*n_joints+i] = -1	
+					labels[frame_count*n_joints+i] = -1
 
 
 		else:
@@ -362,7 +362,7 @@ def train(ims_rgb, ims_depth, labels):
 					im_skin *= im_skin > face_detector.min_threshold
 					im_skin *= im_skin < face_detector.max_threshold
 					# im_skin *= face_detector>.068
-				
+
 					hand_template = sm.imread('/Users/colin/Desktop/fist.png')[:,:,2]
 					hand_template = (255 - hand_template)/255.
 					if height == 240:
@@ -407,13 +407,13 @@ def train(ims_rgb, ims_depth, labels):
 
 						# cost_map = im_depth[box]
 						# extrema = geodesic_extrema_MPI(im_pos, iterations=5, visualize=False)
-						# if len(extrema) > 0:						
+						# if len(extrema) > 0:
 						# 	for i,o in enumerate(extrema):
 						# 		joint = np.array(o) + [box[0].start, box[1].start]
 						# 		circ = np.array(circle(joint[0],joint[1], 10)).T
 						# 		circ = circ.clip([0,0], [height-1, width-1])
 						# 		cam.colorIm[circ[:,0], circ[:,1]] = (0,0,120-30*i)#(255*(i==0),255*(i==1),255*(i==2))
-						# markers = optima					
+						# markers = optima
 						# trails = []
 						# if len(markers) > 1:
 						# 	for i,m in enumerate(markers):
@@ -426,7 +426,7 @@ def train(ims_rgb, ims_depth, labels):
 						# 	except:
 						# 		print 'Error highlighting trail'
 
-						# cv2.imshow('SkinMap, SkinDetect, DepthDetect', 
+						# cv2.imshow('SkinMap, SkinDetect, DepthDetect',
 						# 			np.hstack([ im_skin			/float(im_skin.max()),
 						# 						skin_match_c	/float(skin_match_c.max())]
 						# 						))
@@ -541,11 +541,11 @@ def train(ims_rgb, ims_depth, labels):
 				# 				'r_shoulder', 'r_elbow', 'r_hand',\
 				# 				'l_hip', 'l_knee', 'l_foot', \
 				# 				'r_hip', 'r_knee', 'r_foot']
-				joint_names = ['head', 'l_hand', 'l_foot', 'other']						
-				
+				joint_names = ['head', 'l_hand', 'l_foot', 'other']
+
 				# Color
 				if 1:
-					hogs_c_pca = [hog(im_gray[e[0]-patch_size/2:e[0]+patch_size/2, e[1]-patch_size/2:e[1]+patch_size/2], 9, (8,8), (3,3), False, True) for e in extrema]					
+					hogs_c_pca = [hog(im_gray[e[0]-patch_size/2:e[0]+patch_size/2, e[1]-patch_size/2:e[1]+patch_size/2], 9, (8,8), (3,3), False, True) for e in extrema]
 
 					lbp_tmp = [local_binary_pattern(im_gray[e[0]-patch_size/2:e[0]+patch_size/2, e[1]-patch_size/2:e[1]+patch_size/2], P=n_px, R=n_radius, method='uniform') for e in extrema]
 					lbp_hists_c = np.array([np.histogram(im, normed=True, bins = n_px+2, range=(0,n_px+2))[0] for im in lbp_tmp])
@@ -560,7 +560,7 @@ def train(ims_rgb, ims_depth, labels):
 					data_both_pca[data_both_pca<0] = 0
 					hogs_both_pred = np.hstack([svm.predict(h) for h in data_both_pca]).astype(np.int)
 					names = [joint_names[i] for i in hogs_both_pred]
-					skel_predict = hogs_both_pred.astype(np.int)				
+					skel_predict = hogs_both_pred.astype(np.int)
 
 				# print names
 				im_c = cam.colorIm
@@ -574,7 +574,7 @@ def train(ims_rgb, ims_depth, labels):
 					# elif names[i] == 'l_shoulder' or names[i] == 'r_shoulder':
 						# color = [0,0,255]
 					# elif names[i] == 'l_foot' or names[i] == 'r_foot':
-						# color = [0,255,255]							
+						# color = [0,255,255]
 					# else:
 						# color = [0,0,0]
 

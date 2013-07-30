@@ -13,9 +13,15 @@ from distutils.extension import Extension
 from Cython.Distutils import build_ext
 import numpy as np
 
+import Cython.Compiler.Options
+Cython.Compiler.Options.annotate = True
+# from Cython.Build import cythonize
+
 ext_modules = [
 				Extension("pyKinectTools_algs_Dijkstras", ["pyKinectTools/algs/dijkstras.pyx"],language='c++'),
 				Extension("pyKinectTools_algs_local_occupancy_pattern", ["pyKinectTools/algs/LocalOccupancyPattern.pyx"],language='c++'),
+				Extension("pyKinectTools_algs_dynamic_time_warping", ["pyKinectTools/algs/DynamicTimeWarping.pyx"],language='c++'),
+				# cythonize("pyKinectTools/algs/DynamicTimeWarping.pyx"),
 				]
 # _Dijkstras
 # Extension("pyKinectTools_algs_Pose_Tracking", ["pyKinectTools/algs/cPoseTracking.pyx"],language='c++'),
@@ -52,12 +58,3 @@ setup(
 	ext_modules = ext_modules
 )
 
-	# packages= [	"pyKinectTools",
-	# 			"pyKinectTools.algs",
-	# 			"pyKinectTools.utils",
-	# 			"pyKinectTools.configs",
-	# 			"pyKinectTools.dataset_readers"
-	# 			],
-
-	# packages= [	"pyKinectTools"
-	# 		],

@@ -97,16 +97,34 @@ class CameraModel:
         self.transform = transform
 
     def im2PosIm(self, depthMap):
-        imOut = np.zeros([depthMap.shape[0],depthMap.shape[1],3], dtype=float)
+        imOut = np.zeros([depthMap.shape[0],depthMap.shape[1],3], dtype=np.float)
         imOut[:,:,2] = depthMap
 
         inds = np.nonzero(imOut[:,:,2]>0)
-        xyzVals = self.im2world(np.array([inds[0],inds[1],imOut[inds[0],inds[1],2]]).T, depthMap.shape)
+        xyzVals = self.im2world(np.array([inds[0],inds[1],imOut[inds[0],inds[1],2]], np.float).T, depthMap.shape)
 
         imOut[inds[0],inds[1],0] = xyzVals[:,0]
         imOut[inds[0],inds[1],1] = xyzVals[:,1]
 
         return imOut
+
+
+# Find optimal focal lengths
+# focal_lens = range(1, 2000, 100)
+# for fx in focal_lens:
+    # cam.camera_model.fx = fx
+    # cam.camera_model.fy = fx
+    # xyz_im = cam.camera_model.im2PosIm(cam.depthIm)
+    # print np.sum(xyz_im[skel_orig_uv[:,0], skel_orig_uv[:,1]] - skel_orig)
+    # print xyz_im[skel_orig_uv[:,0], skel_orig_uv[:,1]],  skel_orig
+
+# Find optimal multiplier
+multiplier = np.arange(.6, 1.0, .05)
+for mx in multiplier:
+    print "mx", mx
+    xyz_im = cam.camera_model.im2PosIm(cam.depthIm*mx)
+    print np.sum(xyz_im[skel_orig_uv[:,0], skel_orig_uv[:,1]] - skel_orig)
+    # print xyz_im[skel_orig_uv[:,0], skel_orig_uv[:,1]],  skel_orig
 
 
 

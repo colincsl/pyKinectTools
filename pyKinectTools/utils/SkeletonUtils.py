@@ -9,6 +9,7 @@ N_MSR_JOINTS = 20
 N_KINECT_JOINTS = 14
 
 
+
 def transform_skels(skels, transformation, output='image'):
     '''
     ---Parameters---
@@ -41,6 +42,258 @@ def transform_skels(skels, transformation, output='image'):
 
 
     return skels_out
+
+CAD_JOINTS = ['head', 'neck', 'torso', 'l_shoulder', 'l_elbow', 'r_shoulder', 'r_elbow',
+            'l_pelvis', 'l_knee', 'r_pelvis', 'r_knee', 'l_hand', 'r_hand', 'l_foot', 'r_foot']
+# CAD_CONNECTIONS = [
+#                 [0,1],[1,2],#Head to torso
+#                 [1,5],[2,5],[5,6],[6,12], # Left arm
+#                 [1,3],[2,3],[3,4],[4,11], # Right arm
+#                 [2,7],[7,8],[8,13], #Left foot
+#                 [2,9],[9,10],[10,14], #Right foot
+#                 [7,9] #Bridge hips
+#                 ]
+# CAD_UPPER_CONNECTIONS = [
+#                         [0,1],[1,2],#Head to torso
+#                         [1,5],[2,5],[5,6],[6,12], # Left arm
+#                         [1,3],[2,3],[3,4],[4,11], # Right arm
+#                         [2,7], #Left foot
+#                         [2,9], #Right foot
+#                         [7,9] #Bridge hips
+#                         ]
+
+def get_CAD_skel_angles(skel):
+    ''' In CAD format '''
+
+    connections = [
+                    [[1,0],[0,1]], # Head0
+                    [[2,1],[1,0]],# Neck1
+                    [[1,2],[2,7]],# Chest2
+                    [[1,3],[3,4]],# Shoulder3
+                    [[3,4],[4,11]],# Arm4
+                    [[1,5],[5,6]], # Shoulder5
+                    [[5,6],[6,12]],# Arm6
+                    [[2,7],[7,8]], # Pelvis7
+                    [[7,8],[8,13]], # Knee8
+                    [[2,9],[9,10]], # Pelvis9
+                    [[9,10],[10,14]], # Knee 10                   
+                    [[11,11],[11,11]],# Hand11
+                    [[12,12],[12,12]],# Hand12
+                    [[13,13],[13,13]], # Foot13
+                    [[14,14],[14,14]], # Foot14
+                    ]
+
+    angles = np.zeros(len(connections), np.float)
+    skel_tmp = skel.astype(np.float)
+    for i,c in enumerate(connections):
+        joint1 = skel_tmp[c[0][1]] - skel_tmp[c[0][0]]
+        joint1 /= np.linalg.norm(joint1)
+        joint2 = skel_tmp[c[1][1]] - skel_tmp[c[1][0]]
+        joint2 /= np.linalg.norm(joint2)
+        angles[i] = np.arccos(np.dot(joint1, joint2))
+
+    return angles
+
+def skew(v):
+    if len(v) == 4: 
+        v = v[:3]/v[3]
+    skv = np.roll(np.roll(np.diag(v.flatten()), 1, 1), -1, 0)
+    return skv - skv.T
+
+import networkx as nx
+graph = nx.DiGraph()
+graph.add_edges_from([[2,1], [1,0], [1,3], [3,4], [4,11], [1,5], 
+                    [5,6], [6,12], [2,7], [7,8], [8,13],
+                    [2,9], [9,10], [10,14]])
+undir_graph = graph.to_undirected() 
+# nx.draw_spectral(graph)
+# show()
+
+def get_CAD_skel_pos(skel, angs, centroid):
+    ''' In CAD format '''
+
+    body_size = np.zeros(15, np.float)
+    relative_vec = np.zeros([15,3], np.float)
+    relative_vec[2] = centroid
+
+    for i in [2,1,0,3,4,11,5,6,12,7,8,9,10,13,14]:        
+        
+        # Don't eval if it's the center node
+        if len(graph.predecessors(i)) == 0:
+            continue
+        # Get the linkage associated with each joint and its parent
+        pred = graph.predecessors(i)[0]
+        joint = skel[i] - skel[pred]
+        body_size[i] = np.linalg.norm(joint)
+        # Get a reference for the parent
+        node_ref = [x[1] for x in undir_graph.edges(pred) if x[1] != i][0]
+        joint2 = skel[pred] - skel[node_ref]
+        
+        # Normalize vectors and get the angle between them
+        j1_len = np.linalg.norm(joint)
+        j2_len = np.linalg.norm(joint2)
+        joint /= j1_len
+        joint2 /= j2_len
+        angle = angs[i] - np.arccos(np.dot(joint, joint2))
+
+        # Get the rotation matrix going from the reference video to the prototypical motion
+        joint_normal = np.cross(joint, joint2)
+        joint_normal /= np.linalg.norm(joint_normal)
+        joint_skew = skew(joint_normal)
+        joint_tensor = np.outer(joint_normal, joint_normal)
+        rot_matrix = np.eye(3)*np.cos(angle) + np.sin(angle)*joint_skew + (1-np.cos(angle))*joint_tensor
+        
+        # Check that it is indeed a rotation matrix
+        det_check = np.abs(np.linalg.det(rot_matrix)) - 1 < 10**-2 
+        # inv_check =  np.sum(np.linalg.inv(rot_matrix) - rot_matrix.T) < 10**-2
+        if not det_check:
+            continue
+
+        joint = np.inner(rot_matrix, joint)
+        relative_vec[i] = relative_vec[pred] + body_size[i]*joint
+
+    return relative_vec
+
+def get_CAD_skel_angles(skel):
+    ''' In CAD format '''
+
+    undir_graph = graph.to_undirected() 
+    angles = np.zeros([15], np.float)
+    # for i in xrange(15):
+    for i in [2,1,0,3,4,11,5,6,12,7,8,9,10,13,14]:        
+        if len(graph.predecessors(i)) != 0:
+            pred = graph.predecessors(i)[0]
+            joint = skel[i] - skel[pred]
+            
+            node_ref = [x[1] for x in undir_graph.edges(pred) if x[1] != i][0]
+            joint2 = skel[pred] - skel[node_ref]
+            
+            j1_len = np.linalg.norm(joint)
+            j2_len = np.linalg.norm(joint2)
+            joint /= j1_len
+            joint2 /= j2_len
+            angles[i] =  np.arccos(np.dot(joint, joint2))
+
+    return angles    
+
+
+    # body_part = skel.copy()
+    # for i,c in enumerate(connections):
+    #     joint1 = skel[c[0][0]] - skel[c[0][1]]
+    #     j1_len = np.linalg.norm(joint1)
+    #     joint1 /= j1_len
+    #     joint2 = skel[c[1][1]] - skel[c[1][0]]
+    #     j2_len = np.linalg.norm(joint2)
+    #     joint2 /= j2_len
+    #     angle =  angs[i] - np.arccos(np.dot(joint1, joint2))
+    #     # angle =  np.abs(angs[i] - np.arccos(np.dot(joint1, joint2)))
+    #     # print i, angle*180/np.pi
+
+    #     # Modify the first connection joint
+    #     joint_normal = np.cross(joint1, joint2)
+    #     joint_normal /= np.linalg.norm(joint_normal)
+    #     joint_skew = skew(joint_normal)
+    #     joint_tensor = np.outer(joint_normal, joint_normal)
+        
+    #     rot_matrix = np.eye(3)*np.cos(angle) + np.sin(angle)*joint_skew + (1-np.cos(angle))*joint_tensor
+        
+    #     det_check = np.abs(np.linalg.det(rot_matrix)) - 1 < 10**-2 
+    #     # inv_check =  np.sum(np.linalg.inv(rot_matrix) - rot_matrix.T) < 10**-2
+    #     if not det_check:
+    #         continue
+
+    #     # joint1 = np.inner(rot_matrix, joint1)
+    #     joint1 *= j1_len
+
+    #     body_part[i] = joint1 + skel[c[0][0]]
+
+        
+    # print body_size
+    # return body
+
+# def get_CAD_skel_pos(skel, angs, centroid):
+#     ''' In CAD format '''
+
+#     connections = [
+#                     [[0,0],[0,0]], # Head0
+#                     [[2,1],[1,0]],# Neck1
+#                     [[1,2],[2,7]],# Chest2
+#                     [[1,3],[3,4]],# Shoulder3
+#                     [[3,4],[4,11]],# Arm4
+#                     [[1,6],[6,5]], # Shoulder5
+#                     [[5,6],[6,12]],# Arm6
+#                     [[2,7],[7,8]], # Pelvis7
+#                     [[7,8],[8,13]], # Knee8
+#                     [[2,9],[9,10]], # Pelvis9
+#                     [[9,10],[10,14]], # Knee 10                   
+#                     [[11,11],[11,11]],# Hand11
+#                     [[12,12],[12,12]],# Hand12
+#                     [[13,13],[13,13]], # Foot13
+#                     [[14,14],[14,14]], # Foot14
+#                     ]
+
+#     # body_size = 
+
+#     body_part = np.zeros([15,3], np.float)
+#     output_angle = np.zeros([15,3], np.float)
+#     body_part[2] = centroid
+#     # body_part = skel.copy()
+#     for i,c in enumerate(connections):
+#         joint1 = skel[c[0][0]] - skel[c[0][1]]
+#         j1_len = np.linalg.norm(joint1)
+#         joint1 /= j1_len
+#         joint2 = skel[c[1][1]] - skel[c[1][0]]
+#         j2_len = np.linalg.norm(joint2)
+#         joint2 /= j2_len
+#         angle = angs[i] - np.arccos(np.dot(joint1, joint2))
+
+#         # Modify the first connection joint
+#         joint_normal = np.cross(joint1, joint2)
+#         joint_normal /= np.linalg.norm(joint_normal)
+#         joint_skew = skew(joint_normal)
+#         joint_tensor = np.outer(joint_normal, joint_normal)
+        
+#         rot_matrix = np.eye(3)*np.cos(angle) + np.sin(angle)*joint_skew + (1-np.cos(angle))*joint_tensor
+        
+#         det_check = np.abs(np.linalg.det(rot_matrix)) - 1 < 10**-2 
+#         inv_check =  np.sum(np.linalg.inv(rot_matrix) - rot_matrix.T) < 10**-2
+
+#         if not det_check:
+#             continue
+
+#         joint1 = np.inner(rot_matrix, joint1)
+#         joint1 *= j1_len
+
+#         # output_angle[i] = joint1 + skel[c[0][0]]
+#         output_vector[i] = joint1
+
+#     return body_part
+
+
+
+def get_skel_angles(skel, connections=None):
+    ''' In kinect format '''
+
+    neck = (skel[2] + skel[5]) / 2
+    waist = (skel[8] + skel[11]) / 2
+    skel = np.vstack([skel, neck, waist])
+    connections = [[[0,14],[14,1]], [[14,1],[1,15]], #Head to neck to torso
+                    [[14,1],[1,2]], [[2,3],[3,4]], # Left arm
+                    [[14,5],[5,6]], [[5,6],[6,7]], # Right arm
+                    [[1,8],[8,9]], [[8,9],[9,10]], #Left foot
+                    [[1,11],[11,12]], [[11,12],[12,13]], #Right foot
+                    ]
+
+    angles = np.zeros(len(connections), np.float)
+    skel_tmp = skel_tmp.astype(np.float)
+    for i,c in enumerate(connections):
+        joint1 = skel[c[0][1]] - skel[c[0][0]]
+        joint1 /= np.linalg.norm(joint1)
+        joint2 = skel[c[1][1]] - skel[c[1][0]]
+        joint2 /= np.linalg.norm(joint2)
+        angles[i] = np.arccos(np.dot(joint1, joint2))
+
+    return angles
 
 
 # ----------------------------------------------------------------
@@ -84,7 +337,7 @@ def msr_to_kinect_skel(skel):
     skel_kinect[10,:] = skel[15,:] #l foot
     skel_kinect[11,:] = skel[16,:] #r hip
     skel_kinect[12,:] = skel[17,:] #r knee
-    skel_kinect[13,:] = skel[17,:] #r foot
+    skel_kinect[13,:] = skel[18,:] #r foot
 
     return skel_kinect
 
@@ -230,7 +483,8 @@ def j15_to_kinect_skel(skel):
     return skel_kinect
 
 from skimage.draw import circle, line
-def display_skeletons(img, skel, color=(200,0,0), skel_type='MSR', skel_contraints=None):
+def display_skeletons(img, skel, color=(200,0,0), skel_type='MSR', 
+                    skel_contraints=None, confidence=None, alt_color=(0,0,0)):
     '''
     skel_type : 'MSR' or 'Low' ##or 'Upperbody'
     '''
@@ -241,6 +495,9 @@ def display_skeletons(img, skel, color=(200,0,0), skel_type='MSR', skel_contrain
     else:
         pt_radius = 5
         tube_radius = 2
+
+    if confidence is None:
+        confidence = np.ones(skel.shape[0], np.int)
 
     img = np.ascontiguousarray(img)
     if skel_type == 'MSR':
@@ -296,11 +553,29 @@ def display_skeletons(img, skel, color=(200,0,0), skel_type='MSR', skel_contrain
                         [1,11],[11,12],[12,13], #Right foot
                         [8,11] #Bridge hips
                         ]
-        joint_names = ['head', 'torso', 'l_shoulder', 'l_elbow', 'l_hand',
-                    'r_shoulder', 'r_elbow', 'r_hand',
-                    'l_hip', 'l_knee', 'l_foot',
-                    'r_hip', 'r_knee', 'r_foot']
         head = 0
+    elif skel_type == 'CAD':
+        joints = range(14)
+        connections = [
+                        [0,1],[1,2],#Head to torso
+                        [1,5],[2,5],[5,6],[6,12], # Left arm
+                        [1,3],[2,3],[3,4],[4,11], # Right arm
+                        [2,7],[7,8],[8,13], #Left foot
+                        [2,9],[9,10],[10,14], #Right foot
+                        [7,9] #Bridge hips
+                        ]
+        head = 0        
+    elif skel_type == 'CAD_Upper':
+        joints = [0,1,2,3,4,5,6,7,9,11,12]
+        connections = [
+                        [0,1],[1,2],#Head to torso
+                        [1,5],[2,5],[5,6],[6,12], # Left arm
+                        [1,3],[2,3],[3,4],[4,11], # Right arm
+                        [2,7], #Left foot
+                        [2,9], #Right foot
+                        [7,9] #Bridge hips
+                        ]
+        head = 0       
     elif skel_type == 'Ganapathi':
         joints = range(15)
         connections = [
@@ -333,7 +608,6 @@ def display_skeletons(img, skel, color=(200,0,0), skel_type='MSR', skel_contrain
                     'l_hip', 'l_knee', 'l_foot',
                     'r_hip', 'r_knee', 'r_foot']
         head = 0
-
     elif skel_type == 'Other':
         joints = range(len(skel))
         connections = skel_contraints
@@ -346,18 +620,28 @@ def display_skeletons(img, skel, color=(200,0,0), skel_type='MSR', skel_contrain
             if not (j[0] <= 0 or j[1] <= 0):
                 # circ = skimage.draw.circle(j[0],j[1], 5)
                 # img[circ[0], circ[1]] = color
-                cv2.circle(img, (j[1], j[0]), pt_radius, color, -1)
+                if confidence[i]==1:
+                    cv2.circle(img, (j[1], j[0]), pt_radius, color, -1)
+                else:
+                    cv2.circle(img, (j[1], j[0]), pt_radius, alt_color, -1)
         except:
             pass
 
     # Make head a bigger node
-    cv2.circle(img, (skel[head,1], skel[head,0]), pt_radius*3, color)
+    if skel[head,0] != 0:
+        if confidence[head]:
+            cv2.circle(img, (skel[head,1], skel[head,0]), pt_radius*3, color)
+        else:
+            cv2.circle(img, (skel[head,1], skel[head,0]), pt_radius*3, alt_color)
 
     for c in connections:
         # Remove zero nodes
         if not ( (skel[c[0],0]==0 and skel[c[0],1]==0) or (skel[c[1],0]==0 and skel[c[1],1]==0)):
         # if not ( (skel[c[0],0]<=0 and skel[c[0],1]<=0) or (skel[c[1],0]<=0 and skel[c[1],1]<=0)):
-            cv2.line(img, (skel[c[0],1], skel[c[0],0]), (skel[c[1],1], skel[c[1],0]), color, tube_radius)
+            if confidence[c[0]] and confidence[c[1]]:
+                cv2.line(img, (skel[c[0],1], skel[c[0],0]), (skel[c[1],1], skel[c[1],0]), color, tube_radius)
+            else:
+                cv2.line(img, (skel[c[0],1], skel[c[0],0]), (skel[c[1],1], skel[c[1],0]), alt_color, tube_radius)
 
     return img
 

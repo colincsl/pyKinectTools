@@ -1,0 +1,39 @@
+<OpenNI>
+	<Licenses>
+		<!-- Add application-specific licenses here
+		<License vendor="vendor" key="key"/>
+		-->
+	</Licenses>
+	<Log writeToConsole="false" writeToFile="false">
+		<!-- 0 - Verbose, 1 - Info, 2 - Warning, 3 - Error (default) -->
+		<LogLevel value="0"/>
+		<Masks>
+			<Mask name="ALL" on="true"/>
+		</Masks>
+		<Dumps>
+		</Dumps>
+	</Log>
+	<ProductionNodes>
+
+		<!-- Set global mirror -->
+		<!-- <GlobalMirror on="false"/> -->
+
+		<!-- Create a depth node and give it a name alias (useful if referenced ahead in this script) -->
+		<!-- <Node type="Depth" name="Depth1"> -->
+			<!-- <Configuration> -->
+				<!-- <MapOutputMode xRes="640" yRes="480" FPS="30"/> -->
+			<!-- </Configuration> -->
+		<!-- </Node> -->
+
+		<!-- Create an image node. If it fails, continue anyway. -->
+		<!-- <Node type="Image" stopOnError="false" /> -->
+
+		<Node type="IR">
+			<Configuration>
+				<MapOutputMode xRes="640" yRes="480" FPS="30"/>
+				<!-- <Mirror on="true"/> -->
+			</Configuration>
+		</Node>
+
+	</ProductionNodes>
+</OpenNI>

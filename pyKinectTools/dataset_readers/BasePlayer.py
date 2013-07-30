@@ -91,12 +91,12 @@ class BasePlayer(object):
 			plotUsers(self.depthIm, self.users)
 
 		if self.get_depth and depth:
-			cv2.imshow("Depth", (self.depthIm-1000)/float(self.depthIm.max()))
+			cv2.imshow("Depth"+self.deviceID, (self.depthIm-1000)/float(self.depthIm.max()))
 			# cv2.putText(self.deviceID, (5,220), (255,255,255), size=15)
 			# vv.imshow("Depth", self.depthIm/6000.)
 
 		if self.get_color and color:
-			cv2.imshow("Color "+self.deviceID, self.colorIm)
+			cv2.imshow("Color "+self.deviceID, self.colorIm/255.)
 			# vv.putText("Color "+self.deviceID, self.colorIm, "Day "+self.day_dir+" Time "+self.hour_dir+":"+self.minute_dir+" Dev#"+str(self.dev), (10,220))
 			# vv.imshow("Color", self.colorIm)
 

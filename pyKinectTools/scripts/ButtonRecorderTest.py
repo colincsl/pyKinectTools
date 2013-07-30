@@ -61,7 +61,7 @@ def main(anonomization=False):
 			button_pressed = button_current
 
 		if not recording_enabled:
-			if time.time() - recording_time > 5:
+			if time.time() - recording_time > 2:
 				recording_enabled = True
 				ser.write('3')
 				print 'On'
