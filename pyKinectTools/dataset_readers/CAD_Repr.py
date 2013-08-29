@@ -32,7 +32,7 @@ from pylab import *
 
 from pyKinectTools.utils.SkeletonUtils import *
 from pyKinectTools.algs.DynamicTimeWarping import DynamicTimeWarping
-# from pyKinectTools.dataset_readers.CADPlayer import CADPlayer
+from pyKinectTools.dataset_readers.CADPlayer import CADPlayer
 
 # Debugging
 from IPython import embed
@@ -136,18 +136,18 @@ record = False
 DIR = '/Users/colin/Data/CAD_120/'
 framerate = 1
 MAX_OBJECTS = 5
-get_depth = False
+get_depth = True
 ''' -----------------TRAIN------------------- '''
-subactivities = []
+# subactivities = []
 skels_subactivity = {}
+obj_subactivity = {}
 object_affordances = {}
 object_subactions = {}
 cam = CADPlayer(base_dir=DIR, get_color=False, get_depth=get_depth, get_skeleton=True, 
-				subjects=[1,3,4], actions=range(10), instances=[0,1,2])
+				subjects=[1,3,4], actions=range(2), instances=[0,1,2])
 
+# Only get the skeletal data
 while cam.next(framerate):
-	
-	# Get joint angles
 	if cam.frame == 1:
 		skels = cam.skel_stack['pos']
 		tmp = get_skels_per_subaction(skels, cam.subactivity)
@@ -157,16 +157,21 @@ while cam.next(framerate):
 			if t not in skels_subactivity[cam.subject]:
 				skels_subactivity[cam.subject][t] = []
 			skels_subactivity[cam.subject][t] += tmp[t]
-
 		cam.next_sequence()
 
-
-		subactivities += [cam.subactivity]
-		hand_distances = np.zeros([cam.framecount, 3, MAX_OBJECTS])
+# Get the skeletal data and the object positions
+while cam.next(framerate):
+	# Get joint angles
+	if cam.frame == 1:
+		skels = cam.skel_stack['pos']
+		object_positions = []
 
 	# Keep track of hands relative to objects
 	if 1:#cam.frame%25==0:
 		print "frame {} of {}".format(cam.frame, cam.framecount)
+
+	obj_centroids = []
+	obj_dists = []
 	for o in cam.objects:
 		tl = o['topleft']
 		br = o['bottomright']
@@ -175,28 +180,68 @@ while cam.next(framerate):
 			continue
 		obj_im = cam.depthIm[tl[1]:br[1], tl[0]:br[0]]
 		pt = np.array([[(tl[1]+br[1])/2, (tl[0]+br[0])/2, cam.depthIm[(tl[1]+br[1])/2, (tl[0]+br[0])/2]]])
-		obj_centroid = cam.camera_model.im2world(pt, [480,640])
-		# hand_distances += [[np.linalg.norm(obj_centroid - skel_orig[11]),
-		# 				np.linalg.norm(obj_centroid - skel_orig[12])]]
-		hand_distances[cam.frame-1, 0, ID] = np.linalg.norm(obj_centroid - skel_orig[11])
-		hand_distances[cam.frame-1, 1, ID] = np.linalg.norm(obj_centroid - skel_orig[12])
-		hand_distances[cam.frame-1, 2, ID] = np.linalg.norm(obj_centroid - skel_orig[2])
-	
-	if cam.frame == cam.framecount:
-		# embed()
-		tmp = get_rel_objects_per_affordance(hand_distances, cam.subactivity)
+		obj_centroids += [cam.camera_model.im2world(pt, [480,640])]
+		obj_dists += [np.linalg.norm(pt-cam.users[0][2])]
+		# print pt
+	closest_object = np.argmin(obj_dists)
+	object_positions += [obj_centroids[closest_object]]
+
+	if cam.frame == cam.framecount:	
+		object_positions = np.vstack(object_positions)
+		#object_positions =  object_positions[:,:,None].repeat(skels.shape[0], 0).reshape([-1,3])
+		# skels -= object_positions
+		tmp = get_skels_per_subaction(skels, cam.subactivity)
+		if cam.subject not in skels_subactivity:
+			skels_subactivity[cam.subject] = {}
 		for t in tmp:
-			if t not in object_affordances:
-				object_affordances[t] = []
-			object_affordances[t] += tmp[t]
-		tmp = get_skels_per_subaction(hand_distances, cam.subactivity)
+			if t not in skels_subactivity[cam.subject]:
+				skels_subactivity[cam.subject][t] = []
+			skels_subactivity[cam.subject][t] += tmp[t]
+
+		tmp = get_skels_per_subaction(object_positions, cam.subactivity)
+		if cam.subject not in obj_subactivity:
+			obj_subactivity[cam.subject] = {}
 		for t in tmp:
-			if t not in object_subactions:
-				object_subactions[t] = []
-			object_subactions[t] += tmp[t]
+			if t not in obj_subactivity[cam.subject]:
+				obj_subactivity[cam.subject][t] = []
+			obj_subactivity[cam.subject][t] += tmp[t]
 
 
-pickle.dump(skels_subactivity, open("/Users/colin/Desktop/skels_subactivity_1-10.dat", 'w'))
+	# # Keep track of hands relative to objects
+	# if 1:#cam.frame%25==0:
+	# 	print "frame {} of {}".format(cam.frame, cam.framecount)
+	# for o in cam.objects:
+	# 	tl = o['topleft']
+	# 	br = o['bottomright']
+	# 	ID = o['ID']
+	# 	if tl[0]==0 or br[0]==0:
+	# 		continue
+	# 	obj_im = cam.depthIm[tl[1]:br[1], tl[0]:br[0]]
+	# 	pt = np.array([[(tl[1]+br[1])/2, (tl[0]+br[0])/2, cam.depthIm[(tl[1]+br[1])/2, (tl[0]+br[0])/2]]])
+	# 	obj_centroid = cam.camera_model.im2world(pt, [480,640])
+	# 	# hand_distances += [[np.linalg.norm(obj_centroid - skel_orig[11]),
+	# 	# 				np.linalg.norm(obj_centroid - skel_orig[12])]]
+	# 	hand_distances[cam.frame-1, 0, ID] = np.linalg.norm(obj_centroid - skel_orig[11])
+	# 	hand_distances[cam.frame-1, 1, ID] = np.linalg.norm(obj_centroid - skel_orig[12])
+	# 	hand_distances[cam.frame-1, 2, ID] = np.linalg.norm(obj_centroid - skel_orig[2])
+	# 	# hand_distances[cam.frame-1, 2, ID] = np.linalg.norm(obj_centroid - skel_orig[2])
+	# 
+	# if cam.frame == cam.framecount:
+	# 	# embed()
+	# 	tmp = get_rel_objects_per_affordance(hand_distances, cam.subactivity)
+	# 	for t in tmp:
+	# 		if t not in object_affordances:
+	# 			object_affordances[t] = []
+	# 		object_affordances[t] += tmp[t]
+	# 	tmp = get_skels_per_subaction(hand_distances, cam.subactivity)
+	# 	for t in tmp:
+	# 		if t not in object_subactions:
+	# 			object_subactions[t] = []
+	# 		object_subactions[t] += tmp[t]
+
+
+pickle.dump(skels_subactivity, open("/Users/colin/Desktop/skels_subactivity_1-2.dat", 'w'))
+pickle.dump(obj_subactivity, open("/Users/colin/Desktop/objs_subactivity_1-2.dat", 'w'))
 
 ''' ---------------TEST--------------------- '''
 skels_subactivity_test = {}
@@ -205,7 +250,6 @@ cam = CADPlayer(base_dir=DIR, get_color=False, get_depth=get_depth, get_skeleton
 
 prev_action = ''
 while cam.next(framerate):
-
 	# Get joint angles
 	if cam.frame == 1:
 		skels = cam.skel_stack['pos']		
@@ -374,61 +418,6 @@ for i_key,key in enumerate(object_subactions):
 show()
 
 
-# ''' Come up with prototypical motion for each subaction using DTW '''
-# def get_prototype_motions(skels_subactivity_train, smooth=False, nknots=10):
-# 	'''
-# 	Input: a set of skeleton trajectories
-# 	Output: a motif/prototype skeleton trajectory
-
-# 	This algorithm takes every instance of a class and compares it to every other instance
-# 	in that class using DTW, optionally smooths. Each (pairwise) transformed class instance
-# 	is then averaged to output a motif.
-
-# 	Todo: currently this is done independently per-joint per-dimension. Should be per skeleton!
-# 	'''
-# 	skels_subactivity_train = normalize_skel_stack(skels_subactivity_train)
-
-# 	proto_motion = {}
-# 	for i_key,key in enumerate(skels_subactivity_train):
-# 		n_instances = len(skels_subactivity_train[key])
-# 		n_frames = int(np.mean([len(x) for x in skels_subactivity_train[key]]))
-# 		# Do x,y,z seperately
-# 		proto_motion[key] = np.zeros([n_frames, 15, 3])
-# 		for i_joint in range(15):
-# 			for i_dim in range(3):
-# 				# error_matrix = np.zeros([n_instances, n_instances], np.float)
-# 				y_spline_set = []
-# 				for i in xrange(n_instances):
-# 					for j in xrange(n_instances):
-# 						if i >= j:
-# 							continue
-# 						x = skels_subactivity_train[key][i][:,i_joint, i_dim]
-# 						y = skels_subactivity_train[key][j][:,i_joint, i_dim]
-# 						error, dtw_mat, y_ind = mlpy.dtw.dtw_std(x, y, dist_only=False)
-# 						# error = mlpy.dtw.dtw_std(x, y, dist_only=True)
-# 						# error_matrix[i,j] = error
-
-# 						y_new = y[y_ind[1]]
-# 						x_new = np.linspace(0, 1, len(y_new))
-# 						# poly = polyfit(x_new, y_new, 5)
-# 						# y_spline_ev = poly1d(poly)(x_new)
-
-# 						if smooth:
-# 							# Generate Spline representation
-# 							nknots = np.minimum(nknots, len(x_new)/2)
-# 							idx_knots = (np.arange(1,len(x_new)-1,(len(x_new)-2)/np.double(nknots))).astype('int')
-# 							knots = x_new[idx_knots]
-# 							y_spline = splrep(x_new, y_new, t=knots)
-# 							y_spline_ev = splev(np.linspace(0, 1, len(y_new)), y_spline)
-# 							y_spline_ev = resample(y_spline_ev, n_frames)
-# 							y_spline_set += [y_spline_ev]
-# 						else:
-# 							y_spline_ev = resample(y_new, n_frames)
-# 							y_spline_set += [y_spline_ev]						
-
-# 				proto_motion[key][:,i_joint,i_dim] = np.mean(y_spline_set, 0)
-# 	return proto_motion
-
 ''' Come up with prototypical motion for each subaction using DTW '''
 def get_prototype_motions(skels_subactivity_train, smooth=False, nknots=10):
 	'''
@@ -578,11 +567,18 @@ print "LCS: {:.4}%".format(np.mean(accuracy_lcs)*100)
 
 
 skels_subactivity = pickle.load(open("/Users/colin/Desktop/skels_subactivity_1-10.dat"))
-training_sets = list(it.combinations([1,3,4], 1))
+# from sklearn.cross_validation import LeavePLabelOut
+# data_splits = LeavePLabelOut([1,3,4], p=1, indices=True)
+# train_set, test_set = list(data_splits)[0]
+
+training_sets = list(it.combinations([1,3,4], 2))
 testing_sets = [tuple([x for x in [1,3,4] if x not in y]) for y in training_sets]
 train_set, test_set = zip(training_sets, testing_sets)[0]
 skels_subactivity_train, skels_subactivity_test = split_skeleton_data(skels_subactivity, train_set, test_set)
+obj_subactivity_train, obj_subactivity_test = split_skeleton_data(obj_subactivity, train_set, test_set)
+
 skels_subactivity_test = normalize_skel_stack(skels_subactivity_test)
+skels_subactivity_train = normalize_skel_stack(skels_subactivity_train)
 proto_motion = get_prototype_motions(skels_subactivity_train, smooth=False)
 
 
@@ -654,6 +650,208 @@ for i,f in enumerate(new_action):
 	print "{} fps".format(i/(time()-t0))
 
 
+
+''' Spectral clustering of subaction instances '''
+# 1) Generate similarity matrix
+# for i_key,key in enumerate(skels_subactivity_test):
+i_joint = 6
+key = skels_subactivity_train.keys()[0]
+n_instances = len(skels_subactivity_train[key])
+similarity = np.empty([n_instances, n_instances], dtype=np.float)
+for i in xrange(n_instances):
+	x = skels_subactivity_train[key][i][:,i_joint]	
+	for j in xrange(n_instances):
+		# if i >= j:
+			# continue
+		y = skels_subactivity_train[key][j][:,i_joint]
+		# error, dtw_mat, y_ind = mlpy.dtw.dtw_std(x, y, dist_only=False)
+		error, dtw_mat, y_ind = DynamicTimeWarping(x, y)
+		similarity[i,j] = error
+	# plot(x[:,1], x[:,2], label=str(i))
+
+similarity /= similarity.max()
+W = 1. - similarity
+D = np.eye(n_instances)*np.sum(W, 1)
+
+if 0:
+	# 2) Contrust graph laplacian (Unnormalized)
+	L = D - W
+else:
+	# 2) Contrust graph laplacian (Normalized symmetric)
+	Ds = D**(-.5) * np.eye(n_instances)
+	Ds = np.nan_to_num(Ds)
+	# L = I - D^-.5 S D^-.5
+	L = np.eye(n_instances) - np.dot(np.dot(Ds,W),Ds)
+
+# 3) Compute eigenvalues/vectors
+eigs, eigvecs = np.linalg.eigh(L)
+
+from sklearn.cluster import SpectralClustering
+from sklearn.cluster import KMeans
+from sklearn.mixture import GMM
+from copy import deepcopy
+COLOR='rgbyck'
+best_bic = 0
+best_clusters = []
+
+# 4) Find the best K using BIC. Only use K vectors
+for K in range(1, n_instances):
+	sc = SpectralClustering(K)
+	sc.fit(W)
+	U = eigvecs[-K:].T # Shape n x K
+
+	# 5) Cluster with kmeans or GMM. 
+	clf = GMM(n_components=K)
+	clf.fit(U)
+	bic = clf.bic(U)
+	if bic > best_bic:
+		best_bic = bic
+		best_clf = deepcopy(clf)
+		best_clusters = best_clf.predict(U)		
+	# print clf.predict(U)
+	print "K={} BIC={}".format(K, clf.bic(U))
+
+# Visualize
+for i in xrange(n_instances):
+	x = skels_subactivity_train[key][i][:,i_joint]
+	figure(str(best_clusters[i]))
+	plot(x[:,1], x[:,2], color=COLOR[best_clusters[i]])
+show()
+
+# Create one spline per component
+n_knots = 4
+for i in xrange(best_clusters.max()+1):
+
+	idx_knots = (np.arange(1,len(x_new)-1,(len(x_new)-2)/np.double(n_knots))).astype('int')
+	knots = x_new[idx_knots]
+	y_spline = splrep(x_new, y_new, t=knots)
+	y_spline_ev = splev(np.linspace(0, 1, len(y_new)), y_spline)
+	# plot(y_new)
+	plot(y_spline_ev)
+	y_spline_ev = resample(y_spline_ev, len(ang))
+
+
+
+'''
+Baseline: Look at nearest neighbors for each subaction
+'''
+
+def fold_data(data, joints):
+	'''
+	Output all of the action samples as a single array
+	'''
+	all_data = np.concatenate([ np.array([data[k][i][:,joints] for i in xrange(len(data[k]))]) for k in data])
+	labels = np.hstack([ np.array([k for i in xrange(len(data[k]))]) for k in data])
+	return all_data, labels	
+
+def fold_resample_data(data, joints, mean_length=None):
+	'''
+	Output all of the action samples as a single array and resample so they're the same length
+	'''
+	if mean_length is None:
+		mean_length = np.mean(np.hstack([ [data[k][i].shape[0] for i in xrange(len(data[k]))] for k in data])).astype(np.int)
+	all_data = np.concatenate([ np.concatenate([resample(data[k][i][:,joints], mean_length)[:,:,:,None] for i in xrange(len(data[k]))], 3) for k in data], 3)
+	labels = np.hstack([ np.array([k for i in xrange(len(data[k]))]) for k in data])
+	return all_data, labels
+def fold_objects(data):
+	'''
+	Output all of the action samples as a single array and resample so they're the same length
+	'''
+	all_data = np.concatenate([ np.array([data[k][i] for i in xrange(len(data[k]))]) for k in data])
+	# all_data = np.concatenate([ np.concatenate([data[k][i][:,None,:,None] for i in xrange(len(data[k]))], 3) for k in data], 3)
+	labels = np.hstack([ np.array([k for i in xrange(len(data[k]))]) for k in data])
+	return all_data, labels	
+def fold_resample_objects(data, mean_length=None):
+	'''
+	Output all of the action samples as a single array and resample so they're the same length
+	'''
+	if mean_length is None:
+		mean_length = np.mean(np.hstack([ [data[k][i].shape[0] for i in xrange(len(data[k]))] for k in data])).astype(np.int)
+	all_data = np.concatenate([ np.concatenate([resample(data[k][i], mean_length)[:,None,:,None] for i in xrange(len(data[k]))], 3) for k in data], 3)
+	labels = np.hstack([ np.array([k for i in xrange(len(data[k]))]) for k in data])
+	return all_data, labels		
+
+joints = [0,2,11,12]
+n_joints = len(joints)
+skel_train_data, all_train_labels = fold_data(skels_subactivity_train, joints)
+obj_train_data, _ = fold_objects(obj_subactivity_train)
+for i in range(skel_train_data.shape[0]):
+	for j in range(n_joints):
+		skel_train_data[i][:,j] -= obj_train_data[i]
+
+skel_test_data, all_test_labels = fold_data(skels_subactivity_test, joints)
+obj_test_data, _ = fold_objects(obj_subactivity_test)
+for i in range(skel_test_data.shape[0]):
+	for j in range(n_joints):
+		skel_test_data[i][:,j] -= obj_test_data[i]
+
+label_names = skels_subactivity_train.keys()
+label_idx = {x:y for x,y in zip(label_names, xrange(len(label_names)))}
+n_train_instances = skel_train_data.shape[-1]
+n_test_instances = skel_test_data.shape[-1]
+test_labeled = np.zeros(n_test_instances, np.int)
+
+''' Calculate nearest neighbor using DTW distance'''
+def nearest_neighbor_dtw(x, ys):
+	similarity = np.zeros(n_train_instances, dtype=np.float)
+	y_dims = ys[0].shape[1]*ys[0].shape[2]
+	for y_data in skel_train_data:
+		y = y_data.reshape([-1,y_dims])
+		x = x.reshape([-1,y_dims])
+		error,_ = DynamicTimeWarping(x, y, return_path=False)
+		similarity[j] = error
+	return np.argmin(similarity)
+
+from joblib import Parallel, delayed
+data = Parallel(n_jobs=-1)( delayed(nearest_neighbor_dtw)(x, ys) for x in )
+
+
+ys = skel_train_data
+for i in xrange(n_test_instances):
+	# x = skel_test_data[i].reshape([-1,3*n_joints])
+	test_labeled[i] = nearest_neighbor_dtw(x, ys)
+	print "Truth:", all_test_labels[i], "Clf:", all_train_labels[np.argmin(similarity)]
+
+
+for i in xrange(n_test_instances):
+	for j in xrange(n_train_instances):
+		x = skel_test_data[i].reshape([-1,3*n_joints])
+		y = skel_train_data[j].reshape([-1,3*n_joints])
+		error,_ = DynamicTimeWarping(x, y, return_path=False)
+		similarity[j] = error
+	test_labeled[i] = np.argmin(similarity)
+	print "Truth:", all_test_labels[i], "Clf:", all_train_labels[np.argmin(similarity)]
+
+test_labeled_name = [all_train_labels[x] for x in test_labeled]
+dtw_accuracy = np.mean(test_labeled_name == all_test_labels)
+print "Accuracy: {:0.3}%".format(dtw_accuracy*100.)
+
+''' Calculate nearest neighbor using L2 distance'''
+from sklearn.neighbors import NearestNeighbors
+NN = NearestNeighbors(n_neighbors=1, metric='l2')
+
+test_label_idx = [label_idx[x] for x in all_test_labels]
+train_label_idx = [label_idx[x] for x in all_train_labels]
+
+skel_train_data, all_train_labels = fold_resample_data(skels_subactivity_train, joints)
+obj_train_data, _ = fold_resample_objects(obj_subactivity_train, mean_length=skel_train_data.shape[0])
+skel_train_data -= obj_train_data
+
+skel_test_data, all_test_labels = fold_resample_data(skels_subactivity_test, joints, mean_length=skel_train_data.shape[0])
+obj_test_data, _ = fold_resample_objects(obj_subactivity_test, mean_length=skel_train_data.shape[0])
+skel_test_data -= obj_test_data
+# Train
+X = skel_train_data.reshape([-1, skel_train_data.shape[-1]]).T
+NN.fit(X)
+# Test
+X = skel_test_data.reshape([-1, skel_test_data.shape[-1]]).T
+l = NN.kneighbors(X, 1, return_distance=False).T[0]
+test_output = [train_label_idx[x] for x in l]
+l2_accuracy = np.mean(np.equal(test_output, test_label_idx))
+print "Accuracy: {:0.3}%".format(l2_accuracy*100)
+
+# from sklearn.cross_validation import cross_val_score
+# cross_val = cross_val_score(NN, X, test_label_idx)
 
 
 ''' Inverse kinematics from hand to torso? '''

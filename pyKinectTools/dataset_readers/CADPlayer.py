@@ -372,7 +372,7 @@ class CADPlayer(BasePlayer):
 			print 'Starting video #{} of {}'.format(self.data_index, self.data_count)#, self.kinect_folder_names[-1]
 			print "Action:", self.action
 
-			self.subactions = np.zeros(self.framecount)
+			self.subactions = np.zeros(self.framecount, dtype=np.int)
 			# self.objects = []
 			current = 1			
 			for i in xrange(self.framecount):			

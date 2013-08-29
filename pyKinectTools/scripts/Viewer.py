@@ -127,10 +127,10 @@ def main(anonomization=False):
 			show()
 
 
-
+		cam.colorIm = cam.colorIm[:,:,[2,1,0]]
 			# cam.colorIm *= mask[:,:,None]
-		cam.visualize(color=True, depth=True, text=True, colorize=True, depth_bounds=[0,5000])
-		# cam.visualize(color=True, depth=True, text=False, colorize=False, depth_bounds=None)
+		# cam.visualize(color=True, depth=True, text=True, colorize=True, depth_bounds=[0,4000])
+		cam.visualize(color=True, depth=True, text=False, colorize=False, depth_bounds=None)
 
 	print 'Done'
 

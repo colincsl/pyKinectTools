@@ -11,7 +11,16 @@ from numpy import dot
 from scipy import spatial
 
 
-def IterativeClosestPoint(pts_new, pts_ref, max_iters=25, min_change=.001, pt_tolerance=500):
+def IterativeClosestPoint(pts_new, pts_ref, max_iters=25, min_change=.001, pt_tolerance=5000, return_transform=False):
+
+	# pts_new = y
+	# pts_ref = x
+	pts_new = pts_new.copy()
+	pts_ref = pts_ref.copy()
+	
+	inital_mean = pts_ref.mean(0)
+	# pts_new -= inital_mean
+	# pts_ref -= inital_mean
 
 	nn = spatial.cKDTree(pts_ref)
 	it = 0
@@ -19,25 +28,31 @@ def IterativeClosestPoint(pts_new, pts_ref, max_iters=25, min_change=.001, pt_to
 	change = np.inf
 	R_total = np.eye(3)
 	T_total = np.zeros(3)
+	R = R_total
+	t = T_total
 	pts_new_current = np.copy(pts_new)
 
 	err_best = np.inf
 	T_best = None
+	# T_best = pts_ref - pts_new
 	R_best = None
 
+
 	while it < max_iters and change > min_change:
-		pts_new_current = (dot(R_total, pts_new.T).T + T_total)
+		# pts_new_current = (dot(R_total, pts_new.T).T + T_total)
+		pts_new_current = (dot(R, pts_new_current.T).T + t)
+		# scatter(pts_ref[:,0], pts_ref[:,1])
+		# scatter(pts_new_current[:,0], pts_new_current[:,1], color='r')
 		dists, pts = nn.query(pts_new_current)
 
 		goodPts_new = pts_new_current[dists < pt_tolerance]
 		goodPts_ref = pts_ref[pts[dists<pt_tolerance]]
 
 		tmp = 2
-		while goodPts_new.shape[0] < 10:
-			goodPts_new = goodPts_new[dists < pt_tolerance*tmp]
+		while goodPts_new.shape[0] < 10 and tmp < 10:
+			goodPts_new = pts_new_current[dists < pt_tolerance*tmp]
 			goodPts_ref = pts_ref[pts[dists<pt_tolerance*tmp]]
 			tmp += 1
-
 
 		R,t = PointcloudRegistration(goodPts_new, goodPts_ref)
 		err = np.linalg.norm(goodPts_ref - (dot(R, goodPts_new.T).T + t), 2)
@@ -58,7 +73,12 @@ def IterativeClosestPoint(pts_new, pts_ref, max_iters=25, min_change=.001, pt_to
 
 		it += 1
 
-	return R_best, T_best
+	# T_best += inital_mean
+
+	if not return_transform:
+		return R_best, T_best
+	else:
+		return R_best, T_best, pts_new_current
 
 
 def PointcloudRegistration(pts_new, pts_ref):

@@ -119,12 +119,13 @@ class CameraModel:
     # print xyz_im[skel_orig_uv[:,0], skel_orig_uv[:,1]],  skel_orig
 
 # Find optimal multiplier
-multiplier = np.arange(.6, 1.0, .05)
-for mx in multiplier:
-    print "mx", mx
-    xyz_im = cam.camera_model.im2PosIm(cam.depthIm*mx)
-    print np.sum(xyz_im[skel_orig_uv[:,0], skel_orig_uv[:,1]] - skel_orig)
-    # print xyz_im[skel_orig_uv[:,0], skel_orig_uv[:,1]],  skel_orig
+if 0:
+    multiplier = np.arange(.6, 1.0, .05)
+    for mx in multiplier:
+        print "mx", mx
+        xyz_im = cam.camera_model.im2PosIm(cam.depthIm*mx)
+        print np.sum(xyz_im[skel_orig_uv[:,0], skel_orig_uv[:,1]] - skel_orig)
+        # print xyz_im[skel_orig_uv[:,0], skel_orig_uv[:,1]],  skel_orig
 
 
 

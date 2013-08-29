@@ -23,7 +23,7 @@ from skimage.draw import line, circle
 from skimage.color import rgb2gray,gray2rgb, rgb2lab
 from skimage.feature import local_binary_pattern, match_template, peak_local_max
 
-from RGBDActionDatasets.dataset_readers.KinectPlayer import KinectPlayer, display_help
+# from RGBDActionDatasets.dataset_readers.KinectPlayer import *KinectPlayer, display_help
 from RGBDActionDatasets.dataset_readers.RealtimePlayer import RealtimePlayer
 # from pyKinectTools.dataset_readers.KinectPlayer import KinectPlayer, display_help
 # from pyKinectTools.dataset_readers.RealtimePlayer import RealtimePlayer
@@ -34,29 +34,37 @@ from pyKinectTools.utils.SkeletonUtils import display_skeletons, transform_skels
 from pyKinectTools.algs.GeodesicSkeleton import *
 from pyKinectTools.algs.PoseTracking import *
 
+from sklearn.mixture import GMM
+from sklearn.cluster import KMeans
+
+
 from IPython import embed
 np.seterr(all='ignore')
 
 # -------------------------MAIN------------------------------------------
 
-def main(visualize=False, learn=False, actions=None, subjects=None, n_frames=220):
+def main(visualize=False, learn=False, actions=[1], subjects=[1], n_frames=220):
 
 	# search_joints=[0,2,4,5,7,10,13]
 	search_joints=range(14)
-	interactive = True
+	# interactive = True
 	interactive = False
 	save_results = False
-	if 1:
+	if 0:
 		learn = False
+		# learn = learn
 	else:
 		learn = True
-		actions = [1, 2, 3, 4, 5]
-		subjects = [5]
+		actions = [1]
+		subjects = [1]
+		# actions = range(1,10)
+		# subjects = range(1,9)
 
-	if 0:
+
+	if 1:
 		dataset = 'MHAD'
 		cam = MHADPlayer(base_dir='/Users/colin/Data/BerkeleyMHAD/', kinect=1, actions=actions, subjects=subjects, reps=[1], get_depth=True, get_color=True, get_skeleton=True, fill_images=False)
-	elif 1:
+	elif 0:
 		dataset = 'JHU'
 		cam = KinectPlayer(base_dir='./', device=1, bg_subtraction=True, get_depth=True, get_color=True, get_skeleton=True, fill_images=False)
 		bg = Image.open('/Users/colin/Data/JHU_RGBD_Pose/CIRL_Background_A.tif')
@@ -75,15 +83,18 @@ def main(visualize=False, learn=False, actions=None, subjects=None, n_frames=220
 		tmp[tmp>4000] = 4000
 		cam.set_bg_model(bg_type='static', param=tmp)
 
-
+	# embed()
 	height, width = cam.depthIm.shape
 	skel_previous = None
 
 	face_detector = FaceDetector()
 	hand_detector = HandDetector(cam.depthIm.shape)
+	n_joints = 14
+	# gmm = GMM(n_components=n_joints)
+	kmeans = KMeans(n_clusters=n_joints, n_init=4, max_iter=100)	
 
 	# Video writer
-	video_writer = cv2.VideoWriter("/Users/colin/Desktop/test.avi", cv2.cv.CV_FOURCC('M','J','P','G'), 15, (640,480))
+	# video_writer = cv2.VideoWriter("/Users/colin/Desktop/test.avi", cv2.cv.CV_FOURCC('M','J','P','G'), 15, (640,480))
 
 	# Save Background model
 	# im = Image.fromarray(cam.depthIm.astype(np.int32), 'I')
@@ -93,10 +104,12 @@ def main(visualize=False, learn=False, actions=None, subjects=None, n_frames=220
 	append = True
 	# append = False
 	# pose_database = PoseDatabase("PoseDatabase.pkl", learn=learn, search_joints=[0,4,7,10,13], append=append)
+	# pose_database = PoseDatabase("PoseDatabase.pkl", learn=learn, search_joints=search_joints,
+									# append=append, scale=1.1, n_clusters=-1)#1000
 	pose_database = PoseDatabase("PoseDatabase.pkl", learn=learn, search_joints=search_joints,
-									append=append, scale=1.1, n_clusters=-1)#1000
+									append=append, scale=1.0, n_clusters=1500)
 	pose_prob = np.ones(len(pose_database.database), dtype=np.float)/len(pose_database.database)
-
+	# embed()
 
 	# Setup Tracking
 	skel_init, joint_size, constraint_links, features_joints,skel_parts, convert_to_kinect = get_14_joint_properties()
@@ -123,7 +136,7 @@ def main(visualize=False, learn=False, actions=None, subjects=None, n_frames=220
 						'joint_mean':[],	'joint_median':[]}
 
 	frame_count = 0
-	frame_rate = 1
+	frame_rate = 10
 	if dataset == 'JHU':
 		cam.next(350)
 		# cam.next(700)
@@ -156,19 +169,20 @@ def main(visualize=False, learn=False, actions=None, subjects=None, n_frames=220
 			# Apply mask to image
 			mask = cam.get_person(200) == 1 # > 0
 			# cv2.imshow('bg',(mask*255).astype(np.uint8))
-			cv2.imshow('bg',cam.colorIm)
+			# cv2.imshow('bg',cam.colorIm)
 			# cv2.waitKey(1)
 			if type(mask)==bool or np.all(mask==False):
 				# print "No mask"
 				continue
 			# cv2.imshow('bg',cam.bgSubtraction.backgroundModel)
-			cv2.imshow('bg',(mask*255).astype(np.uint8))
+			# cv2.imshow('bg',(mask*255).astype(np.uint8))
 
 			im_depth =  cam.depthIm
 			# if dataset in ['RT']:
 				# cam.depthIm[cam.depthIm>2500] = 0
-			im_color = cam.colorIm*mask[:,:,None]
-			cam.colorIm *= mask[:,:,None]
+			if cam.colorIm is not None:
+				im_color = cam.colorIm*mask[:,:,None]
+				cam.colorIm *= mask[:,:,None]
 			if ground_truth:
 				pose_truth = users[0]
 				pose_truth_uv = cam.users_uv_msr[0]
@@ -196,10 +210,21 @@ def main(visualize=False, learn=False, actions=None, subjects=None, n_frames=220
 			# Calculate Geodesic Extrema
 			im_pos = cam.camera_model.im2PosIm(cam.depthIm*mask)[box]
 			# geodesic_markers = geodesic_extrema_MPI(im_pos, iterations=5, visualize=False)
-			geodesic_markers = geodesic_extrema_MPI(im_pos, iterations=10, visualize=False)
-			if len(geodesic_markers) == 0:
-				print "No markers"
-				continue
+			
+			if 1:
+				''' Find pts using kmeans or gmm '''
+				pts = im_pos[np.nonzero(im_pos)].reshape([-1,3])
+				# gmm.fit(pts)
+				kmeans.fit(pts)
+				# pts = cam.camera_model.world2im(gmm.means_)
+				pts = cam.camera_model.world2im(kmeans.cluster_centers_)
+				geodesic_markers = pts[:,:2] - box_corner
+			else:
+				''' Find pts using geodesic extrema '''
+				geodesic_markers = geodesic_extrema_MPI(im_pos, iterations=10, visualize=False)
+				if len(geodesic_markers) == 0:
+					print "No markers"
+					continue
 
 			# Concatenate markers
 			markers = list(geodesic_markers) + list(hand_markers) #+ list(lop_markers) + curve_markers
@@ -414,7 +439,6 @@ def main(visualize=False, learn=False, actions=None, subjects=None, n_frames=220
 					prob_motion = np.exp(-np.mean(np.sum((pose-skel_previous)**2,1)/motion_variance**2))
 
 					if inference == 'PF':
-
 						correspondence_variance = 40
 						prob_coor 	= np.exp(-np.mean(np.sum(correspondence_displacement**2,1)/correspondence_variance**2))
 						prob = prob_motion * prob_coor
@@ -461,7 +485,10 @@ def main(visualize=False, learn=False, actions=None, subjects=None, n_frames=220
 					pose_updates += [pose.copy()]
 					pose_updates_uv += [pose_uv.copy()]
 
-					cam.colorIm = display_skeletons(cam.colorIm, skel_current_uv, skel_type='Kinect', color=(0,0,pose_i*40+50))
+					if cam.colorIm is not None:
+						cam.colorIm = display_skeletons(cam.colorIm, skel_current_uv, skel_type='Kinect', color=(0,0,pose_i*40+50))
+					else:
+						cam.depthIm = display_skeletons(cam.depthIm, skel_current_uv, skel_type='Kinect', color=(0,0,pose_i*40+50))
 					# cam.colorIm = display_skeletons(cam.colorIm, pose_uv, skel_type='Kinect', color=(0,pose_i*40+50,pose_i*40+50))
 				# print "Tracking time:", time.time() - time_t0
 				# Update for next round
@@ -484,26 +511,26 @@ def main(visualize=False, learn=False, actions=None, subjects=None, n_frames=220
 				error_track *= np.any(pose_truth!=0, 1)[:,None]
 				error_l2_track = np.sqrt(np.sum(error_track**2, 1))
 				joint_accuracy_track += [error_l2_track]
-				accuracy_track = np.sum(error_l2_track < 150) / 14.
-				print "Current track:", accuracy_track, error_l2_track.mean()
+				accuracy_track = np.sum(error_l2_track < 150) / n_joints
+				accuracy_all_track += [accuracy_track]				
+				print "Current track: {}% {} mm".format(accuracy_track, error_l2_track.mean())
 				print "Running avg (track):", np.mean(accuracy_all_track)
 				# print "Joint avg (overall track):", np.mean(joint_accuracy_track)
 				print ""
-				accuracy_all_track += [accuracy_track]
 
 			''' --- Visualization --- '''
+			if visualize:
+				display_markers(cam.colorIm, hand_markers[:2], box, color=(0,250,0))
+				if len(hand_markers) > 2:
+					display_markers(cam.colorIm, [hand_markers[2]], box, color=(0,200,0))
+				display_markers(cam.colorIm, geodesic_markers, box, color=(200,0,0))
+				# display_markers(cam.colorIm, curve_markers, box, color=(0,100,100))
+				# display_markers(cam.colorIm, lop_markers, box, color=(0,0,200))
 
-			display_markers(cam.colorIm, hand_markers[:2], box, color=(0,250,0))
-			if len(hand_markers) > 2:
-				display_markers(cam.colorIm, [hand_markers[2]], box, color=(0,200,0))
-			display_markers(cam.colorIm, geodesic_markers, box, color=(200,0,0))
-			# display_markers(cam.colorIm, curve_markers, box, color=(0,100,100))
-			# display_markers(cam.colorIm, lop_markers, box, color=(0,0,200))
-
-			if ground_truth:
-				cam.colorIm = display_skeletons(cam.colorIm, pose_truth_uv, skel_type='Kinect', color=(0,255,0))
-			cam.colorIm = display_skeletons(cam.colorIm, skel_current_uv, skel_type='Kinect', color=(255,0,0))
-			cam.visualize(color=True, depth=False)
+				if ground_truth:
+					cam.colorIm = display_skeletons(cam.colorIm, pose_truth_uv, skel_type='Kinect', color=(0,255,0))
+				cam.colorIm = display_skeletons(cam.colorIm, skel_current_uv, skel_type='Kinect', color=(255,0,0))
+				cam.visualize(color=True, depth=False)
 
 			# ------------------------------------------------------------
 
@@ -511,6 +538,7 @@ def main(visualize=False, learn=False, actions=None, subjects=None, n_frames=220
 			# video_writer.write(cam.colorIm[:,:,[2,1,0]])
 
 			frame_count += frame_rate
+			print "Frame:", frame_count
 	except:
 		traceback.print_exc(file=sys.stdout)
 		pass

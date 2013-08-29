@@ -29,8 +29,8 @@ except:
 colormap = cm.jet
 colormap._init()
 
-# import cv2 as vv
-vv = VideoViewer()
+import cv2 as vv
+# vv = VideoViewer()
 
 ''' Debugging '''
 from IPython import embed
@@ -126,6 +126,8 @@ class KinectPlayer(BasePlayer):
 		if skel:
 			self.ret = plotUsers(self.depthIm, self.users)
 
+		# if self.depthIm.max() != 0.0:
+			# embed()
 		if depth and self.get_depth is not None:
 			depthIm = self.depthIm
 			if depth_bounds is not None:
@@ -145,16 +147,16 @@ class KinectPlayer(BasePlayer):
 				depthIm[self.depthIm==0] *= 0
 
 			if depth_bounds is None and not colorize:
-				depthIm = (depthIm/float(depthIm.max())*255).astype(np.uint8)
-			vv.imshow("Depth "+self.deviceID, depthIm)
+				# depthIm = (depthIm/float(depthIm.max())*255.).astype(np.uint8)
+				depthIm = (depthIm/float(depthIm.max()))
+			vv.imshow("Depth_"+self.deviceID, depthIm/depthIm.max())
 			if text:
 				text_tmp = "Day {0} Time {1}:{2:02d}:{3:02d}".format(self.day_dir, self.hour_dir, int(self.minute_dir), int(self.tmpSecond))
 				vv.putText("Depth "+self.deviceID, text_tmp, (5,self.depthIm.shape[0]-20), size=15)
 				vv.putText("Depth "+self.deviceID, "Play speed: "+str(self.play_speed)+"x", (5,15), size=15)
 
-
 		if color and self.get_color is not None:
-			vv.imshow("Color "+self.deviceID, self.colorIm)
+			vv.imshow("Color_"+self.deviceID, self.colorIm/255.)
 			if text:
 				text_tmp = "Day {0} Time {1}:{2:02d}:{3:02d}".format(self.day_dir, self.hour_dir, int(self.minute_dir), int(self.tmpSecond))
 				vv.putText("Color "+self.deviceID, text_tmp, (5,self.colorIm.shape[0]-20), size=15)
@@ -189,7 +191,7 @@ class KinectPlayer(BasePlayer):
 
 	def playback_control(self):
 		''' Playback control: Look at keyboard input '''
-		self.ret = vv.waitKey()
+		self.ret = vv.waitKey(1)
 
 		if self.frame_id - self.frame_prev > 0:
 			self.framerate = (self.frame_id - self.frame_prev) / (time() - self.frame_prev_time)
