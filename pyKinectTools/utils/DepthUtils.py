@@ -29,7 +29,8 @@ def get_kinect_transform(filename):
 class CameraModel:
     def __init__(self, filename=None):
         if filename is None:
-            filename = pyKinectTools.configs.__path__[0]+'/Kinect_Color_Param.yml'
+            # filename = pyKinectTools.configs.__path__[0]+'/Kinect_Color_Param.yml'
+            filename = pyKinectTools.configs.__path__[0]+'/Kinect_Depth_Param.yml'
         text = open(filename).read()
         text = text.replace("!","#")
         text = text.replace("%","#")
@@ -147,16 +148,24 @@ if 0:
 
 ''' Default parameters '''
 ''' Depth camera parameters '''
-fx_d = 1.0 / 5.9421434211923247e+02;
-fy_d = 1.0 / 5.9104053696870778e+02;
-cx_d = 3.3930780975300314e+02;
-cy_d = 2.4273913761751615e+02;
+# fx_d = 1.0 / 5.9421434211923247e+02;
+# fy_d = 1.0 / 5.9104053696870778e+02;
+# cx_d = 3.3930780975300314e+02;
+# cy_d = 2.4273913761751615e+02;
+fx_d = 1.0 / 574
+fy_d = 1.0 / 574
+# cx_d = 320.
+# cy_d = 240.
+cx_d = 240.
+cy_d = 320.
 
 ''' Color params '''
 fx_rgb = 1./5.2921508098293293e+02
 fy_rgb = 1./5.2556393630057437e+02
-cx_rgb = 3.2894272028759258e+02
-cy_rgb = 2.6748068171871557e+02
+# cx_rgb = 3.2894272028759258e+02
+# cy_rgb = 2.6748068171871557e+02
+cy_rgb = 3.2894272028759258e+02
+cx_rgb = 2.6748068171871557e+02
 
 # k1_d -2.6386489753128833e-01
 # k2_d 9.9966832163729757e-01

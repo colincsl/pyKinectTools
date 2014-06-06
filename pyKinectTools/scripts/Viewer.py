@@ -14,6 +14,9 @@ import cv, cv2
 from pylab import *
 
 from pyKinectTools.dataset_readers.KinectPlayer import KinectPlayer, display_help
+from pyKinectTools.dataset_readers.MHADPlayer import MHADPlayer
+
+from pyKinectTools.utils.SkeletonUtils import display_skeletons, transform_skels, kinect_to_msr_skel, msr_to_kinect_skel
 
 """ Debugging """
 from IPython import embed
@@ -51,8 +54,13 @@ if 0:
 
 def main(anonomization=False):
 	# Setup kinect data player
-	cam = KinectPlayer(base_dir='./', bg_subtraction=False, get_depth=True, get_color=True, get_skeleton=False)
-
+	# cam = KinectPlayer(base_dir='./', bg_subtraction=False, get_depth=True, get_color=True, get_skeleton=False)
+	# actions = [2, 5, 7]
+	actions = [2]
+	actions_labels = ['JumpingJacks', 'Waving', 'Clapping']
+	action = 'JumpingJacks'
+	subjects = range(1,10)
+	cam = MHADPlayer(base_dir='/Users/colin/Data/BerkeleyMHAD/', kinect=1, actions=actions, subjects=subjects, reps=[1], get_depth=True, get_color=True, get_skeleton=True, fill_images=False)
 	if anonomization:
 		''' bg_type can be:
 				'box'[param=max_depth]
@@ -69,8 +77,22 @@ def main(anonomization=False):
 	# cv2.HOGDescriptor_getDefaultPeopleDetector()
 	# imshow(color[people])
 
+
+	body_data = [[]]
 	framerate = 1
+	prev_n = len(cam.kinect_folder_names)
+	action_idx = 0
+	# embed()
 	while cam.next(framerate):
+		if len(cam.kinect_folder_names) != prev_n:
+			# action_idx += 1
+			body_data += [[]]
+			prev_n = len(cam.kinect_folder_names) 
+		body_data[-1] += [cam.users_uv[0]]
+
+		continue
+
+
 
 		if 0:
 			people_all = list(cv.HOGDetectMultiScale(cv.fromarray(cam.colorIm.mean(-1).astype(np.uint8)), cv.CreateMemStorage(0), hit_threshold=-1.5))
@@ -98,7 +120,7 @@ def main(anonomization=False):
 		if anonomization and cam.mask is not None:
 
 			mask = (sm.imresize(cam.mask, [480,640]) > 0).copy()
-			mask[40:170, 80:140] = True # Suchi's body
+			mask[40:170, 80:140] = True # person in background
 			px = draw.circle(145,285, 40)
 			mask[px] = True
 
@@ -127,15 +149,24 @@ def main(anonomization=False):
 			show()
 
 
-		cam.colorIm = cam.colorIm[:,:,[2,1,0]]
+		# cam.colorIm = cam.colorIm[:,:,[2,1,0]]
 			# cam.colorIm *= mask[:,:,None]
 		# cam.visualize(color=True, depth=True, text=True, colorize=True, depth_bounds=[0,4000])
-		cam.visualize(color=True, depth=True, text=False, colorize=False, depth_bounds=None)
+		# cam.visualize()
+		cam.colorIm = display_skeletons(cam.colorIm, cam.users_uv[0], skel_type='Kinect', color=(0,255,0))
+		cam.visualize()
+
+
+		body_data[actions_labels[action_idx]] += [cam.users_uv[0]]
+		# cam.visualize(color=True, depth=True, text=False, colorize=False, depth_bounds=None)
 
 	print 'Done'
 
 	# Pause at the end
-	embed()
+	
+	# embed()
+	import scipy.io as si
+	si.matlab.savemat(action+".mat", {'data':body_data})
 
 
 if __name__=="__main__":

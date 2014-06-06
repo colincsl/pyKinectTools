@@ -19,6 +19,12 @@ from pyKinectTools.utils.SkeletonUtils import *
 from pyKinectTools.algs.smij import smij
 # from pyKinectTools.dataset_readers.CADPlayer import CADPlayer
 
+import mlpy
+# from scipy.interpolate import interp1d
+from scipy.interpolate import *
+from scipy.signal import resample
+
+
 """ Debugging """
 from IPython import embed
 
@@ -121,11 +127,6 @@ def main():
 			figure(i)
 			plot(angs)
 			title(CAD_JOINTS[i])
-	from pylab import *
-	import mlpy
-	from scipy.interpolate import interp1d
-	from scipy.interpolate import *
-	from scipy.signal import resample
 	# from scipy.signal import cspline1d, cspline1d_eval
 
 	''' it appears to be matching to the wrong subactivity? in DTW '''
@@ -171,18 +172,18 @@ def main():
 
 # Use bezier curves?
 
-import mlpy
-x = skel_angles_all[0].T[1]
-y = skel_angles_all[1].T[1]
-error, dtw_mat, y_ind = mlpy.dtw.dtw_std(y, x, dist_only=False)
-plot(y[y_ind[0]-1])
-plot(x[y_ind[1]-1])
+# import mlpy
+# x = skel_angles_all[0].T[1]
+# y = skel_angles_all[1].T[1]
+# error, dtw_mat, y_ind = mlpy.dtw.dtw_std(y, x, dist_only=False)
+# plot(y[y_ind[0]-1])
+# plot(x[y_ind[1]-1])
 
 
 
 
-	if record:
-		writer.release()
+# if record:
+# 	writer.release()
 
 
 if __name__=="__main__":
