@@ -179,49 +179,49 @@ def plane_detection(im_pos, im_norm, thresh=30, n_iter=None):
     return best_offset, best_normal, best_valid
 
 
-def plane_detection_pts(pts, pts_normals, thresh=30, n_iter=None):
-    """ RANSAC-based plane detection """
-    n_pts = pts.shape[0]
-    # valid_pts = np.all(pts_normals != 0, -1)
+# def plane_detection_pts(pts, pts_normals, thresh=30, n_iter=None):
+#     """ RANSAC-based plane detection """
+#     n_pts = pts.shape[0]
+#     # valid_pts = np.all(pts_normals != 0, -1)
 
-    if n_iter is None:
-        n_iter = int(np.sqrt(n_pts))
+#     if n_iter is None:
+#         n_iter = int(np.sqrt(n_pts))
 
-    best_n_inliers = 0
-    best_offset = None
-    best_normal = None
-    best_valid = None
+#     best_n_inliers = 0
+#     best_offset = None
+#     best_normal = None
+#     best_valid = None
 
-    # Get random initial points
-    random_pts_idx = np.random.randint(0, n_pts, n_iter)
+#     # Get random initial points
+#     random_pts_idx = np.random.randint(0, n_pts, n_iter)
 
-    for i in range(n_iter):
-        # Get random point/normal
-        pt_idx = random_pts_idx[i]
-        pt = pts[pt_idx]
-        normal = pts_normals[pt_idx]
+#     for i in range(n_iter):
+#         # Get random point/normal
+#         pt_idx = random_pts_idx[i]
+#         pt = pts[pt_idx]
+#         normal = pts_normals[pt_idx]
 
-        # Find distance along normal direction from point
-        dist_to_plane = np.abs(np.dot((pts - pt), normal))
+#         # Find distance along normal direction from point
+#         dist_to_plane = np.abs(np.dot((pts - pt), normal))
 
-        # Check if the points are close enough to the plane's surface. And remove NaNs
-        valid = dist_to_plane < thresh
-        n_inliers = np.sum(valid)
+#         # Check if the points are close enough to the plane's surface. And remove NaNs
+#         valid = dist_to_plane < thresh
+#         n_inliers = np.sum(valid)
 
-        if n_inliers > best_n_inliers:
-            # Compute better offset and normal
-            best_offset = np.mean(pts[valid], 0)
-            _, _, Vt = np.linalg.svd(pts[valid] - best_offset, full_matrices=False)
-            best_normal = Vt[2]
+#         if n_inliers > best_n_inliers:
+#             # Compute better offset and normal
+#             best_offset = np.mean(pts[valid], 0)
+#             _, _, Vt = np.linalg.svd(pts[valid] - best_offset, full_matrices=False)
+#             best_normal = Vt[2]
 
-            # Compute distance to new plane and find valid points
-            dist_to_plane = np.abs(np.dot((pts - best_offset), best_normal))
-            valid = dist_to_plane < thresh
+#             # Compute distance to new plane and find valid points
+#             dist_to_plane = np.abs(np.dot((pts - best_offset), best_normal))
+#             valid = dist_to_plane < thresh
 
-            best_n_inliers = np.sum(valid)
-            best_valid = valid
+#             best_n_inliers = np.sum(valid)
+#             best_valid = valid
 
-    return best_offset, best_normal, np.sum(best_valid)
+#     return best_offset, best_normal, np.sum(best_valid)
 
 
 def compute_foreground_from_surface(im_pos, offset, normal, thresh=30):
@@ -283,3 +283,62 @@ def tabletop_detector(im_depth, bg_threshold=1000, subsample=1, im_pos=None,
                                                     thresh=thresh, n_iter=n_iter)
 
     return plane_offset, plane_normal
+
+
+class Surface:
+    """
+    Represent a surface as a plane
+    """
+    offset = None
+    normal = None
+
+    def __init__(self, offset, normal, inlier_count, plane_thresh):
+        self.offset = offset
+        self.normal = normal
+        self.n_inliers = inlier_count
+        self.thresh = plane_thresh
+
+
+def plane_detection_pts(pts, pts_normals, thresh=30, n_iter=None):
+    """ RANSAC-based plane detection """
+    n_pts = pts.shape[0]
+    # valid_pts = np.all(pts_normals != 0, -1)
+
+    if n_iter is None:
+        n_iter = int(np.sqrt(n_pts))
+
+    best_n_inliers = 0
+    best_offset = None
+    best_normal = None
+    best_valid = None
+
+    # Get random initial points
+    random_pts_idx = np.random.randint(0, n_pts, n_iter)
+
+    for i in range(n_iter):
+        # Get random point/normal
+        pt_idx = random_pts_idx[i]
+        pt = pts[pt_idx]
+        normal = pts_normals[pt_idx]
+
+        # Find distance along normal direction from point
+        dist_to_plane = np.abs(np.dot((pts - pt), normal))
+
+        # Check if the points are close enough to the plane's surface. And remove NaNs
+        valid = dist_to_plane < thresh
+        n_inliers = np.sum(valid)
+
+        if n_inliers > best_n_inliers:
+            # Compute better offset and normal
+            best_offset = np.mean(pts[valid], 0)
+            U, S, Vt = np.linalg.svd(pts[valid] - best_offset, full_matrices=False)
+            best_normal = Vt[2]
+
+            # Compute distance to new plane and find valid points
+            dist_to_plane = np.abs(np.dot((pts - best_offset), best_normal))
+            valid = dist_to_plane < thresh
+
+            best_n_inliers = np.sum(valid)
+            best_valid = valid
+
+    return best_offset, best_normal, np.sum(best_valid)
